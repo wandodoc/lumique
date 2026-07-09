@@ -74,27 +74,33 @@ export function calcMemberDues(member, transactions) {
   const history = [];
 
   transactions.forEach(tx => {
-    if (tx.type !== 'income') return;
+    const isIncome = tx.type === 'income' && !tx.linkedTxId;
+    const isRecovery = tx.type === 'expense' && tx.linkedTxId;
+    if (!isIncome && !isRecovery) return;
     
     const txDate = tx.datetime.slice(0, 10);
     
-    // 가입일 이전이나 탈퇴일 이후의 입금 내역은 회비로 취급하지 않음 (개인 정산 등)
+    // 가입일 이전이나 탈퇴일 이후의 입금/회수 내역은 회비로 취급하지 않음 (개인 정산 등)
     if (txDate < member.joinDate) return;
     if (member.leaveDate && txDate > member.leaveDate) return;
     
+    const multiplier = isRecovery ? -1 : 1;
+
     if (tx.splitItems && tx.splitItems.length > 0) {
       tx.splitItems.forEach(item => {
-        // 부모(tx)가 상계되었거나, 개별 아이템(item)이 상계된 경우 모두 제외
-        if (!tx.linkedTxId && !item.linkedTxId && item.memberId === member.id && item.category === '회비') {
-          const amt = Number(item.amount) || 0;
+        if (!item.linkedTxId && item.memberId === member.id && item.category === '회비') {
+          const amt = (Number(item.amount) || 0) * multiplier;
           paid += amt;
           history.push({ ...tx, amount: amt, isSplit: true, splitDesc: item.desc });
         }
       });
     } else {
-      if (!tx.linkedTxId && tx.memberId === member.id && tx.category === '회비') {
-        paid += tx.amount;
-        history.push(tx);
+      // isIncome이면 !tx.linkedTxId, isRecovery이면 tx.linkedTxId를 가짐. 원래 로직에서 !tx.linkedTxId만 회비로 인정했지만,
+      // 이제는 회수(isRecovery)도 반영해야 하므로 조건 수정
+      if (tx.memberId === member.id && tx.category === '회비') {
+        const amt = tx.amount * multiplier;
+        paid += amt;
+        history.push({ ...tx, amount: amt });
       }
     }
   });
@@ -130,19 +136,23 @@ export function calcPartBalances(transactions) {
 export function calcMonthlyStats(transactions) {
   const map = {};
   transactions.forEach(tx => {
-    if (tx.linkedTxId) return; // 전체 상계된 거래 제외
     const month = tx.datetime.slice(0, 7);
     if (!map[month]) map[month] = { month, income: 0, expense: 0 };
     
-    let validAmount = 0;
+    let amount = 0;
     if (tx.splitItems && tx.splitItems.length > 0) {
-      validAmount = tx.splitItems.filter(it => !it.linkedTxId).reduce((s, it) => s + (Number(it.amount) || 0), 0);
+      amount = tx.splitItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
     } else {
-      validAmount = Number(tx.amount) || 0;
+      amount = Number(tx.amount) || 0;
     }
     
-    if (tx.type === 'income') map[month].income += validAmount;
-    else map[month].expense += validAmount;
+    if (tx.type === 'income') {
+      if (tx.linkedTxId) map[month].expense -= amount; // 지출 반환 -> 지출 차감
+      else map[month].income += amount;
+    } else {
+      if (tx.linkedTxId) map[month].income -= amount; // 수입 회수 -> 수입 차감
+      else map[month].expense += amount;
+    }
   });
   return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
 }

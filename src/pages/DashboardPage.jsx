@@ -31,39 +31,51 @@ export default function DashboardPage({ onAddClick, setTab }) {
 
   const thisMonthIncomes = useMemo(() => {
     if (!thisMonth.month || thisMonth.month === '-') return [];
-    const filtered = transactions.filter(t => t.datetime.startsWith(thisMonth.month) && t.type === 'income');
     const map = {};
-    filtered.forEach(t => {
+    transactions.filter(t => t.datetime.startsWith(thisMonth.month)).forEach(t => {
+      const isIncome = t.type === 'income' && !t.linkedTxId;
+      const isRecovery = t.type === 'expense' && t.linkedTxId;
+      if (!isIncome && !isRecovery) return;
+      
+      const multiplier = isRecovery ? -1 : 1;
+      
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
           const cat = item.category || '기타';
-          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0);
+          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
         const cat = t.category || '기타';
-        map[cat] = (map[cat] || 0) + t.amount;
+        map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
     return Object.entries(map).map(([category, amount]) => ({ category, amount }))
+      .filter(x => x.amount > 0) // 음수나 0이 된 카테고리는 제외
       .sort((a, b) => b.amount - a.amount);
   }, [transactions, thisMonth.month]);
 
   const thisMonthExpenses = useMemo(() => {
     if (!thisMonth.month || thisMonth.month === '-') return [];
-    const filtered = transactions.filter(t => t.datetime.startsWith(thisMonth.month) && t.type === 'expense');
     const map = {};
-    filtered.forEach(t => {
+    transactions.filter(t => t.datetime.startsWith(thisMonth.month)).forEach(t => {
+      const isExpense = t.type === 'expense' && !t.linkedTxId;
+      const isReturn = t.type === 'income' && t.linkedTxId;
+      if (!isExpense && !isReturn) return;
+      
+      const multiplier = isReturn ? -1 : 1;
+
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
           const cat = item.category || '기타';
-          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0);
+          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
         const cat = t.category || '기타';
-        map[cat] = (map[cat] || 0) + t.amount;
+        map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
     return Object.entries(map).map(([category, amount]) => ({ category, amount }))
+      .filter(x => x.amount > 0) // 음수나 0이 된 카테고리는 제외
       .sort((a, b) => b.amount - a.amount);
   }, [transactions, thisMonth.month]);
 

@@ -104,8 +104,17 @@ export default function TransactionPage() {
     [transactions, partFilter, typeFilter, categoryFilter, yearFilter, monthFilter, unclassifiedOnly, searchQuery, members]
   );
 
-  const totalIncome  = summaryFiltered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = summaryFiltered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  let totalIncome = 0;
+  let totalExpense = 0;
+  summaryFiltered.forEach(tx => {
+    if (tx.type === 'income') {
+      if (tx.linkedTxId) totalExpense -= tx.amount;
+      else totalIncome += tx.amount;
+    } else {
+      if (tx.linkedTxId) totalIncome -= tx.amount;
+      else totalExpense += tx.amount;
+    }
+  });
 
   // 멤버 이름 찾기 헬퍼
   const getMemberName = (id) => {

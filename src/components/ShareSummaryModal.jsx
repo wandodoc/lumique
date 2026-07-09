@@ -47,25 +47,31 @@ export default function ShareSummaryModal({ onClose }) {
     return transactions.filter(t => t.datetime.startsWith(targetYm) && t.type === 'income');
   }, [transactions, targetYm]);
 
+  const targetIncomes = useMemo(() => {
+    return transactions.filter(t => t.datetime.startsWith(targetYm) && ((t.type === 'income' && !t.linkedTxId) || (t.type === 'expense' && t.linkedTxId)));
+  }, [transactions, targetYm]);
+
   const targetExpenses = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(targetYm) && t.type === 'expense');
+    return transactions.filter(t => t.datetime.startsWith(targetYm) && ((t.type === 'expense' && !t.linkedTxId) || (t.type === 'income' && t.linkedTxId)));
   }, [transactions, targetYm]);
 
   const priorIncomes = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(priorYm) && t.type === 'income');
+    return transactions.filter(t => t.datetime.startsWith(priorYm) && ((t.type === 'income' && !t.linkedTxId) || (t.type === 'expense' && t.linkedTxId)));
   }, [transactions, priorYm]);
 
   const priorExpenses = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(priorYm) && t.type === 'expense');
+    return transactions.filter(t => t.datetime.startsWith(priorYm) && ((t.type === 'expense' && !t.linkedTxId) || (t.type === 'income' && t.linkedTxId)));
   }, [transactions, priorYm]);
 
-  // 유효한 상계 제외 금액 계산
+  // 유효한 금액 계산 (상계/반환 항목은 음수로 처리)
   const getValidAmount = (tx) => {
-    if (tx.linkedTxId) return 0;
+    const isRecoveryOrReturn = !!tx.linkedTxId;
+    const multiplier = isRecoveryOrReturn ? -1 : 1;
+
     if (tx.splitItems && tx.splitItems.length > 0) {
-      return tx.splitItems.filter(it => !it.linkedTxId).reduce((s, it) => s + (Number(it.amount) || 0), 0);
+      return tx.splitItems.reduce((s, it) => s + (Number(it.amount) || 0) * multiplier, 0);
     }
-    return Number(tx.amount) || 0;
+    return (Number(tx.amount) || 0) * multiplier;
   };
 
   const targetNet = useMemo(() => {
@@ -157,23 +163,23 @@ export default function ShareSummaryModal({ onClose }) {
     return basis;
   }, [state.members, targetYm]);
 
-  // 출금 내역 그룹화 (상계 항목 전면 제외)
+  // 출금 내역 그룹화 (상계/반환 반영)
   const flattenExpenses = (expenses) => {
     return expenses.flatMap(tx => {
-      if (tx.linkedTxId) return []; // 전체 상계된 거래 제외
+      const multiplier = tx.linkedTxId ? -1 : 1;
       if (tx.splitItems && tx.splitItems.length > 0) {
-        return tx.splitItems.filter(it => !it.linkedTxId).map(it => ({
+        return tx.splitItems.map(it => ({
           category: it.category || tx.category || '소모품',
           desc: it.desc || tx.note || tx.description,
-          amount: Number(it.amount) || 0
+          amount: (Number(it.amount) || 0) * multiplier
         }));
       }
       return [{
         category: tx.category || '소모품',
         desc: tx.note || tx.description,
-        amount: Number(tx.amount) || 0
+        amount: (Number(tx.amount) || 0) * multiplier
       }];
-    }).filter(t => t.amount > 0);
+    }).filter(t => t.amount !== 0);
   };
 
   const expenseSummaryByCategory = useMemo(() => {
@@ -321,7 +327,7 @@ export default function ShareSummaryModal({ onClose }) {
     
     const topIncomes = [];
     if (duesSummary.total > 0) topIncomes.push({ cat: '회비', amount: duesSummary.total });
-    otherIncomesSummary.forEach(i => topIncomes.push({ cat: i.cat, amount: i.amount }));
+    otherIncomesSummary.forEach(i => { if (i.amount > 0) topIncomes.push({ cat: i.cat, amount: i.amount }) });
     topIncomes.sort((a, b) => b.amount - a.amount);
     
     const topExpenses = expenseSummaryByCategory.map(item => {

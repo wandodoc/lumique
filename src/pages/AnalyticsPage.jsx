@@ -55,18 +55,25 @@ export default function AnalyticsPage() {
   // 지출 계정과목별 — 실제 거래 데이터에서 동적 집계
   const expenseByCategory = useMemo(() => {
     const map = {};
-    filteredTxs.filter(t => t.type === 'expense').forEach(t => {
+    filteredTxs.forEach(t => {
+      const isExpense = t.type === 'expense' && !t.linkedTxId;
+      const isReturn = t.type === 'income' && t.linkedTxId;
+      if (!isExpense && !isReturn) return;
+      
+      const multiplier = isReturn ? -1 : 1;
+
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
           const cat = item.category || '기타';
-          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0);
+          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
         const cat = t.category || '기타';
-        map[cat] = (map[cat] || 0) + t.amount;
+        map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
     return Object.entries(map).map(([cat, total]) => ({ cat, total }))
+      .filter(x => x.total > 0)
       .sort((a, b) => b.total - a.total);
   }, [filteredTxs]);
   const maxCat = Math.max(...expenseByCategory.map(e => e.total), 1);
@@ -74,18 +81,25 @@ export default function AnalyticsPage() {
   // 수입 카테고리별 — 동적 집계
   const incomeByCategory = useMemo(() => {
     const map = {};
-    filteredTxs.filter(t => t.type === 'income').forEach(t => {
+    filteredTxs.forEach(t => {
+      const isIncome = t.type === 'income' && !t.linkedTxId;
+      const isRecovery = t.type === 'expense' && t.linkedTxId;
+      if (!isIncome && !isRecovery) return;
+      
+      const multiplier = isRecovery ? -1 : 1;
+
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
           const cat = item.category || '기타';
-          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0);
+          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
         const cat = t.category || '기타';
-        map[cat] = (map[cat] || 0) + t.amount;
+        map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
     return Object.entries(map).map(([cat, total]) => ({ cat, total }))
+      .filter(x => x.total > 0)
       .sort((a, b) => b.total - a.total);
   }, [filteredTxs]);
   const maxIncomeCat = Math.max(...incomeByCategory.map(e => e.total), 1);
