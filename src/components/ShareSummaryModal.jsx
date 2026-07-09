@@ -59,15 +59,24 @@ export default function ShareSummaryModal({ onClose }) {
     return transactions.filter(t => t.datetime.startsWith(priorYm) && t.type === 'expense');
   }, [transactions, priorYm]);
 
+  // 유효한 상계 제외 금액 계산
+  const getValidAmount = (tx) => {
+    if (tx.linkedTxId) return 0;
+    if (tx.splitItems && tx.splitItems.length > 0) {
+      return tx.splitItems.filter(it => !it.linkedTxId).reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    }
+    return Number(tx.amount) || 0;
+  };
+
   const targetNet = useMemo(() => {
-    const inc = targetIncomes.reduce((s, t) => s + t.amount, 0);
-    const exp = targetExpenses.reduce((s, t) => s + t.amount, 0);
+    const inc = targetIncomes.reduce((s, t) => s + getValidAmount(t), 0);
+    const exp = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     return inc - exp;
   }, [targetIncomes, targetExpenses]);
 
   const priorNet = useMemo(() => {
-    const inc = priorIncomes.reduce((s, t) => s + t.amount, 0);
-    const exp = priorExpenses.reduce((s, t) => s + t.amount, 0);
+    const inc = priorIncomes.reduce((s, t) => s + getValidAmount(t), 0);
+    const exp = priorExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     return inc - exp;
   }, [priorIncomes, priorExpenses]);
 
@@ -85,10 +94,10 @@ export default function ShareSummaryModal({ onClose }) {
       }
       return true;
     });
-    const total = duesTxs.reduce((s, t) => s + t.amount, 0);
-    const dance = duesTxs.filter(t => t.part === 'DANCE').reduce((s, t) => s + t.amount, 0);
-    const voiceSession = duesTxs.filter(t => t.part === 'VOIX' || t.part === 'SESSION').reduce((s, t) => s + t.amount, 0);
-    const common = duesTxs.filter(t => t.part === '공통' || !t.part).reduce((s, t) => s + t.amount, 0);
+    const total = duesTxs.reduce((s, t) => s + getValidAmount(t), 0);
+    const dance = duesTxs.filter(t => t.part === 'DANCE').reduce((s, t) => s + getValidAmount(t), 0);
+    const voiceSession = duesTxs.filter(t => t.part === 'VOIX' || t.part === 'SESSION').reduce((s, t) => s + getValidAmount(t), 0);
+    const common = duesTxs.filter(t => t.part === '공통' || !t.part).reduce((s, t) => s + getValidAmount(t), 0);
 
     return { total, dance, voiceSession, common };
   }, [targetIncomes, state.members]);
@@ -113,7 +122,7 @@ export default function ShareSummaryModal({ onClose }) {
       if (t.category === '회비') cat = '기타수입'; // 잘못 분류된 회비는 기타수입으로
       else if (t.description.includes('이자')) cat = '이자';
       
-      groups[cat] = (groups[cat] || 0) + t.amount;
+      groups[cat] = (groups[cat] || 0) + getValidAmount(t);
     });
     return Object.entries(groups).map(([cat, amount]) => ({ cat, amount }));
   }, [targetIncomes, state.members]);
@@ -148,12 +157,12 @@ export default function ShareSummaryModal({ onClose }) {
     return basis;
   }, [state.members, targetYm]);
 
-  // 출금 내역 그룹화 (분할 항목 전개)
+  // 출금 내역 그룹화 (상계 항목 전면 제외)
   const flattenExpenses = (expenses) => {
     return expenses.flatMap(tx => {
-      const isMemberSplit = tx.splitItems && tx.splitItems.some(it => it.memberId || it.linkedTxId);
-      if (tx.splitItems && tx.splitItems.length > 0 && !isMemberSplit) {
-        return tx.splitItems.map(it => ({
+      if (tx.linkedTxId) return []; // 전체 상계된 거래 제외
+      if (tx.splitItems && tx.splitItems.length > 0) {
+        return tx.splitItems.filter(it => !it.linkedTxId).map(it => ({
           category: it.category || tx.category || '소모품',
           desc: it.desc || tx.note || tx.description,
           amount: Number(it.amount) || 0
@@ -164,7 +173,7 @@ export default function ShareSummaryModal({ onClose }) {
         desc: tx.note || tx.description,
         amount: Number(tx.amount) || 0
       }];
-    });
+    }).filter(t => t.amount > 0);
   };
 
   const expenseSummaryByCategory = useMemo(() => {
@@ -306,9 +315,10 @@ export default function ShareSummaryModal({ onClose }) {
     const exTotal = createEmpty();
     
     transactions.forEach(tx => {
-      const isMemberSplit = tx.splitItems && tx.splitItems.some(it => it.memberId || it.linkedTxId);
-      const items = (tx.splitItems && tx.splitItems.length > 0 && !isMemberSplit)
-        ? tx.splitItems.map(it => ({ type: tx.type, category: it.category || tx.category, part: it.part || tx.part, amount: Number(it.amount) || 0 }))
+      if (tx.linkedTxId) return; // 전체 상계된 거래 제외
+      const hasSplit = tx.splitItems && tx.splitItems.length > 0;
+      const items = hasSplit
+        ? tx.splitItems.filter(it => !it.linkedTxId).map(it => ({ type: tx.type, category: it.category || tx.category, part: it.part || tx.part, amount: Number(it.amount) || 0 }))
         : [{ type: tx.type, category: tx.category, part: tx.part, amount: Number(tx.amount) || 0 }];
         
       items.forEach(it => {
