@@ -109,11 +109,9 @@ export function calcMemberDues(member, transactions) {
 export function calcPartBalances(transactions) {
   const balances = { VOIX: 0, DANCE: 0, SESSION: 0, 공통: 0 };
   transactions.forEach(tx => {
-    if (tx.linkedTxId) return; // 전체 상계된 거래 제외
     const sign = tx.type === 'income' ? 1 : -1;
     if (tx.splitItems && tx.splitItems.length > 0) {
       tx.splitItems.forEach(item => {
-        if (item.linkedTxId) return; // 상계된 분할 항목 제외
         const part = item.part || '공통';
         const amount = Number(item.amount) || 0;
         if (part in balances) balances[part] += sign * amount;

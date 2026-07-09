@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatKRW, getDuesStartMonth } from '../utils/calculations';
+import { formatKRW, getDuesStartMonth, calcPartBalances } from '../utils/calculations';
 import { toPng } from 'html-to-image';
 
 export default function ShareSummaryModal({ onClose }) {
@@ -311,52 +311,26 @@ export default function ShareSummaryModal({ onClose }) {
     setTimeout(() => setCopyStatus(''), 2000);
   };
 
-  // 이미지 카드용 전체 누적 통계
-  const allTimeStats = useMemo(() => {
-    const inCats = new Set();
-    const exCats = new Set();
+  // 이미지 카드용 데이터 집계 (이번달 기준 + 전체 잔액)
+  const imageStats = useMemo(() => {
+    const realTotalBalance = transactions.reduce((s, tx) => tx.type === 'income' ? s + tx.amount : s - tx.amount, 0);
+    const realPartBalances = calcPartBalances(transactions);
     
-    const createEmpty = () => ({ VOIX: 0, DANCE: 0, SESSION: 0, 공통: 0, Total: 0 });
-    const inMatrix = {};
-    const exMatrix = {};
-    const inTotal = createEmpty();
-    const exTotal = createEmpty();
+    const targetIncomeTotal = targetIncomes.reduce((s, t) => s + getValidAmount(t), 0);
+    const targetExpenseTotal = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     
-    transactions.forEach(tx => {
-      if (tx.linkedTxId) return; // 전체 상계된 거래 제외
-      const hasSplit = tx.splitItems && tx.splitItems.length > 0;
-      const items = hasSplit
-        ? tx.splitItems.filter(it => !it.linkedTxId).map(it => ({ type: tx.type, category: it.category || tx.category, part: it.part || tx.part, amount: Number(it.amount) || 0 }))
-        : [{ type: tx.type, category: tx.category, part: tx.part, amount: Number(tx.amount) || 0 }];
-        
-      items.forEach(it => {
-        const cat = it.category || '기타';
-        const p = ['VOIX', 'DANCE', 'SESSION', '공통'].includes(it.part) ? it.part : '공통';
-        
-        if (it.type === 'income') {
-          inCats.add(cat);
-          if (!inMatrix[cat]) inMatrix[cat] = createEmpty();
-          inMatrix[cat][p] += it.amount;
-          inMatrix[cat].Total += it.amount;
-          inTotal[p] += it.amount;
-          inTotal.Total += it.amount;
-        } else {
-          exCats.add(cat);
-          if (!exMatrix[cat]) exMatrix[cat] = createEmpty();
-          exMatrix[cat][p] += it.amount;
-          exMatrix[cat].Total += it.amount;
-          exTotal[p] += it.amount;
-          exTotal.Total += it.amount;
-        }
-      });
-    });
+    const topIncomes = [];
+    if (duesSummary.total > 0) topIncomes.push({ cat: '회비', amount: duesSummary.total });
+    otherIncomesSummary.forEach(i => topIncomes.push({ cat: i.cat, amount: i.amount }));
+    topIncomes.sort((a, b) => b.amount - a.amount);
+    
+    const topExpenses = expenseSummaryByCategory.map(item => {
+      const sum = item.targetList.reduce((s, t) => s + t.amount, 0);
+      return { cat: item.category, amount: sum };
+    }).filter(i => i.amount > 0).sort((a, b) => b.amount - a.amount);
 
-    const activeParts = ['VOIX', 'DANCE', 'SESSION', '공통'].filter(p => inTotal[p] > 0 || exTotal[p] > 0);
-    const sortedInCats = Array.from(inCats).sort((a, b) => a === '회비' ? -1 : b === '회비' ? 1 : a.localeCompare(b));
-    const sortedExCats = Array.from(exCats).sort((a, b) => a === '연습실 대여' ? -1 : b === '연습실 대여' ? 1 : a.localeCompare(b));
-
-    return { inMatrix, exMatrix, inCats: sortedInCats, exCats: sortedExCats, inTotal, exTotal, activeParts };
-  }, [transactions]);
+    return { realTotalBalance, realPartBalances, targetIncomeTotal, targetExpenseTotal, topIncomes, topExpenses };
+  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesSummary, expenseSummaryByCategory]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -434,12 +408,16 @@ export default function ShareSummaryModal({ onClose }) {
           }}>
             {/* 1. 상단 타이틀 & 총 잔액 */}
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
+                <div style={{ width: 24, height: 24, background: '#1d4ed8', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 14 }}>L</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.5px' }}>Lumique</div>
+              </div>
               <div style={{ display: 'inline-block', background: '#eff6ff', color: '#1d4ed8', padding: '4px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
-                {targetMonthNum}월 재무 요약
+                {targetMonthNum}월 재무 현황
               </div>
               <div style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 4 }}>총 잔액</div>
               <div style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
-                {(allTimeStats.inTotal.Total - allTimeStats.exTotal.Total).toLocaleString()}원
+                {imageStats.realTotalBalance < 0 ? '-' : ''}{Math.abs(imageStats.realTotalBalance).toLocaleString()}원
               </div>
               <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 8 }}>
                 업데이트: {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
@@ -450,17 +428,17 @@ export default function ShareSummaryModal({ onClose }) {
             <div style={{ background: 'var(--slate-50)', padding: 16, borderRadius: 16, marginBottom: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 수입</div>
-                  <div style={{ fontSize: 16, color: '#16a34a', fontWeight: 800 }}>+{allTimeStats.inTotal.Total.toLocaleString()}</div>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 수입</div>
+                  <div style={{ fontSize: 16, color: '#16a34a', fontWeight: 800 }}>+{imageStats.targetIncomeTotal.toLocaleString()}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 지출</div>
-                  <div style={{ fontSize: 16, color: '#e11d48', fontWeight: 800 }}>-{allTimeStats.exTotal.Total.toLocaleString()}</div>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 지출</div>
+                  <div style={{ fontSize: 16, color: '#e11d48', fontWeight: 800 }}>-{imageStats.targetExpenseTotal.toLocaleString()}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#e2e8f0' }}>
-                <div style={{ width: `${allTimeStats.inTotal.Total + allTimeStats.exTotal.Total > 0 ? (allTimeStats.inTotal.Total / (allTimeStats.inTotal.Total + allTimeStats.exTotal.Total)) * 100 : 50}%`, background: '#22c55e' }} />
-                <div style={{ width: `${allTimeStats.inTotal.Total + allTimeStats.exTotal.Total > 0 ? (allTimeStats.exTotal.Total / (allTimeStats.inTotal.Total + allTimeStats.exTotal.Total)) * 100 : 50}%`, background: '#ef4444' }} />
+                <div style={{ width: `${imageStats.targetIncomeTotal + imageStats.targetExpenseTotal > 0 ? (imageStats.targetIncomeTotal / (imageStats.targetIncomeTotal + imageStats.targetExpenseTotal)) * 100 : 50}%`, background: '#22c55e' }} />
+                <div style={{ width: `${imageStats.targetIncomeTotal + imageStats.targetExpenseTotal > 0 ? (imageStats.targetExpenseTotal / (imageStats.targetIncomeTotal + imageStats.targetExpenseTotal)) * 100 : 50}%`, background: '#ef4444' }} />
               </div>
             </div>
 
@@ -469,24 +447,24 @@ export default function ShareSummaryModal({ onClose }) {
               <div style={{ display: 'flex', gap: 16 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>수입 (Top 4)</div>
-                  {allTimeStats.inCats.slice(0, 4).map(cat => (
-                    <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                      <span style={{ color: 'var(--slate-600)' }}>{cat}</span>
-                      <span style={{ fontWeight: 700 }}>{allTimeStats.inMatrix[cat].Total.toLocaleString()}</span>
+                  {imageStats.topIncomes.slice(0, 4).map(item => (
+                    <div key={item.cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                      <span style={{ color: 'var(--slate-600)' }}>{item.cat}</span>
+                      <span style={{ fontWeight: 700 }}>{item.amount.toLocaleString()}</span>
                     </div>
                   ))}
-                  {allTimeStats.inCats.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>수입 없음</div>}
+                  {imageStats.topIncomes.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>수입 없음</div>}
                 </div>
                 <div style={{ width: 1, background: '#e2e8f0' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>지출 (Top 4)</div>
-                  {allTimeStats.exCats.slice(0, 4).map(cat => (
-                    <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                      <span style={{ color: 'var(--slate-600)' }}>{cat}</span>
-                      <span style={{ fontWeight: 700 }}>{allTimeStats.exMatrix[cat].Total.toLocaleString()}</span>
+                  {imageStats.topExpenses.slice(0, 4).map(item => (
+                    <div key={item.cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                      <span style={{ color: 'var(--slate-600)' }}>{item.cat}</span>
+                      <span style={{ fontWeight: 700 }}>{item.amount.toLocaleString()}</span>
                     </div>
                   ))}
-                  {allTimeStats.exCats.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>지출 없음</div>}
+                  {imageStats.topExpenses.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>지출 없음</div>}
                 </div>
               </div>
             </div>
@@ -498,9 +476,9 @@ export default function ShareSummaryModal({ onClose }) {
                 {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
                   let partBal = 0;
                   if (p === 'VOIX/SESSION') {
-                    partBal = (allTimeStats.inTotal['VOIX'] - allTimeStats.exTotal['VOIX']) + (allTimeStats.inTotal['SESSION'] - allTimeStats.exTotal['SESSION']);
+                    partBal = (imageStats.realPartBalances['VOIX'] || 0) + (imageStats.realPartBalances['SESSION'] || 0);
                   } else {
-                    partBal = allTimeStats.inTotal[p] - allTimeStats.exTotal[p];
+                    partBal = imageStats.realPartBalances[p] || 0;
                   }
                   return (
                     <div key={p} style={{ background: partBal < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${partBal < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: 12, textAlign: 'center' }}>
