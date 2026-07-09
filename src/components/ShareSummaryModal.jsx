@@ -405,111 +405,94 @@ export default function ShareSummaryModal({ onClose }) {
           
           {/* 실제로 이미지로 변환될 DOM 영역 */}
           <div ref={cardRef} style={{
-            width: '840px', // 가로로 넓게 강제 고정
-            padding: '28px 24px',
-            background: 'white',
-            border: '1.5px solid var(--slate-200)',
-            borderRadius: 16,
+            width: '420px', // 모바일 비율에 맞춘 폭
+            margin: '0 auto',
+            padding: '32px 24px',
+            background: '#ffffff',
+            borderRadius: 24,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            color: 'var(--slate-800)',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+            color: 'var(--slate-800)'
           }}>
-            <div style={{ textAlign: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: '2px solid #1e3a8a' }}>
-              <h4 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: '#1e3a8a', letterSpacing: '-0.5px' }}>
-                수익 및 지출 내역 요약
-              </h4>
-              <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--slate-500)' }}>
-                Last Updated {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
-              </p>
+            {/* 1. 상단 타이틀 & 총 잔액 */}
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ display: 'inline-block', background: '#eff6ff', color: '#1d4ed8', padding: '4px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
+                {targetMonthNum}월 재무 요약
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 4 }}>총 잔액</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
+                {(allTimeStats.inTotal.Total - allTimeStats.exTotal.Total).toLocaleString()}원
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 8 }}>
+                업데이트: {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
+              </div>
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, textAlign: 'right', whiteSpace: 'nowrap' }}>
-              <thead>
-                <tr style={{ background: '#1e3a8a', color: 'white' }}>
-                  <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>구분</th>
-                  {allTimeStats.activeParts.map(p => <th key={p} style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>{p}</th>)}
-                  <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>총 합계</th>
-                  <th style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>비율</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* 수입 */}
-                {allTimeStats.inCats.map(cat => (
-                  <tr key={cat}>
-                    <td style={{ padding: '10px 8px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
-                    {allTimeStats.activeParts.map(p => (
-                      <td key={p} style={{ padding: '10px 8px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.inMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
-                        {allTimeStats.inMatrix[cat][p] === 0 ? '0' : allTimeStats.inMatrix[cat][p].toLocaleString()}
-                      </td>
-                    ))}
-                    <td style={{ padding: '10px 8px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
-                      {allTimeStats.inMatrix[cat].Total.toLocaleString()}
-                    </td>
-                    <td style={{ padding: '10px 8px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
-                      {allTimeStats.inTotal.Total > 0 ? Math.round((allTimeStats.inMatrix[cat].Total / allTimeStats.inTotal.Total) * 100) : 0}%
-                    </td>
-                  </tr>
-                ))}
-                {/* 수입 계 */}
-                <tr style={{ background: '#d1fae5' }}>
-                  <td style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>수입 계</td>
-                  {allTimeStats.activeParts.map(p => (
-                    <td key={p} style={{ padding: '12px 8px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
-                      {allTimeStats.inTotal[p].toLocaleString()}
-                    </td>
-                  ))}
-                  <td style={{ padding: '12px 8px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
-                    {allTimeStats.inTotal.Total.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '12px 8px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
-                </tr>
+            {/* 2. 수입/지출 바 */}
+            <div style={{ background: 'var(--slate-50)', padding: 16, borderRadius: 16, marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 수입</div>
+                  <div style={{ fontSize: 16, color: '#16a34a', fontWeight: 800 }}>+{allTimeStats.inTotal.Total.toLocaleString()}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 지출</div>
+                  <div style={{ fontSize: 16, color: '#e11d48', fontWeight: 800 }}>-{allTimeStats.exTotal.Total.toLocaleString()}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#e2e8f0' }}>
+                <div style={{ width: `${allTimeStats.inTotal.Total + allTimeStats.exTotal.Total > 0 ? (allTimeStats.inTotal.Total / (allTimeStats.inTotal.Total + allTimeStats.exTotal.Total)) * 100 : 50}%`, background: '#22c55e' }} />
+                <div style={{ width: `${allTimeStats.inTotal.Total + allTimeStats.exTotal.Total > 0 ? (allTimeStats.exTotal.Total / (allTimeStats.inTotal.Total + allTimeStats.exTotal.Total)) * 100 : 50}%`, background: '#ef4444' }} />
+              </div>
+            </div>
 
-                {/* 지출 */}
-                {allTimeStats.exCats.map(cat => (
-                  <tr key={cat}>
-                    <td style={{ padding: '10px 8px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
-                    {allTimeStats.activeParts.map(p => (
-                      <td key={p} style={{ padding: '10px 8px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.exMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
-                        {allTimeStats.exMatrix[cat][p] === 0 ? '0' : `(${allTimeStats.exMatrix[cat][p].toLocaleString()})`}
-                      </td>
-                    ))}
-                    <td style={{ padding: '10px 8px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
-                      ({allTimeStats.exMatrix[cat].Total.toLocaleString()})
-                    </td>
-                    <td style={{ padding: '10px 8px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
-                      {allTimeStats.exTotal.Total > 0 ? Math.round((allTimeStats.exMatrix[cat].Total / allTimeStats.exTotal.Total) * 100) : 0}%
-                    </td>
-                  </tr>
-                ))}
-                {/* 지출 계 */}
-                <tr style={{ background: '#d1fae5' }}>
-                  <td style={{ padding: '12px 8px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>지출 계</td>
-                  {allTimeStats.activeParts.map(p => (
-                    <td key={p} style={{ padding: '12px 8px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
-                      ({allTimeStats.exTotal[p].toLocaleString()})
-                    </td>
+            {/* 3. 수입/지출 핵심 항목 */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>수입 (Top 4)</div>
+                  {allTimeStats.inCats.slice(0, 4).map(cat => (
+                    <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                      <span style={{ color: 'var(--slate-600)' }}>{cat}</span>
+                      <span style={{ fontWeight: 700 }}>{allTimeStats.inMatrix[cat].Total.toLocaleString()}</span>
+                    </div>
                   ))}
-                  <td style={{ padding: '12px 8px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
-                    ({allTimeStats.exTotal.Total.toLocaleString()})
-                  </td>
-                  <td style={{ padding: '12px 8px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
-                </tr>
+                  {allTimeStats.inCats.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>수입 없음</div>}
+                </div>
+                <div style={{ width: 1, background: '#e2e8f0' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>지출 (Top 4)</div>
+                  {allTimeStats.exCats.slice(0, 4).map(cat => (
+                    <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                      <span style={{ color: 'var(--slate-600)' }}>{cat}</span>
+                      <span style={{ fontWeight: 700 }}>{allTimeStats.exMatrix[cat].Total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  {allTimeStats.exCats.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>지출 없음</div>}
+                </div>
+              </div>
+            </div>
 
-                {/* 잔액 */}
-                <tr style={{ background: '#fbbf24' }}>
-                  <td style={{ padding: '16px 8px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 900, fontSize: 16, color: '#92400e' }}>잔액</td>
-                  {allTimeStats.activeParts.map(p => (
-                    <td key={p} style={{ padding: '16px 8px', border: '1px solid var(--slate-200)', fontWeight: 800, fontSize: 15, color: '#92400e' }}>
-                      {(allTimeStats.inTotal[p] - allTimeStats.exTotal[p]).toLocaleString()}
-                    </td>
-                  ))}
-                  <td style={{ padding: '16px 8px', border: '2px solid #ef4444', background: '#ffe4e6', color: '#e11d48', fontWeight: 900, fontSize: 18 }}>
-                    {(allTimeStats.inTotal.Total - allTimeStats.exTotal.Total).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '16px 8px', border: '1px solid var(--slate-200)' }}></td>
-                </tr>
-              </tbody>
-            </table>
+            {/* 4. 파트별 잔고 현황 */}
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12 }}>파트별 잔고 현황</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {allTimeStats.activeParts.map(p => {
+                  const partBal = allTimeStats.inTotal[p] - allTimeStats.exTotal[p];
+                  return (
+                    <div key={p} style={{ background: partBal < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${partBal < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                      <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4 }}>{p}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: partBal < 0 ? '#e11d48' : '#0f172a' }}>
+                        {partBal.toLocaleString()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div style={{ textAlign: 'center', marginTop: 24, fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>
+              Lumique Financial Ledger
+            </div>
           </div>
 
         </div>
