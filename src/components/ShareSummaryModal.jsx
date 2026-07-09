@@ -233,6 +233,8 @@ export default function ShareSummaryModal({ onClose }) {
       });
     }
 
+    txt += `\n🔗 https://lumique-beta.vercel.app/`;
+
     return txt.trim();
   }, [dateStr, priorMonthNum, targetMonthNum, priorNet, targetNet, duesSummary, otherIncomesSummary, expenseSummaryByCategory, targetIncomes]);
 
