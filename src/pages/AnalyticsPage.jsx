@@ -268,10 +268,10 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* 파트별 잔액 */}
+      {/* 파트별 잔고 현황 */}
       <div className="card card-pad" style={{ marginBottom: 16 }}>
         <div className="flex-between" style={{ marginBottom: 12 }}>
-          <span className="card-title" style={{ margin: 0 }}>파트별 잔액</span>
+          <span className="card-title" style={{ margin: 0 }}>파트별 잔고 현황</span>
           <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 잔액</span>
             <span style={{ fontSize: 16, fontWeight: 800, color: netBalance >= 0 ? '#0f172a' : 'var(--red-500)' }}>
@@ -280,8 +280,8 @@ export default function AnalyticsPage() {
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
-            const val = p === 'VOIX/SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
+          {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
+            const val = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
             return (
               <div key={p} style={{ padding: '10px 4px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)', textAlign: 'center', minWidth: 0 }}>
                 <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>

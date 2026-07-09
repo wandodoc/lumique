@@ -474,9 +474,9 @@ export default function ShareSummaryModal({ onClose }) {
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12 }}>파트별 잔고 현황</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
+                {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
                   let partBal = 0;
-                  if (p === 'VOIX/SESSION') {
+                  if (p === 'VOIX · SESSION') {
                     partBal = (imageStats.realPartBalances['VOIX'] || 0) + (imageStats.realPartBalances['SESSION'] || 0);
                   } else {
                     partBal = imageStats.realPartBalances[p] || 0;
