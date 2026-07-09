@@ -208,3 +208,10 @@
   .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 }
+
+@media (max-width: 767px) {
+  .main-content {
+    padding: 16px 12px calc(var(--nav-h) + 16px);
+    gap: 12px;
+  }
+}

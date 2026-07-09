@@ -336,3 +336,14 @@
 
 .ok { color: var(--success); }
 .bad { color: var(--danger); }
+
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
+  }
+  .modal-sheet {
+    border-radius: 24px;
+    max-height: 90vh;
+    margin: 20px;
+  }
+}

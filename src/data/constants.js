@@ -20,10 +20,10 @@ export const PART_LABELS = {
 export const CATEGORIES = {
   // 수입
   DUES: '회비',
-  PERFORMANCE: '공연수익',
+  PERFORMANCE: '공연 수익',
   INTEREST: '이자/기타',
   // 지출
-  PRACTICE_ROOM: '연습실대여',
+  PRACTICE_ROOM: '연습실 대여',
   EQUIPMENT: '비품',
   SUPPLIES: '소모품',
   MEAL: '식대',

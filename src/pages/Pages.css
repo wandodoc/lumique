@@ -382,18 +382,167 @@
 
 .th-date, .td-date   { width: 88px; flex-shrink: 0; }
 .td-date { display: flex; flex-direction: column; font-size: 13px; font-weight: 500; }
-.th-desc, .td-desc   { flex: 2; min-width: 140px; }
+.th-desc, .td-desc   { flex: 1.5; min-width: 110px; }
 .td-desc strong      { font-size: 14px; font-weight: 600; color: var(--slate-900); }
+.th-note, .td-note   { flex: 2; min-width: 140px; font-size: 13px; font-weight: 500; color: var(--slate-700); }
+.td-note             { color: var(--slate-900) !important; }
 .th-type, .td-type   { width: 58px; text-align: center; flex-shrink: 0; }
 .th-cat,  .td-cat    { flex: 1; min-width: 80px; font-size: 13px; font-weight: 500; color: var(--slate-700); }
 .th-amount, .td-amount { width: 100px; text-align: right; flex-shrink: 0; }
 .td-amount strong    { font-size: 14px; font-weight: 700; }
 .table-footer        { padding: 12px 16px; font-size: 13px; border-top: 1px solid var(--slate-200); background: var(--slate-50); }
 
+.pc-only-date { display: inline; }
+.mobile-only-date { display: none; }
+.mobile-only-note { display: none; }
+
+/* ===== Modal Responsive Classes ===== */
+.modal-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.split-item-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.split-item-inputs input {
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  outline: none;
+}
+.split-item-inputs input[type="text"] { flex: 2; width: 0; }
+.split-item-inputs input[type="number"] { flex: 1; width: 0; min-width: 60px; }
+
+.split-item-selects {
+  display: flex;
+  gap: 8px;
+}
+.split-item-selects select {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  min-width: 0;
+  background: white;
+}
+
 @media (max-width: 767px) {
-  .th-date, .td-date { width: 68px; }
-  .th-type, .td-type { width: 48px; }
+  .pc-only-date { display: none; }
+  .mobile-only-date { display: inline; }
+  
+  .table-row, .table-header {
+    padding: 10px 8px; /* Narrower padding to prevent overflowing */
+  }
+  .th-date, .td-date { width: 50px; }
+  .td-date-hm { display: none !important; }
+  
+  .th-type, .td-type { width: 44px; }
   .th-cat,  .td-cat  { display: none; }
-  .th-amount, .td-amount { width: 82px; }
-  .td-desc strong { font-size: 13px; }
+  .th-note, .td-note { display: none; }
+  .mobile-only-note  { display: block; }
+  .th-amount, .td-amount { width: 78px; }
+  .td-desc strong { font-size: 12px; }
+  .td-amount strong { font-size: 13px; }
+}
+
+@media (max-width: 480px) {
+  .modal-form-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .split-item-selects {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .split-item-selects select {
+    flex: 1 1 calc(50% - 3px);
+  }
+  .split-item-selects select:last-child {
+    flex: 1 1 100%;
+  }
+}
+
+@media (min-width: 640px) {
+  .modal-overlay {
+    align-items: center;
+  }
+  .modal-sheet {
+    border-radius: 24px;
+    max-height: 90vh;
+    margin: 20px;
+  }
+}
+
+/* ===== Tooltip Styles ===== */
+.has-tooltip {
+  position: relative;
+  cursor: help;
+}
+.tooltip-box {
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  width: max-content;
+  min-width: 170px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  z-index: 100;
+  text-align: left;
+  font-weight: 500;
+}
+.has-tooltip:hover .tooltip-box {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+.tooltip-box::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.95) transparent transparent transparent;
+}
+.tooltip-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slate-400);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 0;
+}
+.tooltip-row span {
+  color: var(--slate-300);
+}
+.tooltip-row strong {
+  font-weight: 700;
+}
+.tooltip-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 6px 0;
 }

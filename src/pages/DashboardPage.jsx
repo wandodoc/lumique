@@ -1,5 +1,7 @@
+import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { calcPartBalances, calcMonthlyStats, calcMemberDues, formatKRW } from '../utils/calculations';
+import ShareSummaryModal from '../components/ShareSummaryModal';
 import './Pages.css';
 
 const PART_CONFIGS = {
@@ -10,15 +12,15 @@ const PART_CONFIGS = {
 };
 
 const CATEGORY_ICONS = {
-  '회비': '💰', '공연수익': '🎭', '이자/기타': '📈',
-  '연습실대여': '🎵', '비품': '🛒', '소모품': '📦',
+  '회비': '💰', '공연 수익': '🎭', '이자/기타': '📈',
+  '연습실 대여': '🎵', '비품': '🛒', '소모품': '📦',
   '식대': '🍽️', '사례비': '🤝', '주차비': '🚗',
 };
 
-export default function DashboardPage({ onAddClick }) {
+export default function DashboardPage({ onAddClick, setTab }) {
   const { state } = useApp();
   const { transactions, members } = state;
-  if (state.loading) return <div className="page-loading">불러오는 중…</div>;
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const totalBalance = transactions.reduce(
     (s, tx) => tx.type === 'income' ? s + tx.amount : s - tx.amount, 0
@@ -26,12 +28,53 @@ export default function DashboardPage({ onAddClick }) {
   const partBal = calcPartBalances(transactions);
   const monthly = calcMonthlyStats(transactions);
   const thisMonth = monthly[monthly.length - 1] || { income: 0, expense: 0, month: '-' };
+
+  const thisMonthIncomes = useMemo(() => {
+    if (!thisMonth.month || thisMonth.month === '-') return [];
+    const filtered = transactions.filter(t => t.datetime.startsWith(thisMonth.month) && t.type === 'income');
+    const map = {};
+    filtered.forEach(t => {
+      if (t.splitItems && t.splitItems.length > 0) {
+        t.splitItems.forEach(item => {
+          const cat = item.category || '기타';
+          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0);
+        });
+      } else {
+        const cat = t.category || '기타';
+        map[cat] = (map[cat] || 0) + t.amount;
+      }
+    });
+    return Object.entries(map).map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [transactions, thisMonth.month]);
+
+  const thisMonthExpenses = useMemo(() => {
+    if (!thisMonth.month || thisMonth.month === '-') return [];
+    const filtered = transactions.filter(t => t.datetime.startsWith(thisMonth.month) && t.type === 'expense');
+    const map = {};
+    filtered.forEach(t => {
+      if (t.splitItems && t.splitItems.length > 0) {
+        t.splitItems.forEach(item => {
+          const cat = item.category || '기타';
+          map[cat] = (map[cat] || 0) + (Number(item.amount) || 0);
+        });
+      } else {
+        const cat = t.category || '기타';
+        map[cat] = (map[cat] || 0) + t.amount;
+      }
+    });
+    return Object.entries(map).map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [transactions, thisMonth.month]);
+
   const unpaidCount = members.filter(m =>
     m.status === 'active' && calcMemberDues(m, transactions).diff < 0
   ).length;
   const recentTxs = [...transactions]
     .sort((a, b) => b.datetime.localeCompare(a.datetime))
     .slice(0, 6);
+
+  if (state.loading) return <div className="page-loading">불러오는 중…</div>;
 
   return (
     <div className="page fade-in">
@@ -56,54 +99,90 @@ export default function DashboardPage({ onAddClick }) {
         <p className="hero-sub">토스뱅크 1001-7629-3105</p>
       </div>
 
-      {/* 파트별 잔액 */}
-      <div className="pc-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {['VOIX', 'DANCE', '공통'].map(p => {
-          const val = partBal[p] || 0;
-          const cfg = PART_CONFIGS[p];
-          return (
-            <div key={p} className={`part-card part-card--${cfg.colorClass}`}>
-              <span className="part-card-label">{cfg.label}</span>
-              <span className="part-card-amount" style={{ color: val < 0 ? 'var(--red-500)' : undefined }}>
-                {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+
 
       {/* 이달 요약 */}
-      <div className="card card-pad">
+      <div className="card card-pad" style={{ overflow: 'visible' }}>
         <div className="flex-between" style={{ marginBottom: 14 }}>
-          <span className="card-title" style={{ margin: 0 }}>이번 달 요약</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="card-title" style={{ margin: 0 }}>이번 달 요약</span>
+            <button type="button" onClick={() => setShowShareModal(true)} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 99, color: 'var(--blue-600)', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', outline: 'none', transition: 'all 0.2s' }} className="share-btn">
+              📤 공유
+            </button>
+          </div>
           <span className="badge badge-gray">{thisMonth.month}</span>
         </div>
         <div className="month-summary">
-          <div className="month-col">
+          <div className="month-col has-tooltip">
             <span>수입</span>
             <strong className="text-green">+{formatKRW(thisMonth.income)}</strong>
+            <div className="tooltip-box">
+              <div className="tooltip-title">{thisMonth.month ? thisMonth.month.slice(5) : ''}월 수입 구성</div>
+              {thisMonthIncomes.length === 0 ? (
+                <div style={{ color: 'var(--slate-400)', fontSize: 11 }}>내역 없음</div>
+              ) : (
+                thisMonthIncomes.map(item => (
+                  <div className="tooltip-row" key={item.category}>
+                    <span>{item.category}</span>
+                    <strong>{formatKRW(item.amount)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
           <div className="month-divider" />
-          <div className="month-col">
+          <div className="month-col has-tooltip">
             <span>지출</span>
             <strong className="text-red">-{formatKRW(thisMonth.expense)}</strong>
+            <div className="tooltip-box">
+              <div className="tooltip-title">{thisMonth.month ? thisMonth.month.slice(5) : ''}월 지출 구성</div>
+              {thisMonthExpenses.length === 0 ? (
+                <div style={{ color: 'var(--slate-400)', fontSize: 11 }}>내역 없음</div>
+              ) : (
+                thisMonthExpenses.map(item => (
+                  <div className="tooltip-row" key={item.category}>
+                    <span>{item.category}</span>
+                    <strong>{formatKRW(item.amount)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
           <div className="month-divider" />
-          <div className="month-col">
+          <div className="month-col has-tooltip">
             <span>잔액</span>
             <strong style={{ color: thisMonth.income - thisMonth.expense >= 0 ? 'var(--blue-500)' : 'var(--red-500)' }}>
-              {thisMonth.income - thisMonth.expense >= 0 ? '+' : '-'}{formatKRW(thisMonth.income - thisMonth.expense)}
+              {thisMonth.income - thisMonth.expense >= 0 ? '+' : '-'}{formatKRW(Math.abs(thisMonth.income - thisMonth.expense))}
             </strong>
+            <div className="tooltip-box">
+              <div className="tooltip-title">{thisMonth.month ? thisMonth.month.slice(5) : ''}월 잔액 계산</div>
+              <div className="tooltip-row">
+                <span>총 수입</span>
+                <strong style={{ color: 'var(--emerald-400)' }}>+{formatKRW(thisMonth.income)}</strong>
+              </div>
+              <div className="tooltip-row">
+                <span>총 지출</span>
+                <strong style={{ color: 'var(--rose-400)' }}>-{formatKRW(thisMonth.expense)}</strong>
+              </div>
+              <div className="tooltip-divider" />
+              <div className="tooltip-row">
+                <span>순잔액</span>
+                <strong>
+                  {thisMonth.income - thisMonth.expense >= 0 ? '+' : '-'}
+                  {formatKRW(Math.abs(thisMonth.income - thisMonth.expense))}
+                </strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* 미납 배너 */}
       {unpaidCount > 0 && (
-        <div className="alert-banner">
+        <div className="alert-banner" onClick={() => setTab?.('dues')} style={{ cursor: 'pointer' }}>
           <span className="alert-icon">⚠️</span>
           <span>미납 회원 <strong>{unpaidCount}명</strong></span>
-          <span className="alert-hint">회원 납부 탭에서 확인 →</span>
+          <span className="alert-hint">납부 현황 탭에서 확인 →</span>
         </div>
       )}
 
@@ -125,6 +204,10 @@ export default function DashboardPage({ onAddClick }) {
           </div>
         ))}
       </div>
+
+      {showShareModal && (
+        <ShareSummaryModal onClose={() => setShowShareModal(false)} />
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ export default function AddTransactionPage({ onClose }) {
 
   const set = (k, v) => setForm(p => {
     const n = { ...p, [k]: v };
-    if (k === 'type') n.category = v === 'income' ? '회비' : '연습실대여';
+    if (k === 'type') n.category = v === 'income' ? '회비' : '연습실 대여';
     if (k === 'memberId' && v) {
       const m = members.find(m => m.id === v);
       if (m) n.part = m.part;
@@ -61,7 +61,12 @@ export default function AddTransactionPage({ onClose }) {
           </label>
           <label>계정과목
             <select value={form.category} onChange={e => set('category', e.target.value)}>
-              {categories.map(c => <option key={c}>{c}</option>)}
+              <optgroup label="수입 분류">
+                {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </optgroup>
+              <optgroup label="지출 분류">
+                {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </optgroup>
             </select>
           </label>
           <label>적요 / 설명

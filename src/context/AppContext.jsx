@@ -84,12 +84,41 @@ export function AppProvider({ children }) {
       const fbState = await firebaseStorage.loadData();
       
       if (fbState) {
+        let transactions = fbState.transactions || [];
+        let updatedCount = 0;
+        transactions = transactions.map(t => {
+          const desc = t.description || '';
+          const category = t.category || '';
+          if ((desc.includes('이자') || category === '이자/기타') && t.type === 'expense') {
+            updatedCount++;
+            return {
+              ...t,
+              type: 'income',
+              category: '이자/기타',
+            };
+          }
+          return t;
+        });
+
+        // members.js에 하드코딩된 학생/직장인 및 2025 보정액을 파이어베이스 데이터에 병합
+        const mergedMembers = (fbState.members || []).map(fbMember => {
+          const codeMember = MEMBERS.find(m => m.id === fbMember.id);
+          if (codeMember) {
+            return { 
+              ...fbMember, 
+              type: codeMember.type || '직장인', 
+              offset2025: codeMember.offset2025 || 0 
+            };
+          }
+          return fbMember;
+        });
+
         dispatch({
           type: 'INIT',
-          members: fbState.members || [],
-          transactions: fbState.transactions || [],
+          members: mergedMembers,
+          transactions: transactions,
           performances: fbState.performances || DEFAULT_PERFORMANCES,
-          lastUpdated: fbState.lastUpdated || new Date().toISOString()
+          lastUpdated: updatedCount > 0 ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
         // Firebase가 비어있다면 localStorage에서 마이그레이션 (1회성)
@@ -98,9 +127,16 @@ export function AppProvider({ children }) {
         const savedPerformances = storage.getPerformances();
         const savedLastUpdated = storage.getLastUpdated();
 
-        const members = (savedMembers || MEMBERS).map(m => ({
-          ...m, status: m.status || 'active', performances: m.performances || {},
-        }));
+        const members = (savedMembers || MEMBERS).map(m => {
+          const codeMember = MEMBERS.find(cm => cm.id === m.id);
+          return {
+            ...m, 
+            status: m.status || 'active', 
+            performances: m.performances || {},
+            type: (codeMember ? codeMember.type : m.type) || '직장인',
+            offset2025: (codeMember ? codeMember.offset2025 : m.offset2025) || 0
+          };
+        });
         
         const migState = {
           members,

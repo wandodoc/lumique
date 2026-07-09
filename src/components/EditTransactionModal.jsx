@@ -1,64 +1,191 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatKRW } from '../utils/calculations';
 
-const TYPES = [
-  { value: 'income', label: '수입 (입금)' },
-  { value: 'expense', label: '지출 (출금)' }
-];
-const CATEGORIES = ['회비', '공연 수익', '식대/회식', '대관료', '기타'];
+const INCOME_CATEGORIES = ['회비', '공연 수익', '이자/기타'];
+const EXPENSE_CATEGORIES = ['연습실 대여', '비품', '소모품', '식대', '사례비', '주차비', '기타지출'];
 const PARTS = ['VOIX', 'DANCE', 'SESSION', '공통'];
+
+const newSplitItem = (type) => ({
+  desc: '',
+  amount: '',
+  category: type === 'income' ? '회비' : '연습실 대여',
+  part: '공통',
+  memberId: ''
+});
 
 export default function EditTransactionModal({ tx, onClose }) {
   const { state, dispatch } = useApp();
-  const { members } = state;
+  const { members, transactions } = state;
 
   const [formData, setFormData] = useState({
-    type: 'income',
-    category: '회비',
+    category: '',
     part: '공통',
-    amount: '',
     datetime: '',
     description: '',
     memberId: '',
-    note: ''
+    note: '',
+    linkedTxId: ''
   });
+
+  const [splitItems, setSplitItems] = useState([]); // 분할 항목
+  const [showSplit, setShowSplit] = useState(false);
+  const [showLinkPanel, setShowLinkPanel] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
 
   useEffect(() => {
     if (tx) {
       setFormData({
-        type: tx.type || 'income',
-        category: tx.category || '기타',
+        category: tx.category || (tx.type === 'income' ? '회비' : '연습실 대여'),
         part: tx.part || '공통',
-        amount: tx.amount || 0,
         datetime: tx.datetime ? tx.datetime.slice(0, 16) : '',
         description: tx.description || '',
         memberId: tx.memberId || '',
-        note: tx.note || ''
+        note: tx.note || '',
+        linkedTxId: tx.linkedTxId || ''
       });
+      const sanitizedSplitItems = (tx.splitItems || []).map(item => ({
+        ...item,
+        category: item.category || (tx.type === 'income' ? '회비' : '연습실 대여')
+      }));
+      setSplitItems(sanitizedSplitItems);
+      setShowSplit(!!(tx.splitItems && tx.splitItems.length > 0));
     }
   }, [tx]);
 
+  // 분할 항목 합계
+  const splitTotal = splitItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  const splitRemaining = tx ? tx.amount - splitTotal : 0;
+
+  // 거래가 완전히 다른 건에 상계되어 있는지 확인
+  const isAlreadyLinked = (t, currentTxId) => {
+    if (t.linkedTxId && t.linkedTxId !== currentTxId) return true;
+    if (t.splitItems && t.splitItems.some(it => it.linkedTxId && it.linkedTxId !== currentTxId)) return true;
+    return false;
+  };
+
+  // 상계 후보
+  const linkedCandidates = useMemo(() => transactions.filter(t =>
+    t.id !== tx?.id && t.amount === tx?.amount && t.type !== tx?.type &&
+    !isAlreadyLinked(t, tx?.id)
+  ), [transactions, tx]);
+
+  const filteredCandidates = useMemo(() => {
+    if (!linkSearch) return linkedCandidates;
+    return linkedCandidates.filter(t =>
+      t.description.includes(linkSearch) || t.datetime.includes(linkSearch)
+    );
+  }, [linkedCandidates, linkSearch]);
+
+  const getTransactionDesc = (id) => {
+    const t = transactions.find(t => t.id === id);
+    return t ? t.description : '알 수 없음';
+  };
+
+  const getTransactionAmount = (id) => {
+    const t = transactions.find(t => t.id === id);
+    return t ? t.amount : 0;
+  };
+
+  const getCandidatesForAmount = (amount, excludeId) => {
+    const amt = Number(amount) || 0;
+    
+    // 후보: 나와 반대 타입이고, (연결 안 된 것이거나, 현재 거래에 이미 연결된 것)
+    const candidates = transactions.filter(t =>
+      t.id !== excludeId &&
+      t.type !== tx.type &&
+      !isAlreadyLinked(t, excludeId)
+    );
+
+    // 정렬: 금액이 완전히 일치하는 것 우선, 그 다음 최신순
+    return candidates.sort((a, b) => {
+      const aMatch = Math.abs(a.amount) === amt;
+      const bMatch = Math.abs(b.amount) === amt;
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return new Date(b.datetime) - new Date(a.datetime);
+    });
+  };
+
+  const handleAutoReconcile = () => {
+    const matchedIds = new Set(splitItems.map(it => it.linkedTxId).filter(Boolean));
+    const newItems = splitItems.map(item => {
+      if (item.linkedTxId) return item;
+      const amt = Number(item.amount) || 0;
+      if (amt <= 0) return item;
+      const match = transactions.find(t =>
+        t.id !== tx.id &&
+        Math.abs(t.amount) === amt &&
+        t.type !== tx.type &&
+        !isAlreadyLinked(t, tx.id) &&
+        !matchedIds.has(t.id)
+      );
+      if (match) {
+        matchedIds.add(match.id);
+        return { ...item, linkedTxId: match.id };
+      }
+      return item;
+    });
+    setSplitItems(newItems);
+  };
+
+  const linkedTx = useMemo(() =>
+    formData.linkedTxId ? transactions.find(t => t.id === formData.linkedTxId) : null,
+    [formData.linkedTxId, transactions]
+  );
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.datetime || !formData.amount || !formData.description) {
-      return alert('필수 항목(날짜, 금액, 적요)을 입력해주세요.');
+    if (!formData.datetime || !formData.description) {
+      return alert('필수 항목(날짜, 적요)을 입력해주세요.');
     }
-    dispatch({
-      type: 'UPDATE_TRANSACTION',
-      tx: {
-        ...tx,
-        ...formData,
-        amount: Number(formData.amount)
+    if (showSplit && splitTotal > tx.amount) {
+      return alert(`분할 항목 합계(${formatKRW(splitTotal)})가 총 금액(${formatKRW(tx.amount)})을 초과합니다.`);
+    }
+
+    const updated = {
+      ...tx,
+      ...formData,
+      amount: tx.amount, // 금액은 원본 유지
+      splitItems: showSplit ? splitItems.filter(it => it.desc || it.amount) : []
+    };
+    dispatch({ type: 'UPDATE_TRANSACTION', tx: updated });
+
+    // 연결 상대에도 역방향 링크 처리
+    const newLinkedIds = new Set(updated.splitItems.map(it => it.linkedTxId).filter(Boolean));
+    const oldLinkedIds = new Set((tx.splitItems || []).map(it => it.linkedTxId).filter(Boolean));
+
+    if (formData.linkedTxId) newLinkedIds.add(formData.linkedTxId);
+    if (tx.linkedTxId) oldLinkedIds.add(tx.linkedTxId);
+
+    const batchUpdates = [];
+    transactions.forEach(t => {
+      if (newLinkedIds.has(t.id)) {
+        const matchingSplit = updated.splitItems.find(it => it.linkedTxId === t.id);
+        const newCategory = matchingSplit ? matchingSplit.category : (formData.linkedTxId === t.id ? updated.category : t.category);
+        const linkMemo = updated.note ? updated.note : updated.description;
+        
+        if (t.linkedTxId !== tx.id || t.category !== newCategory || t.note !== linkMemo) {
+          batchUpdates.push({ id: t.id, linkedTxId: tx.id, category: newCategory, note: linkMemo });
+        }
+      } else if (oldLinkedIds.has(t.id)) {
+        if (t.linkedTxId === tx.id) {
+          batchUpdates.push({ id: t.id, linkedTxId: '' });
+        }
       }
     });
-    alert('수정되었습니다.');
+
+    if (batchUpdates.length > 0) {
+      dispatch({ type: 'BATCH_UPDATE_TRANSACTIONS', updates: batchUpdates });
+    }
+
+
     onClose();
   };
 
   const handleDelete = () => {
-    if (window.confirm('정말 이 내역을 삭제하시겠습니까? (이 작업은 되돌릴 수 없습니다)')) {
+    if (window.confirm('정말 이 내역을 삭제하시겠습니까?')) {
       dispatch({ type: 'DELETE_TRANSACTION', id: tx.id });
-      alert('삭제되었습니다.');
       onClose();
     }
   };
@@ -67,27 +194,32 @@ export default function EditTransactionModal({ tx, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
         <div className="modal-handle" />
-        <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>거래 내역 수정</h3>
-        
-        <form onSubmit={handleSubmit} className="add-form" style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', paddingBottom: 20 }}>
-          
-          <div className="type-toggle">
-            {TYPES.map(t => (
-              <button type="button" key={t.value} 
-                className={`type-btn ${formData.type === t.value ? 'active' : ''}`}
-                onClick={() => setFormData({ ...formData, type: t.value })}>
-                {t.label}
-              </button>
-            ))}
-          </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+        {/* 헤더 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>거래 내역 수정</h3>
+          <span className={`badge ${tx.type === 'income' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: 12 }}>
+            {tx.type === 'income' ? '입금' : '출금'}
+          </span>
+          <strong style={{ marginLeft: 'auto', color: tx.type === 'income' ? 'var(--green-600, #16a34a)' : 'var(--red-500)', fontSize: 16 }}>
+            {tx.type === 'income' ? '+' : '-'}{formatKRW(tx.amount)}
+          </strong>
+        </div>
+
+        <form onSubmit={handleSubmit} className="add-form" style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', paddingBottom: 20 }}>
+
+          <div className="modal-form-row">
             <div style={{ flex: 1 }}>
               <label>분류</label>
               <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <optgroup label="수입 분류">
+                  {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
+                <optgroup label="지출 분류">
+                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
               </select>
             </div>
             <div style={{ flex: 1 }}>
@@ -98,43 +230,245 @@ export default function EditTransactionModal({ tx, onClose }) {
             </div>
           </div>
 
-          <div>
-            <label>일시</label>
-            <input type="datetime-local" value={formData.datetime} onChange={e => setFormData({ ...formData, datetime: e.target.value })} required />
+          <div className="modal-form-row">
+            <div style={{ flex: 1 }}>
+              <label>일시</label>
+              <input type="datetime-local" value={formData.datetime} onChange={e => setFormData({ ...formData, datetime: e.target.value })} required />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label>연결된 회원 (선택)</label>
+              <select value={formData.memberId} onChange={e => setFormData({ ...formData, memberId: e.target.value })}>
+                <option value="">-- 미지정 (비회원) --</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.part})</option>)}
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label>금액 (원)</label>
-            <input type="number" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} required />
+          <div className="modal-form-row">
+            <div style={{ flex: 1 }}>
+              <label>적요 (내용)</label>
+              <input type="text" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} required />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label>비고 (메모)</label>
+              <input type="text" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder="메모 입력" />
+            </div>
           </div>
 
+          {/* ── 분할 기록 ── */}
           <div>
-            <label>적요 (내용)</label>
-            <input type="text" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} required />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ margin: 0 }}>📂 분할 기록</label>
+              <button type="button"
+                style={{ fontSize: 12, color: 'var(--blue-500)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onClick={() => {
+                  setShowSplit(!showSplit);
+                  if (!showSplit && splitItems.length === 0) setSplitItems([newSplitItem(tx.type)]);
+                }}>
+                {showSplit ? '접기' : '여러 항목으로 나누기'}
+              </button>
+            </div>
+
+            {showSplit && (
+              <div style={{ border: '1px solid var(--slate-200)', borderRadius: 10, overflow: 'hidden' }}>
+                {/* 잔액 표시 */}
+                <div style={{ padding: '8px 12px', background: splitRemaining < 0 ? '#fef2f2' : splitRemaining === 0 ? '#f0fdf4' : 'var(--slate-50)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderBottom: '1px solid var(--slate-200)', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ color: 'var(--slate-500)' }}>
+                    분할 합계: <strong>{formatKRW(splitTotal)}</strong> 
+                    <span style={{ color: splitRemaining < 0 ? 'var(--red-500)' : splitRemaining === 0 ? '#16a34a' : 'var(--slate-600)', marginLeft: 8 }}>
+                      ({splitRemaining === 0 ? '정확히 배분됨' : splitRemaining < 0 ? `${formatKRW(-splitRemaining)} 초과` : `잔여: ${formatKRW(splitRemaining)}`})
+                    </span>
+                  </span>
+                  {splitItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleAutoReconcile}
+                      style={{ fontSize: 11, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      ⚡ 일치 거래 자동 상계
+                    </button>
+                  )}
+                </div>
+
+                {/* 항목 목록 */}
+                {splitItems.map((item, idx) => (
+                  <div key={idx} style={{ padding: '10px 12px', borderBottom: '1px solid var(--slate-100)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="split-item-inputs">
+                      <input type="text" placeholder="항목명" value={item.desc}
+                        onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], desc: e.target.value }; setSplitItems(arr); }} />
+                      <input type="number" placeholder="금액" value={item.amount}
+                        onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], amount: e.target.value }; setSplitItems(arr); }} />
+                      <button type="button" onClick={() => setSplitItems(splitItems.filter((_, i) => i !== idx))}
+                        style={{ color: 'var(--red-400)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>✕</button>
+                    </div>
+                    <div className="split-item-selects">
+                      <select value={item.category}
+                        onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], category: e.target.value }; setSplitItems(arr); }}>
+                        <optgroup label="수입 분류">
+                          {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </optgroup>
+                        <optgroup label="지출 분류">
+                          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </optgroup>
+                      </select>
+                      <select value={item.part}
+                        onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], part: e.target.value }; setSplitItems(arr); }}>
+                        {PARTS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <select value={item.memberId}
+                        onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], memberId: e.target.value }; setSplitItems(arr); }}>
+                        <option value="">회원 없음</option>
+                        {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    
+                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: '#f8fafc', padding: '6px 10px', borderRadius: 6, border: '1px dashed var(--slate-200)', marginTop: 4 }}>
+                      <span style={{ fontSize: 11, color: 'var(--slate-500)', whiteSpace: 'nowrap' }}>🔗 상계 거래:</span>
+                      {item.linkedTxId ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                            {(() => {
+                              const t = transactions.find(x => x.id === item.linkedTxId);
+                              if (!t) return '알 수 없음';
+                              const typeLabel = t.type === 'income' ? '입금' : '출금';
+                              return `[${typeLabel}] ${t.description} (${formatKRW(t.amount)})`;
+                            })()}
+                          </span>
+                          <button type="button" style={{ color: 'var(--red-500)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: 0, marginLeft: 'auto', fontWeight: 600 }}
+                            onClick={() => {
+                              const arr = [...splitItems];
+                              arr[idx] = { ...arr[idx], linkedTxId: '' };
+                              setSplitItems(arr);
+                            }}>해제</button>
+                        </div>
+                      ) : (
+                        <select
+                          style={{ flex: 1, fontSize: 11, padding: '2px 4px', border: '1px solid var(--slate-200)', borderRadius: 4, background: 'white' }}
+                          value={item.linkedTxId || ''}
+                          onChange={e => {
+                            const arr = [...splitItems];
+                            arr[idx] = { ...arr[idx], linkedTxId: e.target.value };
+                            setSplitItems(arr);
+                          }}
+                        >
+                          <option value="">-- 연결 안 함 --</option>
+                          {getCandidatesForAmount(item.amount, tx.id).map(t => (
+                            <option key={t.id} value={t.id}>
+                              [{t.type === 'income' ? '입금' : '출금'}] {t.description} ({t.datetime.slice(5, 10)}) - {formatKRW(t.amount)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setSplitItems([...splitItems, newSplitItem(tx.type)])}
+                    style={{ flex: 1, padding: '10px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 8, cursor: 'pointer', color: 'var(--blue-600)', fontSize: 13, fontWeight: 600 }}>
+                    + 항목 추가
+                  </button>
+                  <button type="button" onClick={() => {
+                    const parts = window.prompt("몇 등분으로 나눌까요? (예: 14)\n분할된 금액과 일치하는 상계 후보를 자동으로 찾아 연결합니다.");
+                    const n = parseInt(parts);
+                    if (isNaN(n) || n <= 0) return;
+                    
+                    const amountPerPart = Math.floor(tx.amount / n);
+                    
+                    // 현재 이미 사용중인(다른 splitItem에 연결된) ID들을 제외
+                    const usedIds = new Set(splitItems.map(it => it.linkedTxId).filter(Boolean));
+                    
+                    // 상계 후보 찾기
+                    const candidates = transactions.filter(t => 
+                      t.id !== tx.id && 
+                      Math.abs(t.amount) === amountPerPart && 
+                      t.type !== tx.type && 
+                      !isAlreadyLinked(t, tx.id) &&
+                      !usedIds.has(t.id)
+                    );
+                    
+                    const newItems = [];
+                    for (let i = 0; i < n; i++) {
+                      const candidate = candidates[i];
+                      newItems.push({
+                        ...newSplitItem(tx.type),
+                        amount: amountPerPart.toString(),
+                        linkedTxId: candidate ? candidate.id : '',
+                        desc: candidate ? candidate.description : '',
+                        memberId: candidate && candidate.memberId ? candidate.memberId : '',
+                        category: tx.category // 원본 거래의 분류를 상속
+                      });
+                    }
+                    setSplitItems([...splitItems, ...newItems]);
+                    alert(`${n}등분 완료 (항목당 ${amountPerPart}원)!\n매칭된 상대 거래: ${Math.min(n, candidates.length)}건`);
+                  }}
+                    style={{ flex: 1, padding: '10px', background: '#e0e7ff', border: '1px solid #c7d2fe', borderRadius: 8, cursor: 'pointer', color: 'var(--indigo-600)', fontSize: 13, fontWeight: 600 }}>
+                    ✨ 1/N 일괄 상계 매칭
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* ── 상계 연결 ── */}
           <div>
-            <label>연결된 회원 (선택)</label>
-            <select value={formData.memberId} onChange={e => setFormData({ ...formData, memberId: e.target.value })}>
-              <option value="">-- 미지정 (비회원) --</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>{m.name} ({m.part})</option>
-              ))}
-            </select>
-            <p style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 4 }}>
-              * 회비 등 특정 회원의 실적으로 잡혀야 할 경우에만 선택하세요.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ margin: 0 }}>🔗 상계 거래 연결</label>
+              <button type="button"
+                style={{ fontSize: 12, color: 'var(--blue-500)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onClick={() => setShowLinkPanel(!showLinkPanel)}>
+                {showLinkPanel ? '닫기' : `후보 ${linkedCandidates.length}건 조회`}
+              </button>
+            </div>
+
+            {linkedTx && !showLinkPanel && (
+              <div style={{ padding: '8px 12px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>🔗 {linkedTx.description}</span>
+                  <strong style={{ color: linkedTx.type === 'income' ? '#16a34a' : 'var(--red-500)' }}>
+                    {linkedTx.type === 'income' ? '+' : '-'}{formatKRW(linkedTx.amount)}
+                  </strong>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--slate-500)', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{linkedTx.datetime?.slice(0, 10)}</span>
+                  <button type="button" style={{ color: 'var(--red-400)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                    onClick={() => setFormData({ ...formData, linkedTxId: '' })}>연결 해제</button>
+                </div>
+              </div>
+            )}
+
+            {showLinkPanel && (
+              <div style={{ border: '1px solid var(--slate-200)', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ padding: '8px 10px', background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-200)' }}>
+                  <input type="text" placeholder="이름 또는 날짜로 검색..." value={linkSearch}
+                    onChange={e => setLinkSearch(e.target.value)}
+                    style={{ width: '100%', border: 'none', background: 'transparent', fontSize: 13, outline: 'none' }} />
+                </div>
+                <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                  {filteredCandidates.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--slate-400)', fontSize: 13 }}>금액이 동일한 반대 거래가 없습니다</div>
+                  ) : filteredCandidates.map(t => (
+                    <div key={t.id}
+                      onClick={() => { setFormData({ ...formData, linkedTxId: t.id }); setShowLinkPanel(false); }}
+                      style={{ padding: '10px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: formData.linkedTxId === t.id ? 'var(--blue-50)' : 'transparent', borderBottom: '1px solid var(--slate-100)' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{t.description}</div>
+                        <div style={{ fontSize: 11, color: 'var(--slate-400)' }}>{t.datetime?.slice(0, 10)}</div>
+                      </div>
+                      <strong style={{ color: t.type === 'income' ? '#16a34a' : 'var(--red-500)', fontSize: 13 }}>
+                        {t.type === 'income' ? '+' : '-'}{formatKRW(t.amount)}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div>
-            <label>비고 (메모)</label>
-            <input type="text" value={formData.note} onChange={e => setFormData({ ...formData, note: e.target.value })} placeholder="환불, 상계처리 등 메모 입력" />
-          </div>
+
 
           <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-            <button type="button" className="btn-secondary" style={{ flex: 1, color: 'var(--red-500)', borderColor: 'var(--red-200)' }} onClick={handleDelete}>
-              삭제
-            </button>
+            <button type="button" className="btn-secondary" style={{ flex: 1, color: 'var(--red-500)', borderColor: 'var(--red-200)' }} onClick={handleDelete}>삭제</button>
             <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose}>취소</button>
             <button type="submit" className="btn-primary" style={{ flex: 2 }}>저장</button>
           </div>

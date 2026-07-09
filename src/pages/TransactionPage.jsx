@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { formatKRW } from '../utils/calculations';
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/constants';
 import ExcelImportModal from '../components/ExcelImportModal';
 import EditTransactionModal from '../components/EditTransactionModal';
 import './Pages.css';
@@ -18,13 +19,17 @@ export default function TransactionPage() {
   const [typeFilter, setTypeFilter] = useState('전체');
   const [yearFilter, setYearFilter] = useState('전체');
   const [monthFilter, setMonthFilter] = useState('전체');
+  const [categoryFilter, setCategoryFilter] = useState('전체');
   const [unclassifiedOnly, setUnclassifiedOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   
   // 일괄 수정(Batch Edit) 관련 상태
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedTxIds, setSelectedTxIds] = useState(new Set());
+  const [batchCategory, setBatchCategory] = useState('');
+  const [batchPart, setBatchPart] = useState('');
 
   const years = useMemo(() => {
     const set = new Set(transactions.map(tx => tx.datetime.slice(0, 4)));
@@ -41,18 +46,66 @@ export default function TransactionPage() {
     return ['전체', ...[...set].sort((a, b) => b.localeCompare(a))];
   }, [transactions, yearFilter]);
 
+  const categories = useMemo(() => {
+    const set = new Set();
+    transactions.forEach(tx => {
+      if (typeFilter === '전체' || (typeFilter === '수입' ? tx.type === 'income' : tx.type === 'expense')) {
+        set.add(tx.category || '기타');
+      }
+    });
+    return ['전체', ...[...set].sort()];
+  }, [transactions, typeFilter]);
+
+  // 수입/지출 탭 변경시 계정과목 필터 초기화
+  useEffect(() => {
+    setCategoryFilter('전체');
+  }, [typeFilter]);
+
   const filtered = useMemo(() => transactions
     .filter(tx => partFilter === '전체' || tx.part === partFilter)
     .filter(tx => typeFilter === '전체' || (typeFilter === '수입' ? tx.type === 'income' : tx.type === 'expense'))
+    .filter(tx => categoryFilter === '전체' || tx.category === categoryFilter)
     .filter(tx => yearFilter === '전체' || tx.datetime.startsWith(yearFilter))
     .filter(tx => monthFilter === '전체' || tx.datetime.slice(5, 7) === monthFilter)
     .filter(tx => !unclassifiedOnly || tx.category === '기타' || tx.category === '기타지출')
+    .filter(tx => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const desc = (tx.description || '').toLowerCase();
+      const note = (tx.note || '').toLowerCase();
+      const cat = (tx.category || '').toLowerCase();
+      const part = (tx.part || '').toLowerCase();
+      const m = members.find(x => x.id === tx.memberId);
+      const mName = m ? m.name.toLowerCase() : '';
+      return desc.includes(q) || note.includes(q) || cat.includes(q) || part.includes(q) || mName.includes(q);
+    })
     .sort((a, b) => b.datetime.localeCompare(a.datetime)),
-    [transactions, partFilter, typeFilter, yearFilter, monthFilter, unclassifiedOnly]
+    [transactions, partFilter, typeFilter, categoryFilter, yearFilter, monthFilter, unclassifiedOnly, searchQuery, members]
   );
 
-  const totalIncome  = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const summaryFiltered = useMemo(() => transactions
+    .filter(tx => partFilter === '전체' || tx.part === partFilter)
+    // 수입/지출 탭을 눌러도 요약 카드에서는 양쪽 다 보이게 하기 위해 typeFilter 제외
+    .filter(tx => categoryFilter === '전체' || tx.category === categoryFilter)
+    .filter(tx => yearFilter === '전체' || tx.datetime.startsWith(yearFilter))
+    .filter(tx => monthFilter === '전체' || tx.datetime.slice(5, 7) === monthFilter)
+    .filter(tx => !unclassifiedOnly || tx.category === '기타' || tx.category === '기타지출')
+    .filter(tx => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const desc = (tx.description || '').toLowerCase();
+      const note = (tx.note || '').toLowerCase();
+      const cat = (tx.category || '').toLowerCase();
+      const part = (tx.part || '').toLowerCase();
+      const m = members.find(x => x.id === tx.memberId);
+      const mName = m ? m.name.toLowerCase() : '';
+      return desc.includes(q) || note.includes(q) || cat.includes(q) || part.includes(q) || mName.includes(q);
+    }),
+    [transactions, partFilter, typeFilter, categoryFilter, yearFilter, monthFilter, unclassifiedOnly, searchQuery, members]
+  );
+
+  const totalIncome  = summaryFiltered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = summaryFiltered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
 
   // 멤버 이름 찾기 헬퍼
   const getMemberName = (id) => {
@@ -80,21 +133,29 @@ export default function TransactionPage() {
     }
   };
 
-  const handleBatchUpdateToPerformance = () => {
+  const handleBatchUpdate = () => {
     if (selectedTxIds.size === 0) return alert('선택된 항목이 없습니다.');
-    if (!window.confirm(`선택한 ${selectedTxIds.size}개 항목을 모두 '공연 수익'으로 변경하시겠습니까?\n(분류: 공연 수익 / 파트: 공통 / 연결된 회원: 미지정)`)) return;
+    if (!batchCategory && !batchPart) return alert('변경할 분류나 파트를 선택해주세요.');
     
-    const updates = Array.from(selectedTxIds).map(id => ({
-      id,
-      category: '공연 수익',
-      part: '공통',
-      memberId: '' // 비회원으로 변경
-    }));
+    let msg = `선택한 ${selectedTxIds.size}개 항목을 일괄 변경하시겠습니까?\n`;
+    if (batchCategory) msg += `- 분류: ${batchCategory}\n`;
+    if (batchPart) msg += `- 파트: ${batchPart}\n`;
+    
+    if (!window.confirm(msg)) return;
+    
+    const updates = Array.from(selectedTxIds).map(id => {
+      const update = { id };
+      if (batchCategory) update.category = batchCategory;
+      if (batchPart) update.part = batchPart;
+      return update;
+    });
     
     dispatch({ type: 'BATCH_UPDATE_TRANSACTIONS', updates });
     alert('일괄 수정이 완료되었습니다.');
     setSelectedTxIds(new Set());
     setIsBatchMode(false);
+    setBatchCategory('');
+    setBatchPart('');
   };
 
   return (
@@ -147,6 +208,70 @@ export default function TransactionPage() {
           ))}
         </select>
 
+        {/* 계정과목 필터 (Select) */}
+        <select 
+          className="filter-select" 
+          value={categoryFilter} 
+          onChange={e => setCategoryFilter(e.target.value)}
+        >
+          {categories.map(c => (
+            <option key={c} value={c}>
+              {c === '전체' ? '모든 분류' : c}
+            </option>
+          ))}
+        </select>
+
+        {/* 검색 필터 */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <input 
+            type="text" 
+            placeholder="적요, 회원명, 분류 검색..." 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ 
+              paddingLeft: '32px', 
+              paddingRight: '28px',
+              height: '38px', 
+              borderRadius: '8px',
+              border: '1px solid var(--slate-200)',
+              fontSize: '13px',
+              outline: 'none',
+              width: '200px',
+              background: 'white'
+            }}
+          />
+          <svg 
+            width="14" 
+            height="14" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="var(--slate-400)" 
+            strokeWidth="2.5" 
+            style={{ position: 'absolute', left: 10, pointerEvents: 'none' }}
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          {searchQuery && (
+            <button 
+              type="button" 
+              onClick={() => setSearchQuery('')}
+              style={{ 
+                position: 'absolute', 
+                right: 8, 
+                background: 'none', 
+                border: 'none', 
+                cursor: 'pointer', 
+                color: 'var(--slate-400)',
+                fontSize: 12,
+                padding: 4
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--slate-600)', cursor: 'pointer', marginLeft: 8 }}>
           <input type="checkbox" checked={unclassifiedOnly} onChange={e => setUnclassifiedOnly(e.target.checked)} style={{ accentColor: 'var(--blue-500)' }} />
           미분류만 보기
@@ -198,11 +323,28 @@ export default function TransactionPage() {
       </div>
       
       {isBatchMode && (
-        <div className="alert-banner" style={{ marginBottom: 16 }}>
-          <span>{selectedTxIds.size}개 항목 선택됨</span>
-          <button className="btn-primary btn-sm" style={{ padding: '6px 12px', height: 'auto', fontSize: 13, width: 'auto' }} onClick={handleBatchUpdateToPerformance}>
-            모두 '공연 수익(비회원)'으로 변경
-          </button>
+        <div className="alert-banner" style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+          <span style={{ fontWeight: 600 }}>{selectedTxIds.size}개 항목 선택됨</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <select className="filter-select" value={batchCategory} onChange={e => setBatchCategory(e.target.value)} style={{ padding: '4px 8px', height: 'auto', fontSize: 13 }}>
+              <option value="">-- 분류 유지 --</option>
+              <optgroup label="수입 분류">
+                {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </optgroup>
+              <optgroup label="지출 분류">
+                {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </optgroup>
+            </select>
+            <select className="filter-select" value={batchPart} onChange={e => setBatchPart(e.target.value)} style={{ padding: '4px 8px', height: 'auto', fontSize: 13 }}>
+              <option value="">-- 파트 유지 --</option>
+              {PARTS_FILTER.filter(p => p !== '전체').map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <button className="btn-primary btn-sm" style={{ padding: '6px 12px', height: 'auto', fontSize: 13, width: 'auto' }} onClick={handleBatchUpdate}>
+              일괄 변경 적용
+            </button>
+          </div>
         </div>
       )}
 
@@ -214,7 +356,8 @@ export default function TransactionPage() {
             </div>
           )}
           <div className="th-date">일시</div>
-          <div className="th-desc">적요 (이름)</div>
+          <div className="th-desc">거래자명</div>
+          <div className="th-note">거래 내용</div>
           <div className="th-type">유형</div>
           <div className="th-cat">분류/파트</div>
           <div className="th-amount">금액</div>
@@ -238,7 +381,8 @@ export default function TransactionPage() {
               )}
 
               <div className="td-date">
-                <span className="td-date-ymd">{tx.datetime.slice(0,10)}</span>
+                <span className="td-date-ymd pc-only-date">{tx.datetime.slice(0,10)}</span>
+                <span className="td-date-ymd mobile-only-date">{tx.datetime.slice(5,10)}</span>
                 <span className="td-date-hm text-muted" style={{ fontSize: 11 }}>{tx.datetime.slice(11,16)}</span>
               </div>
               <div className="td-desc">
@@ -248,7 +392,76 @@ export default function TransactionPage() {
                     {getMemberName(tx.memberId)}
                   </span>
                 )}
-                {tx.note && <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{tx.note}</div>}
+                {tx.linkedTxId && (() => {
+                  const linked = transactions.find(t => t.id === tx.linkedTxId);
+                  if (!linked) return null;
+                  const typeLabel = linked.type === 'income' ? '수입 회수' : '지출 반환';
+                  return (
+                    <span style={{ 
+                      marginLeft: 6, 
+                      fontSize: 10, 
+                      color: '#16a34a', 
+                      background: '#f0fdf4', 
+                      border: '1px solid #bbf7d0', 
+                      borderRadius: 4, 
+                      padding: '1px 5px',
+                      fontWeight: 600
+                    }}>
+                      🔗 {typeLabel} ({linked.description})
+                    </span>
+                  );
+                })()}
+                
+                {/* 모바일 화면에서만 거래 내용(메모)을 이름 하단에 노출 */}
+                {tx.note && <div className="mobile-only-note text-muted" style={{ fontSize: 11, marginTop: 2 }}>{tx.note}</div>}
+
+                {/* 분할 내역을 거래자명 하단에 항상 상세하게 표시 */}
+                {tx.splitItems && tx.splitItems.length > 0 && (
+                  <div className="split-items-list" style={{ marginTop: 6, paddingLeft: 8, borderLeft: '2px solid #cbd5e1' }}>
+                    {tx.splitItems.map((item, idx) => (
+                      <div key={idx} style={{ fontSize: 11, color: 'var(--slate-600)', display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3, alignItems: 'center' }}>
+                        <span style={{ color: '#7c3aed', background: '#f5f3ff', padding: '1px 4px', borderRadius: 4, fontWeight: 700, fontSize: 9 }}>
+                          {item.category}/{item.part}
+                        </span>
+                        <span style={{ fontWeight: 600 }}>{item.desc || '내용 없음'}</span>
+                        <span style={{ color: tx.type === 'income' ? 'var(--emerald-600)' : 'var(--rose-600)', fontWeight: 700 }}>
+                          ({formatKRW(Number(item.amount) || 0)})
+                        </span>
+                        {item.memberId && (
+                          <span className="badge badge-common" style={{ fontSize: 9, padding: '0px 4px' }}>
+                            {getMemberName(item.memberId)}
+                          </span>
+                        )}
+                        {item.linkedTxId && (() => {
+                          const linked = transactions.find(t => t.id === item.linkedTxId);
+                          if (!linked) return null;
+                          const isOpposite = linked.type !== tx.type;
+                          const typeLabel = linked.type === 'income' ? '수입 회수' : '지출 반환';
+                          return (
+                            <span style={{ 
+                              marginLeft: 4, 
+                              fontSize: 9, 
+                              color: isOpposite ? '#16a34a' : '#f97316', 
+                              background: isOpposite ? '#f0fdf4' : '#fff7ed', 
+                              border: isOpposite ? '1px solid #bbf7d0' : '1px solid #fed7aa', 
+                              borderRadius: 4, 
+                              padding: '0px 4px', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: 2, 
+                              fontWeight: 600 
+                            }}>
+                              🔗 {isOpposite ? `${typeLabel}됨` : '상계됨'} ({linked.description})
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="td-note">
+                {tx.note || <span className="text-muted" style={{ fontStyle: 'italic', fontSize: 12 }}>-</span>}
               </div>
               <div className="td-type">
                 <span className={`badge ${tx.type === 'income' ? 'badge-success' : 'badge-danger'}`}>
@@ -256,8 +469,16 @@ export default function TransactionPage() {
                 </span>
               </div>
               <div className="td-cat">
-                <span>{tx.category}</span>
-                {tx.part && <span className="text-muted" style={{ fontSize: 11, display: 'block' }}>{tx.part}</span>}
+                <span>
+                  {tx.splitItems && tx.splitItems.length > 0
+                    ? [...new Set(tx.splitItems.map(item => item.category).filter(Boolean))].join(', ') || '분할'
+                    : tx.category}
+                </span>
+                <span className="text-muted" style={{ fontSize: 11, display: 'block' }}>
+                  {tx.splitItems && tx.splitItems.length > 0
+                    ? [...new Set(tx.splitItems.map(item => item.part).filter(Boolean))].join(', ')
+                    : tx.part}
+                </span>
               </div>
               <div className={`td-amount ${tx.type === 'income' ? 'text-green' : 'text-red'}`}>
                 <strong>{formatKRW(tx.amount)}</strong>

@@ -79,13 +79,13 @@ function AppInner() {
   const renderPage = () => {
     if (showAdd) return <AddTransactionPage onClose={() => setShowAdd(false)} />;
     switch (tab) {
-      case 'home':      return <DashboardPage />;
+      case 'home':      return <DashboardPage setTab={setTab} />;
       case 'members':   return <MembersPage />;
       case 'dues':      return <MemberDuesPage />;
       case 'ledger':    return <TransactionPage />;
       case 'analytics': return <AnalyticsPage />;
       case 'settings':  return <SettingsPage />;
-      default:          return <DashboardPage />;
+      default:          return <DashboardPage setTab={setTab} />;
     }
   };
 
@@ -97,7 +97,7 @@ function AppInner() {
           <div className="logo-mark">
             <img src="/logo.png" alt="Lumique" />
           </div>
-          <div><h1>Lumique</h1><p>동아리 활동 자금 관리</p></div>
+          <div><h1>Lumique <span style={{ fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.15)', borderRadius: 6, padding: '2px 6px', fontWeight: 700, verticalAlign: 'middle', letterSpacing: 0 }}>테스트</span></h1><p>동아리 활동 자금 관리</p></div>
         </div>
         <nav style={{ flex: 1, overflowY: 'auto', paddingBottom: 20 }}>
           {[
@@ -159,7 +159,11 @@ function AppInner() {
           <div className="logo-mark">
             <img src="/logo.png" alt="Lumique" />
           </div>
-          <h1>{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</h1>
+          <h1>
+            <span style={{ color: '#fff', fontWeight: 800 }}>Lumique</span>
+            <span style={{ margin: '0 8px', color: '#555', fontWeight: 300 }}>|</span>
+            <span style={{ color: '#bbb', fontWeight: 500 }}>{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</span>
+          </h1>
         </header>
 
         <main className="main-content">{renderPage()}</main>
