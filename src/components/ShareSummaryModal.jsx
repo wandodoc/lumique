@@ -44,10 +44,6 @@ export default function ShareSummaryModal({ onClose }) {
 
   // 수입/지출 합계 및 내역 집계
   const targetIncomes = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(targetYm) && t.type === 'income');
-  }, [transactions, targetYm]);
-
-  const targetIncomes = useMemo(() => {
     return transactions.filter(t => t.datetime.startsWith(targetYm) && ((t.type === 'income' && !t.linkedTxId) || (t.type === 'expense' && t.linkedTxId)));
   }, [transactions, targetYm]);
 
