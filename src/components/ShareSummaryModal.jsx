@@ -291,6 +291,52 @@ export default function ShareSummaryModal({ onClose }) {
     setTimeout(() => setCopyStatus(''), 2000);
   };
 
+  // 이미지 카드용 전체 누적 통계
+  const allTimeStats = useMemo(() => {
+    const inCats = new Set();
+    const exCats = new Set();
+    
+    const createEmpty = () => ({ VOIX: 0, DANCE: 0, SESSION: 0, 공통: 0, Total: 0 });
+    const inMatrix = {};
+    const exMatrix = {};
+    const inTotal = createEmpty();
+    const exTotal = createEmpty();
+    
+    transactions.forEach(tx => {
+      const isMemberSplit = tx.splitItems && tx.splitItems.some(it => it.memberId || it.linkedTxId);
+      const items = (tx.splitItems && tx.splitItems.length > 0 && !isMemberSplit)
+        ? tx.splitItems.map(it => ({ type: tx.type, category: it.category || tx.category, part: it.part || tx.part, amount: Number(it.amount) || 0 }))
+        : [{ type: tx.type, category: tx.category, part: tx.part, amount: Number(tx.amount) || 0 }];
+        
+      items.forEach(it => {
+        const cat = it.category || '기타';
+        const p = ['VOIX', 'DANCE', 'SESSION', '공통'].includes(it.part) ? it.part : '공통';
+        
+        if (it.type === 'income') {
+          inCats.add(cat);
+          if (!inMatrix[cat]) inMatrix[cat] = createEmpty();
+          inMatrix[cat][p] += it.amount;
+          inMatrix[cat].Total += it.amount;
+          inTotal[p] += it.amount;
+          inTotal.Total += it.amount;
+        } else {
+          exCats.add(cat);
+          if (!exMatrix[cat]) exMatrix[cat] = createEmpty();
+          exMatrix[cat][p] += it.amount;
+          exMatrix[cat].Total += it.amount;
+          exTotal[p] += it.amount;
+          exTotal.Total += it.amount;
+        }
+      });
+    });
+
+    const activeParts = ['VOIX', 'DANCE', 'SESSION', '공통'].filter(p => inTotal[p] > 0 || exTotal[p] > 0);
+    const sortedInCats = Array.from(inCats).sort((a, b) => a === '회비' ? -1 : b === '회비' ? 1 : a.localeCompare(b));
+    const sortedExCats = Array.from(exCats).sort((a, b) => a === '연습실 대여' ? -1 : b === '연습실 대여' ? 1 : a.localeCompare(b));
+
+    return { inMatrix, exMatrix, inCats: sortedInCats, exCats: sortedExCats, inTotal, exTotal, activeParts };
+  }, [transactions]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
@@ -357,119 +403,109 @@ export default function ShareSummaryModal({ onClose }) {
           {/* 실제로 이미지로 변환될 DOM 영역 */}
           <div ref={cardRef} style={{
             padding: '24px 20px',
-            background: 'linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%)',
+            background: 'white',
             border: '1.5px solid var(--slate-200)',
             borderRadius: 16,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             color: 'var(--slate-800)',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
           }}>
-            {/* 카드 헤더 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px dashed var(--slate-300)', paddingBottom: 12, marginBottom: 16 }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  ✨ Lumique 회계 내역 요약
-                </h4>
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-500)' }}>{dateStr} 기준</p>
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: '#dbeafe', color: '#1e40af' }}>
-                Official Report
-              </span>
+            <div style={{ textAlign: 'center', marginBottom: 20, paddingBottom: 12, borderBottom: '2px solid #1e3a8a' }}>
+              <h4 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#1e3a8a', letterSpacing: '-0.5px' }}>
+                수익 및 지출 내역 요약
+              </h4>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--slate-500)' }}>
+                Last Updated {now.getFullYear()}.{String(now.getMonth() + 1).padStart(2, '0')}.{String(now.getDate()).padStart(2, '0')}
+              </p>
             </div>
 
-            {/* 잔액 요약 */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-              <div style={{ flex: 1, padding: 10, borderRadius: 10, background: 'white', border: '1px solid var(--slate-200)', textAlign: 'center' }}>
-                <span style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 2 }}>{priorMonthNum}월 잔액</span>
-                <strong style={{ fontSize: 14, color: priorNet >= 0 ? '#059669' : 'var(--red-500)' }}>
-                  {priorNet >= 0 ? '+' : ''}{priorNet.toLocaleString()}원
-                </strong>
-              </div>
-              <div style={{ flex: 1, padding: 10, borderRadius: 10, background: '#eff6ff', border: '1.5px solid #bfdbfe', textAlign: 'center' }}>
-                <span style={{ fontSize: 11, color: '#1e40af', display: 'block', marginBottom: 2 }}>{targetMonthNum}월 잔액</span>
-                <strong style={{ fontSize: 14, color: targetNet >= 0 ? '#059669' : 'var(--red-500)' }}>
-                  {targetNet >= 0 ? '+' : ''}{targetNet.toLocaleString()}원
-                </strong>
-              </div>
-            </div>
-
-            {/* 입금 내역 */}
-            <div style={{ marginBottom: 18 }}>
-              <h5 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                📍 {targetMonthNum}월 입금 내역
-              </h5>
-              <div style={{ background: 'white', borderRadius: 10, padding: 10, border: '1px solid var(--slate-150)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {duesSummary.total > 0 && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--slate-800)' }}>
-                      <span>1. 회비
-                        {duesSummary.total >= targetMonthlyBasis && targetMonthlyBasis > 0
-                          ? (duesSummary.total === targetMonthlyBasis ? ' (완납)' : ' (초과 납부)')
-                          : (targetMonthlyBasis > 0 ? ` (기준 ${targetMonthlyBasis.toLocaleString()}원)` : '')}
-                      </span>
-                      <span>{duesSummary.total.toLocaleString()}원</span>
-                    </div>
-                    <div style={{ paddingLeft: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--slate-500)', fontSize: 11 }}>
-                      {duesSummary.dance > 0 && <span>- 댄스: {duesSummary.dance.toLocaleString()}원</span>}
-                      {duesSummary.voiceSession > 0 && <span>- 보컬/세션: {duesSummary.voiceSession.toLocaleString()}원</span>}
-                      {duesSummary.common > 0 && <span>- 공통: {duesSummary.common.toLocaleString()}원</span>}
-                    </div>
-                  </div>
-                )}
-                {otherIncomesSummary.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--slate-800)', borderTop: idx > 0 || duesSummary.total > 0 ? '1px solid var(--slate-100)' : 'none', paddingTop: idx > 0 || duesSummary.total > 0 ? 6 : 0 }}>
-                    <span>{duesSummary.total > 0 ? idx + 2 : idx + 1}. {item.cat}</span>
-                    <span>{item.amount.toLocaleString()}원</span>
-                  </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'right' }}>
+              <thead>
+                <tr style={{ background: '#1e3a8a', color: 'white' }}>
+                  <th style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '22%' }}>구분</th>
+                  {allTimeStats.activeParts.map(p => <th key={p} style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '16%' }}>{p}</th>)}
+                  <th style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '18%' }}>총 합계</th>
+                  <th style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '12%' }}>비율</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* 수입 */}
+                {allTimeStats.inCats.map(cat => (
+                  <tr key={cat}>
+                    <td style={{ padding: '6px 4px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
+                    {allTimeStats.activeParts.map(p => (
+                      <td key={p} style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.inMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
+                        {allTimeStats.inMatrix[cat][p] === 0 ? '0' : allTimeStats.inMatrix[cat][p].toLocaleString()}
+                      </td>
+                    ))}
+                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
+                      {allTimeStats.inMatrix[cat].Total.toLocaleString()}
+                    </td>
+                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
+                      {allTimeStats.inTotal.Total > 0 ? Math.round((allTimeStats.inMatrix[cat].Total / allTimeStats.inTotal.Total) * 100) : 0}%
+                    </td>
+                  </tr>
                 ))}
-                {targetIncomes.length === 0 && <span style={{ color: 'var(--slate-400)', textAlign: 'center', display: 'block', padding: 8 }}>입금 내역이 없습니다.</span>}
-              </div>
-            </div>
+                {/* 수입 계 */}
+                <tr style={{ background: '#d1fae5' }}>
+                  <td style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>수입 계</td>
+                  {allTimeStats.activeParts.map(p => (
+                    <td key={p} style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
+                      {allTimeStats.inTotal[p].toLocaleString()}
+                    </td>
+                  ))}
+                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
+                    {allTimeStats.inTotal.Total.toLocaleString()}
+                  </td>
+                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
+                </tr>
 
-            {/* 출금 내역 */}
-            <div>
-              <h5 style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                📍 {priorMonthNum}~{targetMonthNum}월 출금 내역
-              </h5>
-              <div style={{ background: 'white', borderRadius: 10, padding: 10, border: '1px solid var(--slate-150)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {expenseSummaryByCategory.map((item, idx) => (
-                  <div key={idx} style={{ borderBottom: idx < expenseSummaryByCategory.length - 1 ? '1px dashed var(--slate-200)' : 'none', paddingBottom: idx < expenseSummaryByCategory.length - 1 ? 8 : 0 }}>
-                    <div style={{ fontWeight: 700, color: 'var(--slate-800)', marginBottom: 4 }}>
-                      {idx + 1}. {item.category}
-                    </div>
-                    
-                    {item.priorList.length > 0 && (
-                      <div style={{ marginTop: 2 }}>
-                        <span style={{ fontSize: 10, color: '#e2596b', fontWeight: 700, background: '#fff1f2', padding: '1px 4px', borderRadius: 4 }}>{priorMonthNum}월</span>
-                        <div style={{ paddingLeft: 6, marginTop: 2 }}>
-                          {item.priorList.map((t, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', fontSize: 11, margin: '2px 0' }}>
-                              <span>- {t.desc}</span>
-                              <span style={{ fontWeight: 600 }}>{t.amount.toLocaleString()}원</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {item.targetList.length > 0 && (
-                      <div style={{ marginTop: 4 }}>
-                        <span style={{ fontSize: 10, color: '#2b74e2', fontWeight: 700, background: '#eff6ff', padding: '1px 4px', borderRadius: 4 }}>{targetMonthNum}월</span>
-                        <div style={{ paddingLeft: 6, marginTop: 2 }}>
-                          {item.targetList.map((t, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', fontSize: 11, margin: '2px 0' }}>
-                              <span>- {t.desc}</span>
-                              <span style={{ fontWeight: 600 }}>{t.amount.toLocaleString()}원</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                {/* 지출 */}
+                {allTimeStats.exCats.map(cat => (
+                  <tr key={cat}>
+                    <td style={{ padding: '6px 4px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
+                    {allTimeStats.activeParts.map(p => (
+                      <td key={p} style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.exMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
+                        {allTimeStats.exMatrix[cat][p] === 0 ? '0' : `(${allTimeStats.exMatrix[cat][p].toLocaleString()})`}
+                      </td>
+                    ))}
+                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
+                      ({allTimeStats.exMatrix[cat].Total.toLocaleString()})
+                    </td>
+                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
+                      {allTimeStats.exTotal.Total > 0 ? Math.round((allTimeStats.exMatrix[cat].Total / allTimeStats.exTotal.Total) * 100) : 0}%
+                    </td>
+                  </tr>
                 ))}
-                {expenseSummaryByCategory.length === 0 && <span style={{ color: 'var(--slate-400)', textAlign: 'center', display: 'block', padding: 8 }}>출금 내역이 없습니다.</span>}
-              </div>
-            </div>
+                {/* 지출 계 */}
+                <tr style={{ background: '#d1fae5' }}>
+                  <td style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>지출 계</td>
+                  {allTimeStats.activeParts.map(p => (
+                    <td key={p} style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
+                      ({allTimeStats.exTotal[p].toLocaleString()})
+                    </td>
+                  ))}
+                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
+                    ({allTimeStats.exTotal.Total.toLocaleString()})
+                  </td>
+                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
+                </tr>
+
+                {/* 잔액 */}
+                <tr style={{ background: '#fbbf24' }}>
+                  <td style={{ padding: '12px 4px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 900, fontSize: 13, color: '#92400e' }}>잔액</td>
+                  {allTimeStats.activeParts.map(p => (
+                    <td key={p} style={{ padding: '12px 4px', border: '1px solid var(--slate-200)', fontWeight: 800, fontSize: 12, color: '#92400e' }}>
+                      {(allTimeStats.inTotal[p] - allTimeStats.exTotal[p]).toLocaleString()}
+                    </td>
+                  ))}
+                  <td style={{ padding: '12px 4px', border: '2px solid #ef4444', background: '#ffe4e6', color: '#e11d48', fontWeight: 900, fontSize: 14 }}>
+                    {(allTimeStats.inTotal.Total - allTimeStats.exTotal.Total).toLocaleString()}
+                  </td>
+                  <td style={{ padding: '12px 4px', border: '1px solid var(--slate-200)' }}></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
         </div>
