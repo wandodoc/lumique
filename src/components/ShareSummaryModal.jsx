@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatKRW } from '../utils/calculations';
+import { formatKRW, getDuesStartMonth } from '../utils/calculations';
 import { toBlob } from 'html-to-image';
 
 export default function ShareSummaryModal({ onClose }) {
@@ -73,42 +73,111 @@ export default function ShareSummaryModal({ onClose }) {
 
   // 회비 파트별 소계
   const duesSummary = useMemo(() => {
-    const duesTxs = targetIncomes.filter(t => t.category === '회비');
+    const duesTxs = targetIncomes.filter(t => {
+      if (t.category !== '회비') return false;
+      if (t.memberId) {
+        const m = state.members.find(x => x.id === t.memberId);
+        if (m) {
+          const txDate = t.datetime.slice(0, 10);
+          if (txDate < m.joinDate) return false;
+          if (m.leaveDate && txDate > m.leaveDate) return false;
+        }
+      }
+      return true;
+    });
     const total = duesTxs.reduce((s, t) => s + t.amount, 0);
     const dance = duesTxs.filter(t => t.part === 'DANCE').reduce((s, t) => s + t.amount, 0);
     const voiceSession = duesTxs.filter(t => t.part === 'VOIX' || t.part === 'SESSION').reduce((s, t) => s + t.amount, 0);
     const common = duesTxs.filter(t => t.part === '공통' || !t.part).reduce((s, t) => s + t.amount, 0);
 
     return { total, dance, voiceSession, common };
-  }, [targetIncomes]);
+  }, [targetIncomes, state.members]);
 
   // 기타 수입 그룹화
   const otherIncomesSummary = useMemo(() => {
-    const otherTxs = targetIncomes.filter(t => t.category !== '회비');
+    const otherTxs = targetIncomes.filter(t => {
+      if (t.category !== '회비') return true;
+      if (t.memberId) {
+        const m = state.members.find(x => x.id === t.memberId);
+        if (m) {
+          const txDate = t.datetime.slice(0, 10);
+          if (txDate < m.joinDate || (m.leaveDate && txDate > m.leaveDate)) return true; // 가입 전/탈퇴 후면 기타 수입으로 취급
+        }
+      }
+      return false;
+    });
+    
     const groups = {};
     otherTxs.forEach(t => {
       let cat = t.category || '이자/기타';
-      if (t.description.includes('이자')) {
-        cat = '이자';
-      }
+      if (t.category === '회비') cat = '기타수입'; // 잘못 분류된 회비는 기타수입으로
+      else if (t.description.includes('이자')) cat = '이자';
+      
       groups[cat] = (groups[cat] || 0) + t.amount;
     });
     return Object.entries(groups).map(([cat, amount]) => ({ cat, amount }));
-  }, [targetIncomes]);
+  }, [targetIncomes, state.members]);
 
-  // 출금 내역 그룹화 (이전월 & 대상월의 모든 지출 카테고리)
+  // 특정 달의 회비 기준액 계산
+  const targetMonthlyBasis = useMemo(() => {
+    let basis = 0;
+    if (!targetYm) return 0;
+    const [y, m] = targetYm.split('-').map(Number);
+    
+    state.members.forEach(member => {
+      if (!member.joinDate || member.status !== 'active') return;
+      const joinMonth = getDuesStartMonth(member.joinDate);
+      const targetDate = new Date(y, m - 1, 1);
+      if (targetDate < joinMonth) return; // 아직 가입 안 함
+      
+      if (member.leaveDate) {
+        const leaveDate = new Date(member.leaveDate + 'T00:00:00');
+        const leaveMonth = new Date(leaveDate.getFullYear(), leaveDate.getMonth(), 1);
+        if (targetDate > leaveMonth) return; // 이미 탈퇴함
+      }
+      
+      const memberType = member.type || '직장인';
+      if (y < 2025 || (y === 2025 && m < 2)) {
+        // 0
+      } else if (y === 2025 && m >= 2 && m <= 7) {
+        basis += (memberType === '학생' ? 5000 : 20000);
+      } else {
+        basis += 10000;
+      }
+    });
+    return basis;
+  }, [state.members, targetYm]);
+
+  // 출금 내역 그룹화 (분할 항목 전개)
+  const flattenExpenses = (expenses) => {
+    return expenses.flatMap(tx => {
+      const isMemberSplit = tx.splitItems && tx.splitItems.some(it => it.memberId || it.linkedTxId);
+      if (tx.splitItems && tx.splitItems.length > 0 && !isMemberSplit) {
+        return tx.splitItems.map(it => ({
+          category: it.category || tx.category || '소모품',
+          desc: it.desc || tx.note || tx.description,
+          amount: Number(it.amount) || 0
+        }));
+      }
+      return [{
+        category: tx.category || '소모품',
+        desc: tx.note || tx.description,
+        amount: Number(tx.amount) || 0
+      }];
+    });
+  };
+
   const expenseSummaryByCategory = useMemo(() => {
-    const allExps = [...priorExpenses, ...targetExpenses];
-    const categories = Array.from(new Set(allExps.map(t => t.category || '소모품')));
+    const flatPrior = flattenExpenses(priorExpenses);
+    const flatTarget = flattenExpenses(targetExpenses);
+    const allExps = [...flatPrior, ...flatTarget];
+    
+    const categories = Array.from(new Set(allExps.map(t => t.category)));
     
     return categories.map(cat => {
-      const priorList = priorExpenses.filter(t => (t.category || '소모품') === cat);
-      const targetList = targetExpenses.filter(t => (t.category || '소모품') === cat);
-      return {
-        category: cat,
-        priorList,
-        targetList
-      };
+      const priorList = flatPrior.filter(t => t.category === cat);
+      const targetList = flatTarget.filter(t => t.category === cat);
+      return { category: cat, priorList, targetList };
     });
   }, [priorExpenses, targetExpenses]);
 
@@ -121,7 +190,14 @@ export default function ShareSummaryModal({ onClose }) {
     txt += `📍 ${targetMonthNum}월 입금 내역\n`;
     let incIdx = 1;
     if (duesSummary.total > 0) {
-      txt += `${incIdx}. 회비 ${duesSummary.total.toLocaleString()}원 (완납)\n`;
+      let statusText = '';
+      if (duesSummary.total >= targetMonthlyBasis && targetMonthlyBasis > 0) {
+        statusText = duesSummary.total === targetMonthlyBasis ? ' (완납)' : ' (초과 납부)';
+      } else if (targetMonthlyBasis > 0) {
+        statusText = ` (기준 ${targetMonthlyBasis.toLocaleString()}원)`;
+      }
+
+      txt += `${incIdx}. 회비 ${duesSummary.total.toLocaleString()}원${statusText}\n`;
       if (duesSummary.dance > 0) txt += `- 댄스 ${duesSummary.dance.toLocaleString()}원\n`;
       if (duesSummary.voiceSession > 0) txt += `- 보컬/세션 ${duesSummary.voiceSession.toLocaleString()}원\n`;
       if (duesSummary.common > 0) txt += `- 공통 ${duesSummary.common.toLocaleString()}원\n`;
@@ -144,15 +220,13 @@ export default function ShareSummaryModal({ onClose }) {
         if (item.priorList.length > 0) {
           txt += `[${priorMonthNum}월]\n`;
           item.priorList.forEach(t => {
-            const displayDesc = t.note || t.description;
-            txt += `- ${displayDesc} ${t.amount.toLocaleString()}원\n`;
+            txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
           });
         }
         if (item.targetList.length > 0) {
           txt += `[${targetMonthNum}월]\n`;
           item.targetList.forEach(t => {
-            const displayDesc = t.note || t.description;
-            txt += `- ${displayDesc} ${t.amount.toLocaleString()}원\n`;
+            txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
           });
         }
         txt += `\n`;
@@ -328,7 +402,11 @@ export default function ShareSummaryModal({ onClose }) {
                 {duesSummary.total > 0 && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--slate-800)' }}>
-                      <span>1. 회비 (완납)</span>
+                      <span>1. 회비
+                        {duesSummary.total >= targetMonthlyBasis && targetMonthlyBasis > 0
+                          ? (duesSummary.total === targetMonthlyBasis ? ' (완납)' : ' (초과 납부)')
+                          : (targetMonthlyBasis > 0 ? ` (기준 ${targetMonthlyBasis.toLocaleString()}원)` : '')}
+                      </span>
                       <span>{duesSummary.total.toLocaleString()}원</span>
                     </div>
                     <div style={{ paddingLeft: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--slate-500)', fontSize: 11 }}>
@@ -366,7 +444,7 @@ export default function ShareSummaryModal({ onClose }) {
                         <div style={{ paddingLeft: 6, marginTop: 2 }}>
                           {item.priorList.map((t, i) => (
                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', fontSize: 11, margin: '2px 0' }}>
-                              <span>- {t.note || t.description}</span>
+                              <span>- {t.desc}</span>
                               <span style={{ fontWeight: 600 }}>{t.amount.toLocaleString()}원</span>
                             </div>
                           ))}
@@ -380,7 +458,7 @@ export default function ShareSummaryModal({ onClose }) {
                         <div style={{ paddingLeft: 6, marginTop: 2 }}>
                           {item.targetList.map((t, i) => (
                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--slate-600)', fontSize: 11, margin: '2px 0' }}>
-                              <span>- {t.note || t.description}</span>
+                              <span>- {t.desc}</span>
                               <span style={{ fontWeight: 600 }}>{t.amount.toLocaleString()}원</span>
                             </div>
                           ))}

@@ -99,12 +99,23 @@ export default function ExcelImportModal({ onClose }) {
       let part = '공통';
       let memberId = null;
 
-      // 자동 분류 1: 회원 이름 매칭 (회비 납부)
+      // 자동 분류 1: 회원 이름 매칭 (회비 납부 등)
       const member = state.members.find(m => m.name === descTrimmed);
       if (member && type === 'income') {
-        category = '회비';
-        part = member.part;
-        memberId = member.id;
+        const txDate = datetime.slice(0, 10);
+        const isBeforeJoin = txDate < member.joinDate;
+        const isAfterLeave = member.leaveDate && txDate > member.leaveDate;
+
+        if (isBeforeJoin || isAfterLeave) {
+          // 가입 전이거나 탈퇴 후 입금은 회비가 아님
+          category = '기타수입';
+          part = '공통';
+          memberId = member.id;
+        } else {
+          category = '회비';
+          part = member.part;
+          memberId = member.id;
+        }
       }
       
       // 자동 분류 2: 키워드 매칭
