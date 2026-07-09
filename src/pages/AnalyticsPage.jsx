@@ -228,7 +228,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* 지출 계정과목 + 수입 카테고리 나란히 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="dash-grid-2" style={{ gap: 16, marginBottom: 16 }}>
         <div className="card card-pad">
           <span className="card-title">지출 계정과목</span>
           {expenseByCategory.length === 0

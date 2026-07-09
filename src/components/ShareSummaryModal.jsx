@@ -391,14 +391,15 @@ export default function ShareSummaryModal({ onClose }) {
         )}
 
         {/* 텍스트 미리보기 및 이미지 카드 렌더링 */}
-        <div style={{ maxHeight: 'calc(100vh - 350px)', overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 24, background: 'var(--slate-50)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 16, background: 'var(--slate-50)' }}>
           
-          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 16, alignSelf: 'flex-start' }}>공유 카드 이미지 미리보기</div>
+          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 16, textAlign: 'center' }}>공유 카드 이미지 미리보기 (스크롤 가능)</div>
           
           {/* 실제로 이미지로 변환될 DOM 영역 */}
           <div ref={cardRef} style={{
             width: '420px',
             minWidth: '420px',
+            margin: '0 auto',
             padding: '32px 24px',
             background: '#ffffff',
             borderRadius: 24,
@@ -408,8 +409,8 @@ export default function ShareSummaryModal({ onClose }) {
           }}>
             {/* 1. 상단 타이틀 & 총 잔액 */}
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
-                <div style={{ width: 24, height: 24, background: '#1d4ed8', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 14 }}>L</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+                <img src="/logo.png" alt="Lumique" style={{ height: 28, width: 'auto', objectFit: 'contain' }} />
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.5px' }}>Lumique</div>
               </div>
               <div style={{ display: 'inline-block', background: '#eff6ff', color: '#1d4ed8', padding: '4px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>

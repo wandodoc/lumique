@@ -214,4 +214,9 @@
     padding: 16px 12px calc(var(--nav-h) + 16px);
     gap: 12px;
   }
+  .dash-grid-2 {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
 }
