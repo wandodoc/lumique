@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { formatKRW } from '../utils/calculations';
+import { formatKRW, isRefundTx } from '../utils/calculations';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/constants';
 import ExcelImportModal from '../components/ExcelImportModal';
 import EditTransactionModal from '../components/EditTransactionModal';
@@ -104,14 +104,21 @@ export default function TransactionPage() {
     [transactions, partFilter, typeFilter, categoryFilter, yearFilter, monthFilter, unclassifiedOnly, searchQuery, members]
   );
 
+  const txMap = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => map[t.id] = t);
+    return map;
+  }, [transactions]);
+
   let totalIncome = 0;
   let totalExpense = 0;
   summaryFiltered.forEach(tx => {
+    const isRefund = isRefundTx(tx, txMap);
     if (tx.type === 'income') {
-      if (tx.linkedTxId) totalExpense -= tx.amount;
+      if (isRefund) totalExpense -= tx.amount;
       else totalIncome += tx.amount;
     } else {
-      if (tx.linkedTxId) totalIncome -= tx.amount;
+      if (isRefund) totalIncome -= tx.amount;
       else totalExpense += tx.amount;
     }
   });

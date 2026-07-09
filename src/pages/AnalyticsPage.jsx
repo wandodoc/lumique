@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { calcMonthlyStats, calcPartBalances, calcMemberDues, formatKRW } from '../utils/calculations';
+import { calcMonthlyStats, calcPartBalances, calcMemberDues, formatKRW, isRefundTx } from '../utils/calculations';
 import './Pages.css';
 
 const PERIOD_OPTIONS = [
@@ -52,12 +52,19 @@ export default function AnalyticsPage() {
   }, [filteredTxs]);
   const maxBalance = Math.max(...balanceTrend.map(b => Math.abs(b.balance)), 1);
 
+  const txMap = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => map[t.id] = t);
+    return map;
+  }, [transactions]);
+
   // 지출 계정과목별 — 실제 거래 데이터에서 동적 집계
   const expenseByCategory = useMemo(() => {
     const map = {};
     filteredTxs.forEach(t => {
-      const isExpense = t.type === 'expense' && !t.linkedTxId;
-      const isReturn = t.type === 'income' && t.linkedTxId;
+      const isRefund = isRefundTx(t, txMap);
+      const isExpense = t.type === 'expense' && !isRefund;
+      const isReturn = t.type === 'income' && isRefund;
       if (!isExpense && !isReturn) return;
       
       const multiplier = isReturn ? -1 : 1;
@@ -75,15 +82,16 @@ export default function AnalyticsPage() {
     return Object.entries(map).map(([cat, total]) => ({ cat, total }))
       .filter(x => x.total > 0)
       .sort((a, b) => b.total - a.total);
-  }, [filteredTxs]);
+  }, [filteredTxs, txMap]);
   const maxCat = Math.max(...expenseByCategory.map(e => e.total), 1);
 
   // 수입 카테고리별 — 동적 집계
   const incomeByCategory = useMemo(() => {
     const map = {};
     filteredTxs.forEach(t => {
-      const isIncome = t.type === 'income' && !t.linkedTxId;
-      const isRecovery = t.type === 'expense' && t.linkedTxId;
+      const isRefund = isRefundTx(t, txMap);
+      const isIncome = t.type === 'income' && !isRefund;
+      const isRecovery = t.type === 'expense' && isRefund;
       if (!isIncome && !isRecovery) return;
       
       const multiplier = isRecovery ? -1 : 1;
@@ -101,7 +109,7 @@ export default function AnalyticsPage() {
     return Object.entries(map).map(([cat, total]) => ({ cat, total }))
       .filter(x => x.total > 0)
       .sort((a, b) => b.total - a.total);
-  }, [filteredTxs]);
+  }, [filteredTxs, txMap]);
   const maxIncomeCat = Math.max(...incomeByCategory.map(e => e.total), 1);
 
   // 파트별 잔액

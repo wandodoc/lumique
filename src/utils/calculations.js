@@ -1,5 +1,18 @@
 import { MONTHLY_DUES, DUES_START_DAY_THRESHOLD } from '../data/constants';
 
+/**
+ * 상호 연결된(linked) 두 거래 중 어느 것이 '반환/회수(환불)' 거래인지 판별합니다.
+ * 나중에 발생한 거래를 환불 거래로 간주합니다.
+ */
+export function isRefundTx(tx, allTransactionsMap) {
+  if (!tx.linkedTxId) return false;
+  const linked = allTransactionsMap[tx.linkedTxId];
+  if (!linked) return true; // 연결된 원본이 없으면 환불로 간주
+  if (tx.datetime > linked.datetime) return true;
+  if (tx.datetime === linked.datetime) return tx.id > linked.id;
+  return false;
+}
+
 // dayjs 없이 순수 JS Date로 구현
 
 function parseDate(str) {
@@ -73,9 +86,13 @@ export function calcMemberDues(member, transactions) {
   let paid = 0;
   const history = [];
 
+  const txMap = {};
+  transactions.forEach(t => txMap[t.id] = t);
+
   transactions.forEach(tx => {
-    const isIncome = tx.type === 'income' && !tx.linkedTxId;
-    const isRecovery = tx.type === 'expense' && tx.linkedTxId;
+    const isRefund = isRefundTx(tx, txMap);
+    const isIncome = tx.type === 'income' && !isRefund;
+    const isRecovery = tx.type === 'expense' && isRefund;
     if (!isIncome && !isRecovery) return;
     
     const txDate = tx.datetime.slice(0, 10);
@@ -95,7 +112,7 @@ export function calcMemberDues(member, transactions) {
         }
       });
     } else {
-      // isIncome이면 !tx.linkedTxId, isRecovery이면 tx.linkedTxId를 가짐. 원래 로직에서 !tx.linkedTxId만 회비로 인정했지만,
+      // isIncome이면 !isRefund, isRecovery이면 isRefund를 가짐. 원래 로직에서 !tx.linkedTxId만 회비로 인정했지만,
       // 이제는 회수(isRecovery)도 반영해야 하므로 조건 수정
       if (tx.memberId === member.id && tx.category === '회비') {
         const amt = tx.amount * multiplier;
@@ -135,6 +152,9 @@ export function calcPartBalances(transactions) {
  */
 export function calcMonthlyStats(transactions) {
   const map = {};
+  const txMap = {};
+  transactions.forEach(t => txMap[t.id] = t);
+
   transactions.forEach(tx => {
     const month = tx.datetime.slice(0, 7);
     if (!map[month]) map[month] = { month, income: 0, expense: 0 };
@@ -146,11 +166,13 @@ export function calcMonthlyStats(transactions) {
       amount = Number(tx.amount) || 0;
     }
     
+    const isRefund = isRefundTx(tx, txMap);
+
     if (tx.type === 'income') {
-      if (tx.linkedTxId) map[month].expense -= amount; // 지출 반환 -> 지출 차감
+      if (isRefund) map[month].expense -= amount; // 지출 반환 -> 지출 차감
       else map[month].income += amount;
     } else {
-      if (tx.linkedTxId) map[month].income -= amount; // 수입 회수 -> 수입 차감
+      if (isRefund) map[month].income -= amount; // 수입 회수 -> 수입 차감
       else map[month].expense += amount;
     }
   });

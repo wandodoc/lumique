@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatKRW, getDuesStartMonth, calcPartBalances } from '../utils/calculations';
+import { formatKRW, getDuesStartMonth, calcPartBalances, isRefundTx } from '../utils/calculations';
 import { toPng } from 'html-to-image';
 
 export default function ShareSummaryModal({ onClose }) {
@@ -42,27 +42,49 @@ export default function ShareSummaryModal({ onClose }) {
   const now = new Date();
   const dateStr = `${now.getMonth() + 1}/${now.getDate()}(${['일', '월', '화', '수', '목', '금', '토'][now.getDay()]})`;
 
+  const txMap = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => map[t.id] = t);
+    return map;
+  }, [transactions]);
+
   // 수입/지출 합계 및 내역 집계
   const targetIncomes = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(targetYm) && ((t.type === 'income' && !t.linkedTxId) || (t.type === 'expense' && t.linkedTxId)));
-  }, [transactions, targetYm]);
+    return transactions.filter(t => {
+      if (!t.datetime.startsWith(targetYm)) return false;
+      const isRefund = isRefundTx(t, txMap);
+      return (t.type === 'income' && !isRefund) || (t.type === 'expense' && isRefund);
+    });
+  }, [transactions, targetYm, txMap]);
 
   const targetExpenses = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(targetYm) && ((t.type === 'expense' && !t.linkedTxId) || (t.type === 'income' && t.linkedTxId)));
-  }, [transactions, targetYm]);
+    return transactions.filter(t => {
+      if (!t.datetime.startsWith(targetYm)) return false;
+      const isRefund = isRefundTx(t, txMap);
+      return (t.type === 'expense' && !isRefund) || (t.type === 'income' && isRefund);
+    });
+  }, [transactions, targetYm, txMap]);
 
   const priorIncomes = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(priorYm) && ((t.type === 'income' && !t.linkedTxId) || (t.type === 'expense' && t.linkedTxId)));
-  }, [transactions, priorYm]);
+    return transactions.filter(t => {
+      if (!t.datetime.startsWith(priorYm)) return false;
+      const isRefund = isRefundTx(t, txMap);
+      return (t.type === 'income' && !isRefund) || (t.type === 'expense' && isRefund);
+    });
+  }, [transactions, priorYm, txMap]);
 
   const priorExpenses = useMemo(() => {
-    return transactions.filter(t => t.datetime.startsWith(priorYm) && ((t.type === 'expense' && !t.linkedTxId) || (t.type === 'income' && t.linkedTxId)));
-  }, [transactions, priorYm]);
+    return transactions.filter(t => {
+      if (!t.datetime.startsWith(priorYm)) return false;
+      const isRefund = isRefundTx(t, txMap);
+      return (t.type === 'expense' && !isRefund) || (t.type === 'income' && isRefund);
+    });
+  }, [transactions, priorYm, txMap]);
 
   // 유효한 금액 계산 (상계/반환 항목은 음수로 처리)
   const getValidAmount = (tx) => {
-    const isRecoveryOrReturn = !!tx.linkedTxId;
-    const multiplier = isRecoveryOrReturn ? -1 : 1;
+    const isRefund = isRefundTx(tx, txMap);
+    const multiplier = isRefund ? -1 : 1;
 
     if (tx.splitItems && tx.splitItems.length > 0) {
       return tx.splitItems.reduce((s, it) => s + (Number(it.amount) || 0) * multiplier, 0);
@@ -162,7 +184,8 @@ export default function ShareSummaryModal({ onClose }) {
   // 출금 내역 그룹화 (상계/반환 반영)
   const flattenExpenses = (expenses) => {
     return expenses.flatMap(tx => {
-      const multiplier = tx.linkedTxId ? -1 : 1;
+      const isRefund = isRefundTx(tx, txMap);
+      const multiplier = isRefund ? -1 : 1;
       if (tx.splitItems && tx.splitItems.length > 0) {
         return tx.splitItems.map(it => ({
           category: it.category || tx.category || '소모품',

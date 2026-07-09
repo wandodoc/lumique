@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { calcPartBalances, calcMonthlyStats, calcMemberDues, formatKRW } from '../utils/calculations';
+import { calcPartBalances, calcMonthlyStats, calcMemberDues, formatKRW, isRefundTx } from '../utils/calculations';
 import ShareSummaryModal from '../components/ShareSummaryModal';
 import './Pages.css';
 
@@ -29,12 +29,19 @@ export default function DashboardPage({ onAddClick, setTab }) {
   const monthly = calcMonthlyStats(transactions);
   const thisMonth = monthly[monthly.length - 1] || { income: 0, expense: 0, month: '-' };
 
+  const txMap = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => map[t.id] = t);
+    return map;
+  }, [transactions]);
+
   const thisMonthIncomes = useMemo(() => {
     if (!thisMonth.month || thisMonth.month === '-') return [];
     const map = {};
     transactions.filter(t => t.datetime.startsWith(thisMonth.month)).forEach(t => {
-      const isIncome = t.type === 'income' && !t.linkedTxId;
-      const isRecovery = t.type === 'expense' && t.linkedTxId;
+      const isRefund = isRefundTx(t, txMap);
+      const isIncome = t.type === 'income' && !isRefund;
+      const isRecovery = t.type === 'expense' && isRefund;
       if (!isIncome && !isRecovery) return;
       
       const multiplier = isRecovery ? -1 : 1;
@@ -52,14 +59,15 @@ export default function DashboardPage({ onAddClick, setTab }) {
     return Object.entries(map).map(([category, amount]) => ({ category, amount }))
       .filter(x => x.amount > 0) // 음수나 0이 된 카테고리는 제외
       .sort((a, b) => b.amount - a.amount);
-  }, [transactions, thisMonth.month]);
+  }, [transactions, thisMonth.month, txMap]);
 
   const thisMonthExpenses = useMemo(() => {
     if (!thisMonth.month || thisMonth.month === '-') return [];
     const map = {};
     transactions.filter(t => t.datetime.startsWith(thisMonth.month)).forEach(t => {
-      const isExpense = t.type === 'expense' && !t.linkedTxId;
-      const isReturn = t.type === 'income' && t.linkedTxId;
+      const isRefund = isRefundTx(t, txMap);
+      const isExpense = t.type === 'expense' && !isRefund;
+      const isReturn = t.type === 'income' && isRefund;
       if (!isExpense && !isReturn) return;
       
       const multiplier = isReturn ? -1 : 1;
@@ -77,7 +85,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
     return Object.entries(map).map(([category, amount]) => ({ category, amount }))
       .filter(x => x.amount > 0) // 음수나 0이 된 카테고리는 제외
       .sort((a, b) => b.amount - a.amount);
-  }, [transactions, thisMonth.month]);
+  }, [transactions, thisMonth.month, txMap]);
 
   const unpaidCount = members.filter(m =>
     m.status === 'active' && calcMemberDues(m, transactions).diff < 0
