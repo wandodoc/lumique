@@ -418,7 +418,7 @@ export default function ShareSummaryModal({ onClose }) {
                 수익 및 지출 내역 요약
               </h4>
               <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--slate-500)' }}>
-                Last Updated {now.getFullYear()}.{String(now.getMonth() + 1).padStart(2, '0')}.{String(now.getDate()).padStart(2, '0')}
+                Last Updated {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
               </p>
             </div>
 

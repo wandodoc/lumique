@@ -97,7 +97,7 @@ function AppInner() {
           <div className="logo-mark">
             <img src="/logo.png" alt="Lumique" />
           </div>
-          <div><h1>Lumique <span style={{ fontSize: 11, color: '#fb923c', background: 'rgba(251,146,60,0.15)', borderRadius: 6, padding: '2px 6px', fontWeight: 700, verticalAlign: 'middle', letterSpacing: 0 }}>테스트</span></h1><p>동아리 활동 자금 관리</p></div>
+          <div><h1>Lumique</h1><p>동아리 활동 자금 관리</p></div>
         </div>
         <nav style={{ flex: 1, overflowY: 'auto', paddingBottom: 20 }}>
           {[

@@ -44,7 +44,7 @@ export default function ShareDuesModal({ onClose, currentPartFilter }) {
   // 1. 텍스트 복사 핸들러
   const handleCopyText = async () => {
     try {
-      let txt = `📢 Lumique 납부 현황\n`;
+      let txt = `📢 Lumique 회비 납부 현황 요약\n`;
       txt += `(기준일: ${dateStr})\n`;
       if (filterPart !== '전체') txt += `(파트: ${filterPart})\n`;
       txt += `-------------------------------\n\n`;
@@ -212,7 +212,7 @@ export default function ShareDuesModal({ onClose, currentPartFilter }) {
                 marginBottom: 6,
                 background: '#f8fafc'
               }}>
-                납부 현황
+                멤버별 납부 현황_요약
               </div>
               <div style={{ fontSize: 12, color: '#666', fontStyle: 'italic' }}>
                 Last Updated {dateStr}
