@@ -1,0 +1,42 @@
+// 실제 회원 데이터 (스프레드시트 회원 명단_DB 기반)
+export const MEMBERS = [
+  // VOIX
+  { id: 'm01', name: '강맥',   part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm02', name: '강지우', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm03', name: '권성민', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm04', name: '김현우', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm05', name: '박예준', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm06', name: '배성욱', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm07', name: '배지호', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm08', name: '유정연', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm09', name: '인기훈', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm10', name: '정예지', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm11', name: '황준호', part: 'VOIX',    joinDate: '2025-08-12', leaveDate: null,         status: 'active' },
+  { id: 'm12', name: '김호준', part: 'VOIX',    joinDate: '2026-03-19', leaveDate: null,         status: 'active' },
+  // SESSION
+  { id: 'm13', name: '하늘별', part: 'SESSION', joinDate: '2025-12-17', leaveDate: null,         status: 'active' },
+  { id: 'm14', name: '장지웅', part: 'SESSION', joinDate: '2026-02-08', leaveDate: null,         status: 'active' },
+  { id: 'm15', name: '권민정', part: 'SESSION', joinDate: '2026-03-08', leaveDate: null,         status: 'active' },
+  // DANCE
+  { id: 'm16', name: '오정주', part: 'DANCE',   joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm17', name: '오지영', part: 'DANCE',   joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm18', name: '이연주', part: 'DANCE',   joinDate: '2025-01-05', leaveDate: null,         status: 'active' },
+  { id: 'm19', name: '조에스더', part: 'DANCE', joinDate: '2025-01-06', leaveDate: null,         status: 'active' },
+  { id: 'm20', name: '김정아', part: 'DANCE',   joinDate: '2025-01-07', leaveDate: null,         status: 'active' },
+  { id: 'm21', name: '김민경', part: 'DANCE',   joinDate: '2025-03-08', leaveDate: null,         status: 'active' },
+  { id: 'm22', name: '김다연', part: 'DANCE',   joinDate: '2025-04-02', leaveDate: null,         status: 'active' },
+  { id: 'm23', name: '김서연', part: 'DANCE',   joinDate: '2025-06-17', leaveDate: null,         status: 'active' },
+  { id: 'm24', name: '이은아', part: 'DANCE',   joinDate: '2025-07-27', leaveDate: null,         status: 'active' },
+  { id: 'm25', name: '박진희', part: 'DANCE',   joinDate: '2026-02-02', leaveDate: null,         status: 'active' },
+  { id: 'm26', name: '한예린', part: 'DANCE',   joinDate: '2026-02-02', leaveDate: null,         status: 'active' },
+  { id: 'm27', name: '강가연', part: 'DANCE',   joinDate: '2026-03-08', leaveDate: null,         status: 'active' },
+  { id: 'm28', name: '김시연', part: 'DANCE',   joinDate: '2026-03-08', leaveDate: null,         status: 'active' },
+  { id: 'm29', name: '장성윤', part: 'DANCE',   joinDate: '2026-03-08', leaveDate: null,         status: 'active' },
+  { id: 'm30', name: '장예슬', part: 'DANCE',   joinDate: '2026-03-08', leaveDate: null,         status: 'active' },
+  { id: 'm31', name: '김예은', part: 'DANCE',   joinDate: '2026-03-20', leaveDate: null,         status: 'active' },
+  // 탈퇴
+  { id: 'm32', name: '신수현', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: '2026-02-10', status: 'inactive' },
+  { id: 'm33', name: '백경영', part: 'DANCE',   joinDate: '2025-01-05', leaveDate: '2025-05-31', status: 'inactive' },
+  { id: 'm34', name: '이승연', part: 'DANCE',   joinDate: '2025-01-05', leaveDate: '2025-05-31', status: 'inactive' },
+  { id: 'm35', name: '김가현', part: 'VOIX',    joinDate: '2025-01-05', leaveDate: '2025-03-31', status: 'inactive' },
+];
