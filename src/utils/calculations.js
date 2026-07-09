@@ -109,9 +109,11 @@ export function calcMemberDues(member, transactions) {
 export function calcPartBalances(transactions) {
   const balances = { VOIX: 0, DANCE: 0, SESSION: 0, 공통: 0 };
   transactions.forEach(tx => {
+    if (tx.linkedTxId) return; // 전체 상계된 거래 제외
     const sign = tx.type === 'income' ? 1 : -1;
     if (tx.splitItems && tx.splitItems.length > 0) {
       tx.splitItems.forEach(item => {
+        if (item.linkedTxId) return; // 상계된 분할 항목 제외
         const part = item.part || '공통';
         const amount = Number(item.amount) || 0;
         if (part in balances) balances[part] += sign * amount;
@@ -130,10 +132,19 @@ export function calcPartBalances(transactions) {
 export function calcMonthlyStats(transactions) {
   const map = {};
   transactions.forEach(tx => {
+    if (tx.linkedTxId) return; // 전체 상계된 거래 제외
     const month = tx.datetime.slice(0, 7);
     if (!map[month]) map[month] = { month, income: 0, expense: 0 };
-    if (tx.type === 'income') map[month].income += tx.amount;
-    else map[month].expense += tx.amount;
+    
+    let validAmount = 0;
+    if (tx.splitItems && tx.splitItems.length > 0) {
+      validAmount = tx.splitItems.filter(it => !it.linkedTxId).reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    } else {
+      validAmount = Number(tx.amount) || 0;
+    }
+    
+    if (tx.type === 'income') map[month].income += validAmount;
+    else map[month].expense += validAmount;
   });
   return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
 }

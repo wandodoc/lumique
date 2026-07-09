@@ -270,7 +270,15 @@ export default function AnalyticsPage() {
 
       {/* 파트별 잔액 */}
       <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <span className="card-title">파트별 잔액</span>
+        <div className="flex-between" style={{ marginBottom: 12 }}>
+          <span className="card-title" style={{ margin: 0 }}>파트별 잔액</span>
+          <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 잔액</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: netBalance >= 0 ? '#0f172a' : 'var(--red-500)' }}>
+              {netBalance < 0 ? '-' : ''}{formatKRW(Math.abs(netBalance))}
+            </span>
+          </div>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
           {['VOIX', 'DANCE', 'SESSION', '공통'].map(p => {
             const val = partBal[p] || 0;
