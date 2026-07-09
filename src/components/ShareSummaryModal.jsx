@@ -264,9 +264,12 @@ export default function ShareSummaryModal({ onClose }) {
       // toPng를 사용하여 안정적으로 생성 후 Blob 변환
       const dataUrl = await toPng(cardRef.current, {
         backgroundColor: '#f8fafc',
+        width: 420,
+        pixelRatio: 2,
         style: {
           transform: 'scale(1)',
-          borderRadius: '0px'
+          borderRadius: '0px',
+          margin: '0'
         }
       });
       const res = await fetch(dataUrl);
@@ -288,7 +291,12 @@ export default function ShareSummaryModal({ onClose }) {
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
     try {
-      const dataUrl = await toPng(cardRef.current, { backgroundColor: '#f8fafc' });
+      const dataUrl = await toPng(cardRef.current, { 
+        backgroundColor: '#f8fafc',
+        width: 420,
+        pixelRatio: 2,
+        style: { margin: '0' }
+      });
       const a = document.createElement('a');
       a.href = dataUrl;
       a.download = `Lumique_Summary_${targetYm}.png`;
@@ -409,19 +417,20 @@ export default function ShareSummaryModal({ onClose }) {
         )}
 
         {/* 텍스트 미리보기 및 이미지 카드 렌더링 */}
-        <div style={{ maxHeight: 'calc(100vh - 350px)', overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
+        <div style={{ maxHeight: 'calc(100vh - 350px)', overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 24, background: 'var(--slate-50)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           
-          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>공유 카드 이미지 미리보기 (가로 스크롤 가능)</div>
+          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 16, alignSelf: 'flex-start' }}>공유 카드 이미지 미리보기</div>
           
           {/* 실제로 이미지로 변환될 DOM 영역 */}
           <div ref={cardRef} style={{
-            width: '420px', // 모바일 비율에 맞춘 폭
-            margin: '0 auto',
+            width: '420px',
+            minWidth: '420px',
             padding: '32px 24px',
             background: '#ffffff',
             borderRadius: 24,
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            color: 'var(--slate-800)'
+            color: 'var(--slate-800)',
+            boxSizing: 'border-box'
           }}>
             {/* 1. 상단 타이틀 & 총 잔액 */}
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
