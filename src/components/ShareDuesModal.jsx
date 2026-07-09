@@ -126,7 +126,7 @@ export default function ShareDuesModal({ onClose, currentPartFilter }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
 
         {/* 헤더 */}

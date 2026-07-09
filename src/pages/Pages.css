@@ -284,13 +284,34 @@
 .progress-fill  { height: 100%; border-radius: 99px; transition: width .6s cubic-bezier(.4,0,.2,1); }
 
 /* ===== 모달 ===== */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: flex-end; justify-content: center; }
-.modal-sheet {
-  background: var(--white); border-radius: 24px 24px 0 0;
-  padding: 20px 20px 32px; width: 100%; max-width: 520px; max-height: 85vh;
-  overflow-y: auto; animation: slideUp .28s cubic-bezier(.4,0,.2,1);
+.modal-overlay { 
+  position: fixed; inset: 0; 
+  background: rgba(0,0,0,.4); 
+  backdrop-filter: blur(4px); 
+  z-index: 200; 
+  display: flex; 
+  align-items: flex-end; 
+  justify-content: center; 
 }
+.modal-sheet {
+  background: var(--white); 
+  border-radius: 24px 24px 0 0;
+  padding: 24px 24px 32px; 
+  width: 100%; 
+  max-width: 900px; /* 훨씬 넓게 */
+  max-height: 85vh;
+  overflow-y: auto; 
+  animation: slideUp .28s cubic-bezier(.4,0,.2,1);
+}
+
+@media (min-width: 768px) {
+  .modal-overlay { align-items: center; padding: 20px; }
+  .modal-sheet { border-radius: 24px; max-height: 90vh; }
+  .modal-handle { display: none; }
+}
+
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
 .modal-handle { width: 40px; height: 4px; background: var(--slate-200); border-radius: 99px; margin: 0 auto 20px; }
 .modal-header  { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 .modal-title   { font-size: 20px; font-weight: 800; }

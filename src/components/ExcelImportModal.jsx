@@ -152,7 +152,7 @@ export default function ExcelImportModal({ onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
         <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16 }}>
           {step === 1 ? '엑셀에서 복사하여 붙여넣기' : '자동 분류 결과'}

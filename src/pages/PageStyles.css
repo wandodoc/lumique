@@ -216,13 +216,20 @@
 .modal-sheet {
   background: white;
   border-radius: 24px 24px 0 0;
-  padding: 20px;
+  padding: 24px 24px 32px;
   width: 100%;
-  max-width: var(--app-max-width);
-  max-height: 70vh;
+  max-width: 900px;
+  max-height: 85vh;
   overflow-y: auto;
-  animation: slideUp 0.3s cubic-bezier(0.4,0,0.2,1);
+  animation: slideUp 0.28s cubic-bezier(0.4,0,0.2,1);
 }
+
+@media (min-width: 768px) {
+  .modal-overlay { align-items: center; padding: 20px; }
+  .modal-sheet { border-radius: 24px; max-height: 90vh; }
+  .modal-handle { display: none; }
+}
+
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }

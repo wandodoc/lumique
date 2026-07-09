@@ -339,7 +339,7 @@ export default function ShareSummaryModal({ onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
 
         {/* 헤더 */}

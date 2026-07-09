@@ -194,7 +194,7 @@ export default function EditTransactionModal({ tx, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
 
         {/* 헤더 */}
