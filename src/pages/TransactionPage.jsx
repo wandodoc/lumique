@@ -213,6 +213,7 @@ export default function TransactionPage() {
           className="filter-select" 
           value={categoryFilter} 
           onChange={e => setCategoryFilter(e.target.value)}
+          style={{ width: '110px' }}
         >
           {categories.map(c => (
             <option key={c} value={c}>

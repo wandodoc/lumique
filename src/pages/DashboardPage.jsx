@@ -99,26 +99,8 @@ export default function DashboardPage({ onAddClick, setTab }) {
         <p className="hero-sub">토스뱅크 1001-7629-3105</p>
       </div>
 
-      {/* 파트별 잔고 현황 */}
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
-            const pb = p === 'VOIX/SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
-            return (
-              <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: 12, textAlign: 'center' }}>
-                <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4 }}>{p}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: pb < 0 ? '#e11d48' : '#0f172a' }}>
-                  {formatKRW(pb)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* 이달 요약 */}
-      <div className="card card-pad" style={{ overflow: 'visible' }}>
+      <div className="card card-pad" style={{ overflow: 'visible', marginBottom: 16 }}>
         <div className="flex-between" style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="card-title" style={{ margin: 0 }}>이번 달 요약</span>
@@ -190,6 +172,24 @@ export default function DashboardPage({ onAddClick, setTab }) {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* 파트별 잔고 현황 */}
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
+            const pb = p === 'VOIX/SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
+            return (
+              <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: '10px 4px', textAlign: 'center', minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
+                <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#e11d48' : '#0f172a', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                  {formatKRW(pb)}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
