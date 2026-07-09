@@ -396,13 +396,14 @@ export default function ShareSummaryModal({ onClose }) {
         )}
 
         {/* 텍스트 미리보기 및 이미지 카드 렌더링 */}
-        <div style={{ maxHeight: 'calc(100vh - 350px)', overflowY: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
+        <div style={{ maxHeight: 'calc(100vh - 350px)', overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
           
-          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>공유 카드 이미지 미리보기</div>
+          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8 }}>공유 카드 이미지 미리보기 (가로 스크롤 가능)</div>
           
           {/* 실제로 이미지로 변환될 DOM 영역 */}
           <div ref={cardRef} style={{
-            padding: '24px 20px',
+            width: '840px', // 가로로 넓게 강제 고정
+            padding: '28px 24px',
             background: 'white',
             border: '1.5px solid var(--slate-200)',
             borderRadius: 16,
@@ -419,90 +420,90 @@ export default function ShareSummaryModal({ onClose }) {
               </p>
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, textAlign: 'right' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }}>
               <thead>
                 <tr style={{ background: '#1e3a8a', color: 'white' }}>
-                  <th style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '22%' }}>구분</th>
-                  {allTimeStats.activeParts.map(p => <th key={p} style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '16%' }}>{p}</th>)}
-                  <th style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '18%' }}>총 합계</th>
-                  <th style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid #1e3a8a', width: '12%' }}>비율</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>구분</th>
+                  {allTimeStats.activeParts.map(p => <th key={p} style={{ padding: '10px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>{p}</th>)}
+                  <th style={{ padding: '10px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>총 합계</th>
+                  <th style={{ padding: '10px 8px', textAlign: 'center', border: '1px solid #1e3a8a' }}>비율</th>
                 </tr>
               </thead>
               <tbody>
                 {/* 수입 */}
                 {allTimeStats.inCats.map(cat => (
                   <tr key={cat}>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
                     {allTimeStats.activeParts.map(p => (
-                      <td key={p} style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.inMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
+                      <td key={p} style={{ padding: '8px 6px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.inMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
                         {allTimeStats.inMatrix[cat][p] === 0 ? '0' : allTimeStats.inMatrix[cat][p].toLocaleString()}
                       </td>
                     ))}
-                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
+                    <td style={{ padding: '8px 6px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
                       {allTimeStats.inMatrix[cat].Total.toLocaleString()}
                     </td>
-                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
+                    <td style={{ padding: '8px 6px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
                       {allTimeStats.inTotal.Total > 0 ? Math.round((allTimeStats.inMatrix[cat].Total / allTimeStats.inTotal.Total) * 100) : 0}%
                     </td>
                   </tr>
                 ))}
                 {/* 수입 계 */}
                 <tr style={{ background: '#d1fae5' }}>
-                  <td style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>수입 계</td>
+                  <td style={{ padding: '10px 6px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>수입 계</td>
                   {allTimeStats.activeParts.map(p => (
-                    <td key={p} style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
+                    <td key={p} style={{ padding: '10px 6px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
                       {allTimeStats.inTotal[p].toLocaleString()}
                     </td>
                   ))}
-                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
+                  <td style={{ padding: '10px 6px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
                     {allTimeStats.inTotal.Total.toLocaleString()}
                   </td>
-                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
+                  <td style={{ padding: '10px 6px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
                 </tr>
 
                 {/* 지출 */}
                 {allTimeStats.exCats.map(cat => (
                   <tr key={cat}>
-                    <td style={{ padding: '6px 4px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', background: 'white', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#334155' }}>{cat}</td>
                     {allTimeStats.activeParts.map(p => (
-                      <td key={p} style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.exMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
+                      <td key={p} style={{ padding: '8px 6px', border: '1px solid var(--slate-200)', background: 'white', color: allTimeStats.exMatrix[cat][p] === 0 ? '#94a3b8' : 'inherit' }}>
                         {allTimeStats.exMatrix[cat][p] === 0 ? '0' : `(${allTimeStats.exMatrix[cat][p].toLocaleString()})`}
                       </td>
                     ))}
-                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
+                    <td style={{ padding: '8px 6px', border: '1px solid var(--slate-200)', background: '#fef3c7', fontWeight: 700 }}>
                       ({allTimeStats.exMatrix[cat].Total.toLocaleString()})
                     </td>
-                    <td style={{ padding: '6px 4px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
+                    <td style={{ padding: '8px 6px', border: '1px solid var(--slate-200)', background: 'white', color: '#64748b' }}>
                       {allTimeStats.exTotal.Total > 0 ? Math.round((allTimeStats.exMatrix[cat].Total / allTimeStats.exTotal.Total) * 100) : 0}%
                     </td>
                   </tr>
                 ))}
                 {/* 지출 계 */}
                 <tr style={{ background: '#d1fae5' }}>
-                  <td style={{ padding: '8px 4px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>지출 계</td>
+                  <td style={{ padding: '10px 6px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 800, color: '#065f46' }}>지출 계</td>
                   {allTimeStats.activeParts.map(p => (
-                    <td key={p} style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
+                    <td key={p} style={{ padding: '10px 6px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>
                       ({allTimeStats.exTotal[p].toLocaleString()})
                     </td>
                   ))}
-                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
+                  <td style={{ padding: '10px 6px', border: '1px solid var(--slate-200)', background: '#a7f3d0', fontWeight: 800, color: '#065f46' }}>
                     ({allTimeStats.exTotal.Total.toLocaleString()})
                   </td>
-                  <td style={{ padding: '8px 4px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
+                  <td style={{ padding: '10px 6px', border: '1px solid var(--slate-200)', fontWeight: 700, color: '#065f46' }}>100%</td>
                 </tr>
 
                 {/* 잔액 */}
                 <tr style={{ background: '#fbbf24' }}>
-                  <td style={{ padding: '12px 4px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 900, fontSize: 13, color: '#92400e' }}>잔액</td>
+                  <td style={{ padding: '14px 6px', textAlign: 'center', border: '1px solid var(--slate-200)', fontWeight: 900, fontSize: 14, color: '#92400e' }}>잔액</td>
                   {allTimeStats.activeParts.map(p => (
-                    <td key={p} style={{ padding: '12px 4px', border: '1px solid var(--slate-200)', fontWeight: 800, fontSize: 12, color: '#92400e' }}>
+                    <td key={p} style={{ padding: '14px 6px', border: '1px solid var(--slate-200)', fontWeight: 800, fontSize: 13, color: '#92400e' }}>
                       {(allTimeStats.inTotal[p] - allTimeStats.exTotal[p]).toLocaleString()}
                     </td>
                   ))}
-                  <td style={{ padding: '12px 4px', border: '2px solid #ef4444', background: '#ffe4e6', color: '#e11d48', fontWeight: 900, fontSize: 14 }}>
+                  <td style={{ padding: '14px 6px', border: '2px solid #ef4444', background: '#ffe4e6', color: '#e11d48', fontWeight: 900, fontSize: 15 }}>
                     {(allTimeStats.inTotal.Total - allTimeStats.exTotal.Total).toLocaleString()}
                   </td>
-                  <td style={{ padding: '12px 4px', border: '1px solid var(--slate-200)' }}></td>
+                  <td style={{ padding: '14px 6px', border: '1px solid var(--slate-200)' }}></td>
                 </tr>
               </tbody>
             </table>
