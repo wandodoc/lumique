@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatKRW, getDuesStartMonth } from '../utils/calculations';
-import { toBlob } from 'html-to-image';
+import { toPng } from 'html-to-image';
 
 export default function ShareSummaryModal({ onClose }) {
   const { state } = useApp();
@@ -252,17 +252,20 @@ export default function ShareSummaryModal({ onClose }) {
   const handleCopyImage = async () => {
     if (!cardRef.current) return;
     try {
-      // html-to-image로 렌더링
-      const blob = await toBlob(cardRef.current, {
+      // toPng를 사용하여 안정적으로 생성 후 Blob 변환
+      const dataUrl = await toPng(cardRef.current, {
         backgroundColor: '#f8fafc',
         style: {
           transform: 'scale(1)',
           borderRadius: '0px'
         }
       });
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+
       await navigator.clipboard.write([
         new ClipboardItem({
-          [blob.type]: blob
+          'image/png': blob
         })
       ]);
       showStatus('image');
@@ -276,13 +279,11 @@ export default function ShareSummaryModal({ onClose }) {
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
     try {
-      const blob = await toBlob(cardRef.current, { backgroundColor: '#f8fafc' });
-      const url = URL.createObjectURL(blob);
+      const dataUrl = await toPng(cardRef.current, { backgroundColor: '#f8fafc' });
       const a = document.createElement('a');
-      a.href = url;
+      a.href = dataUrl;
       a.download = `Lumique_Summary_${targetYm}.png`;
       a.click();
-      URL.revokeObjectURL(url);
     } catch (err) {
       alert('이미지 저장에 실패했습니다.');
     }
