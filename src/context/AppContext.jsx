@@ -6,11 +6,11 @@ import { firebaseStorage } from '../utils/firebaseStorage';
 
 const AppContext = createContext(null);
 
-// 기본 공연 목록 (YYYY-MM 형식)
+// 기본 공연 목록 (YYYY-MM-DD 형식)
 const DEFAULT_PERFORMANCES = [
-  { key: '2025-07', label: '2025년 7월' },
-  { key: '2025-12', label: '2025년 12월' },
-  { key: '2026-07', label: '2026년 7월' },
+  { key: '2025-07-20', label: '2025년 7월 20일' },
+  { key: '2025-12-28', label: '2025년 12월 28일' },
+  { key: '2026-07-11', label: '2026년 7월 11일' },
 ];
 
 const initialState = {
@@ -100,25 +100,67 @@ export function AppProvider({ children }) {
           return t;
         });
 
+        // 공연 키 마이그레이션 (2025-07 -> 2025-07-20 등)
+        const KEY_MAP = {
+          '2025-07': '2025-07-20',
+          '2025-12': '2025-12-28',
+          '2026-07': '2026-07-11'
+        };
+
+        let performances = fbState.performances || DEFAULT_PERFORMANCES;
+        let needsPerfUpdate = false;
+        
+        const mappedPerformances = performances.map(p => {
+          if (KEY_MAP[p.key]) {
+            needsPerfUpdate = true;
+            return { ...p, key: KEY_MAP[p.key] };
+          }
+          return p;
+        });
+        
+        // 중복 제거 (이미 사용자가 수동으로 2025-07-20을 추가했을 수도 있으므로)
+        const uniquePerformances = [];
+        const seenKeys = new Set();
+        mappedPerformances.forEach(p => {
+          if (!seenKeys.has(p.key)) {
+            seenKeys.add(p.key);
+            uniquePerformances.push(p);
+          }
+        });
+        performances = uniquePerformances;
+
         // members.js에 하드코딩된 학생/직장인 및 2025 보정액을 파이어베이스 데이터에 병합
         const mergedMembers = (fbState.members || []).map(fbMember => {
           const codeMember = MEMBERS.find(m => m.id === fbMember.id);
+          let newPerfs = { ...(fbMember.performances || {}) };
+          
+          if (needsPerfUpdate) {
+            Object.keys(KEY_MAP).forEach(oldKey => {
+              if (newPerfs[oldKey]) {
+                newPerfs[KEY_MAP[oldKey]] = newPerfs[oldKey];
+                delete newPerfs[oldKey];
+              }
+            });
+          }
+
+          let updatedMember = { ...fbMember, performances: newPerfs };
+
           if (codeMember) {
             return { 
-              ...fbMember, 
+              ...updatedMember, 
               type: codeMember.type || '직장인', 
               offset2025: codeMember.offset2025 || 0 
             };
           }
-          return fbMember;
+          return updatedMember;
         });
 
         dispatch({
           type: 'INIT',
           members: mergedMembers,
           transactions: transactions,
-          performances: fbState.performances || DEFAULT_PERFORMANCES,
-          lastUpdated: updatedCount > 0 ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
+          performances: performances,
+          lastUpdated: (updatedCount > 0 || needsPerfUpdate) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
         // Firebase가 비어있다면 localStorage에서 마이그레이션 (1회성)

@@ -143,7 +143,7 @@ function AddPerfModal({ onSave, onClose, existing }) {
 /* =========================================================
    공연별 현황 뷰
    ========================================================= */
-function PerfView({ performances, members }) {
+function PerfView({ performances, members, onToggle }) {
   const [selectedPerf, setSelectedPerf] = useState(performances[0]?.key ?? null);
 
   if (performances.length === 0) {
@@ -204,7 +204,9 @@ function PerfView({ performances, members }) {
             {participated.length === 0
               ? <div style={{ padding: '16px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)' }}>참여자 없음</div>
               : participated.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)' }}>
+                  <div key={m.id} 
+                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: 'pointer' }}
+                       onClick={(e) => onToggle(e, m, selectedPerf)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
                       {m.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
@@ -224,7 +226,9 @@ function PerfView({ performances, members }) {
             {notParticipated.length === 0
               ? <div style={{ padding: '16px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)' }}>전원 참여</div>
               : notParticipated.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)' }}>
+                  <div key={m.id} 
+                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: 'pointer' }}
+                       onClick={(e) => onToggle(e, m, selectedPerf)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
                       {m.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
@@ -445,7 +449,7 @@ export default function MembersPage() {
 
       {/* ===== 공연별 현황 뷰 ===== */}
       {view === '공연별 현황' && (
-        <PerfView performances={performances} members={members.filter(m => showInactive || m.status === 'active')} />
+        <PerfView performances={performances} members={members.filter(m => showInactive || m.status === 'active')} onToggle={togglePerformance} />
       )}
 
       {modal && (
