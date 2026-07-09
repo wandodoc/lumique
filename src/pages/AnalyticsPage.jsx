@@ -279,13 +279,13 @@ export default function AnalyticsPage() {
             </span>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-          {['VOIX', 'DANCE', 'SESSION', '공통'].map(p => {
-            const val = partBal[p] || 0;
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
+            const val = p === 'VOIX/SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
             return (
               <div key={p} style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)' }}>
                 <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2 }}>{p}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: val < 0 ? 'var(--red-500)' : PART_COLORS[p] }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: val < 0 ? 'var(--red-500)' : (PART_COLORS[p] || '#3b82f6') }}>
                   {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
                 </div>
               </div>

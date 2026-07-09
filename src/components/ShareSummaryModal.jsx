@@ -494,9 +494,14 @@ export default function ShareSummaryModal({ onClose }) {
             {/* 4. 파트별 잔고 현황 */}
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12 }}>파트별 잔고 현황</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {allTimeStats.activeParts.map(p => {
-                  const partBal = allTimeStats.inTotal[p] - allTimeStats.exTotal[p];
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
+                  let partBal = 0;
+                  if (p === 'VOIX/SESSION') {
+                    partBal = (allTimeStats.inTotal['VOIX'] - allTimeStats.exTotal['VOIX']) + (allTimeStats.inTotal['SESSION'] - allTimeStats.exTotal['SESSION']);
+                  } else {
+                    partBal = allTimeStats.inTotal[p] - allTimeStats.exTotal[p];
+                  }
                   return (
                     <div key={p} style={{ background: partBal < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${partBal < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: 12, textAlign: 'center' }}>
                       <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4 }}>{p}</div>

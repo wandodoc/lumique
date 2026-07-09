@@ -102,9 +102,9 @@ export default function DashboardPage({ onAddClick, setTab }) {
       {/* 파트별 잔고 현황 */}
       <div className="card card-pad" style={{ marginBottom: 16 }}>
         <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {['VOIX', 'DANCE', 'SESSION', '공통'].map(p => {
-            const pb = partBal[p] || 0;
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {['VOIX/SESSION', 'DANCE', '공통'].map(p => {
+            const pb = p === 'VOIX/SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
             return (
               <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: 12, textAlign: 'center' }}>
                 <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4 }}>{p}</div>
