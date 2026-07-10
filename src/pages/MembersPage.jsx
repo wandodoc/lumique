@@ -617,7 +617,7 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                             return (
                               <div key={p.key} className="perf-history-item">
                                 <span className="perf-label">{p.label}</span>
-                                <span className={`badge ${badgeClass}`}>{statusText}</span>
+                                <span className={`badge ${badgeClass}`} style={{ whiteSpace: 'nowrap' }}>{statusText}</span>
                               </div>
                             );
                           })}

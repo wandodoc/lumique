@@ -381,7 +381,7 @@
   to { opacity: 1; }
 }
 
-/* ===== 모바일 가로 서브메뉴 플로팅 바 (다크/블랙 카드) ===== */
+/* ===== 모바일 가로 서브메뉴 플로팅 바 (라이트 베이지 카드 및 깊은 그림자) ===== */
 .mobile-submenu-bar {
   position: fixed;
   bottom: 64px;
@@ -390,14 +390,14 @@
   opacity: 0;
   pointer-events: none;
   display: flex;
-  background: rgba(9, 9, 11, 0.95);
+  background: rgba(250, 249, 245, 0.96); /* 연한 베이지 톤 화이트 */
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid #27272a;
+  border: 1px solid #e4e4e7; /* zinc-200 */
   border-radius: 99px;
-  padding: 6px 12px;
-  gap: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 8px 16px; /* 크기 확장 */
+  gap: 10px; /* 아이템 간격 확장 */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06); /* 깊은 그림자 */
   z-index: 99;
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
 }
@@ -412,26 +412,26 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 8px 18px; /* 터치 영역 확장 */
   border: none;
   background: none;
   border-radius: 99px;
-  font-size: 13px;
+  font-size: 14px; /* 글자 크기 조정 */
   font-weight: 700;
-  color: #a1a1aa;
+  color: #4b5563; /* zinc-600 */
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.2s, color 0.2s;
 }
 
 .submenu-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  background: rgba(0, 0, 0, 0.04);
+  color: #09090b;
 }
 
 .submenu-item.active {
-  background: #27272a;
-  color: #ffffff;
+  background: #e4e4e7; /* zinc-200 */
+  color: #09090b;
 }
 
 .submenu-icon {

@@ -1130,7 +1130,7 @@
 
 /* 모바일 아코디언 상세 */
 .member-mobile-card .accordion-inner {
-  padding: 16px 20px;
+  padding: 12px 14px;
   border-top: 1px dashed var(--slate-200);
 }
 
@@ -1165,10 +1165,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: var(--white);
   border: 1px solid var(--slate-150);
   border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
 .perf-history-item .perf-label {
