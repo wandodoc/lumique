@@ -136,7 +136,7 @@ function AppInner() {
           {/* 그룹 탭들 */}
           {[
             { title: '회비 관리', ids: ['ledger', 'dues', 'analytics'] },
-            { title: '멤버 & 공연', ids: ['members', 'perf'] }
+            { title: '활동 관리', ids: ['members', 'perf'] }
           ].map((g) => (
             <div key={g.title} style={{ marginTop: 24 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray-500)', padding: '0 24px', marginBottom: 4 }}>
