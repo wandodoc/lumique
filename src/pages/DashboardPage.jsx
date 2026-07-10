@@ -129,7 +129,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
             return (
               <div key={p} style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap' }}>{p}</div>
-                <div style={{ fontSize: 'clamp(13px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#fca5a5' : '#ffffff', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                <div style={{ fontSize: 'clamp(15px, 4vw, 18px)', fontWeight: 800, color: pb < 0 ? '#fca5a5' : '#ffffff', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
                   {formatKRW(pb)}
                 </div>
               </div>
