@@ -261,6 +261,11 @@ function AppInner() {
         <main className="main-content" onClick={() => setActiveSubmenu(null)}>{renderPage()}</main>
       </div>
 
+      {/* 모바일 서브메뉴 백드롭 블러 오버레이 */}
+      {activeSubmenu && (
+        <div className="mobile-submenu-overlay" onClick={() => setActiveSubmenu(null)} />
+      )}
+
       {/* 모바일 서브메뉴 플로팅 바 (Bottom Bar 바로 위) */}
       <div className={`mobile-submenu-bar ${activeSubmenu ? 'show' : ''}`}>
         {activeSubmenu === 'dues_group' && [
