@@ -13,6 +13,18 @@ export function isRefundTx(tx, allTransactionsMap) {
   return false;
 }
 
+export function sortByPartAndName(arr) {
+  const partOrder = { 'VOIX': 1, 'DANCE': 2, 'SESSION': 3, '공통': 4 };
+  const getPartWeight = p => partOrder[p] || 99;
+
+  return [...arr].sort((a, b) => {
+    const wA = getPartWeight(a.part);
+    const wB = getPartWeight(b.part);
+    if (wA !== wB) return wA - wB;
+    return a.name.localeCompare(b.name, 'ko');
+  });
+}
+
 // dayjs 없이 순수 JS Date로 구현
 
 function parseDate(str) {

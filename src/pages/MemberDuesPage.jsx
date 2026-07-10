@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { calcMemberDues, calcDuesBasis, formatKRW } from '../utils/calculations';
+import { calcMemberDues, formatKRW, sortByPartAndName } from '../utils/calculations';
 import ShareDuesModal from '../components/ShareDuesModal';
 import './Pages.css';
 
@@ -152,17 +152,11 @@ export default function MemberDuesPage() {
       return amt;
     });
   };
-
-  const filtered = members
-    .filter(m => showInactive || m.status === 'active')
-    .filter(m => partFilter === '전체' || m.part === partFilter)
-    .sort((a, b) => {
-      const diffA = calcMemberDues(a, transactions).diff;
-      const diffB = calcMemberDues(b, transactions).diff;
-      if (diffA !== 0 && diffB === 0) return -1;
-      if (diffA === 0 && diffB !== 0) return 1;
-      return diffA - diffB;
-    });
+  const filtered = sortByPartAndName(
+    members
+      .filter(m => showInactive || m.status === 'active')
+      .filter(m => partFilter === '전체' || m.part === partFilter)
+  );
 
   const unpaid = members.filter(m => m.status === 'active' && calcMemberDues(m, transactions).diff < 0);
   const { totalPaid, totalBasis } = members.filter(m => m.status === 'active').reduce((acc, m) => {

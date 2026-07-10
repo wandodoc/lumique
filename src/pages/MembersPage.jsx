@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { sortByPartAndName } from '../utils/calculations';
 import './Pages.css';
 
 const PARTS = ['전체', 'VOIX', 'DANCE', 'SESSION'];
@@ -14,10 +15,7 @@ function fmtPerfLabel(key) {
   return `${y}년 ${m}월`;
 }
 
-// 이름 가나다 순 정렬
-function sortByName(arr) {
-  return [...arr].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
-}
+
 
 /* =========================================================
    회원 추가/수정 모달
@@ -157,7 +155,7 @@ function PerfView({ performances, members, onToggle }) {
   const perf = performances.find(p => p.key === selectedPerf);
 
   // 해당 공연 시점에 가입해 있던 회원만 대상
-  const eligible = sortByName(members.filter(m => {
+  const eligible = sortByPartAndName(members.filter(m => {
     const joinDateStr = m.joinDate || '9999-99-99';
     return joinDateStr <= selectedPerf;
   }));
@@ -174,7 +172,7 @@ function PerfView({ performances, members, onToggle }) {
           <button key={p.key}
             className={`segment-btn ${selectedPerf === p.key ? 'active' : ''}`}
             onClick={() => setSelectedPerf(p.key)}>
-            {p.label}
+            {p.key.replace(/-/g, '.')}
           </button>
         ))}
       </div>
@@ -184,7 +182,7 @@ function PerfView({ performances, members, onToggle }) {
           {/* 요약 카드 */}
           <div className="card card-pad">
             <div className="flex-between" style={{ marginBottom: 12 }}>
-              <span style={{ fontSize: 16, fontWeight: 800 }}>{perf.label}</span>
+              <span style={{ fontSize: 16, fontWeight: 800 }}>{perf.key.replace(/-/g, '.')}</span>
               <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue-500)' }}>{pct}%</span>
             </div>
             <div className="progress-track"><div className="progress-fill" style={{ width: `${pct}%`, background: 'var(--blue-500)' }} /></div>
@@ -285,8 +283,8 @@ export default function MembersPage() {
     }
   };
 
-  // 이름 가나다 순 + 필터
-  const filtered = sortByName(
+  // 파트 순 + 이름 가나다 순 + 필터
+  const filtered = sortByPartAndName(
     members
       .filter(m => showInactive || m.status === 'active')
       .filter(m => partFilter === '전체' || m.part === partFilter)
