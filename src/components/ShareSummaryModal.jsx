@@ -385,14 +385,14 @@ export default function ShareSummaryModal({ onClose }) {
         </div>
 
         {/* 탭 / 컨트롤 버튼 */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <button className="btn-primary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={handleCopyText}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <button className="btn-primary" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={handleCopyText}>
             📋 텍스트 복사
           </button>
-          <button className="btn-primary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--emerald-600)' }} onClick={handleCopyImage}>
+          <button className="btn-primary" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--emerald-600)' }} onClick={handleCopyImage}>
             🖼️ 이미지 복사
           </button>
-          <button className="btn-secondary" style={{ flex: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }} onClick={handleDownloadImage} title="이미지 다운로드">
+          <button className="btn-secondary" style={{ flex: '0 1 80px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }} onClick={handleDownloadImage} title="이미지 다운로드">
             💾 저장
           </button>
         </div>
@@ -416,9 +416,9 @@ export default function ShareSummaryModal({ onClose }) {
         )}
 
         {/* 텍스트 미리보기 및 이미지 카드 렌더링 */}
-        <div style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', overflowX: 'auto', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 16, background: 'var(--slate-50)' }}>
+        <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
           
-          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 16, textAlign: 'center' }}>공유 카드 이미지 미리보기 (스크롤 가능)</div>
+          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12, textAlign: 'center' }}>공유 카드 이미지 미리보기</div>
           
           {/* 실제로 이미지로 변환될 DOM 영역 */}
           <div ref={cardRef} style={{

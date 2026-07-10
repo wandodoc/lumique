@@ -17,6 +17,7 @@
   height: var(--header-h);
   display: flex; align-items: center;
   padding: 0 20px; gap: 12px;
+  justify-content: space-between;
 }
 .logo-mark {
   width: 34px; height: 34px; border-radius: 10px;
@@ -74,6 +75,12 @@
   transition: var(--transition);
 }
 .fab:active { transform: scale(0.93); }
+.fab-pc-only { display: none; }
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
 
 /* ===== PC 헤더 ===== */
 .pc-header { display: none; }
@@ -159,6 +166,7 @@
   .mobile-header { display: none !important; }
   .bottom-nav    { display: none !important; }
   .fab           { display: none !important; }
+  .fab-pc-only    { display: flex !important; }
 
   /* PC 헤더 */
   .pc-header {

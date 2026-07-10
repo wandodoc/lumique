@@ -456,12 +456,12 @@ export default function AnalyticsPage() {
       {/* 계정과목별 파트 비중 대시보드 */}
       <div className="card card-pad" style={{ marginTop: 24, marginBottom: 40 }}>
         <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+          <div className="analytics-detail-header">
             <div>
               <span className="card-title" style={{ margin: 0, display: 'block', marginBottom: 4 }}>계정과목별 파트 상세 내역</span>
               <span style={{ fontSize: 13, color: 'var(--slate-500)', fontWeight: 600 }}>{period === 'all' ? '전체 기간' : `${period}년`} 파트별 누적 잔액</span>
             </div>
-            <div style={{ display: 'flex', gap: 40, background: 'var(--slate-50)', padding: '16px 32px', borderRadius: 12, border: '1px solid var(--slate-100)' }}>
+            <div className="analytics-part-bal-chips">
               {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
                 <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 700, marginBottom: 6 }}>{p}</span>

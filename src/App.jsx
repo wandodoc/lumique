@@ -11,6 +11,17 @@ import SettingsPage from './pages/SettingsPage';
 import LoginModal from './components/LoginModal';
 import './App.css';
 
+const MOBILE_TABS = [
+  { id: 'home', short: '홈',
+    icon: <svg viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> },
+  { id: 'members', short: '회원',
+    icon: <svg viewBox="0 0 24 24"><path d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg> },
+  { id: 'analytics', short: '요약',
+    icon: <svg viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg> },
+  { id: 'more', short: '더보기',
+    icon: <svg viewBox="0 0 24 24"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg> },
+];
+
 const TABS = [
   { id: 'home', label: '대시보드', short: '홈',
     icon: <svg viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> },
@@ -69,6 +80,7 @@ function AppInner() {
   const [tab, setTab] = useState('home');
   const [showAdd, setShowAdd] = useState(false);
   const [showPwdModal, setShowPwdModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const { isAdmin, requestLogin, logout, showLoginModal } = useAuth();
 
   const handleAddClick = () => {
@@ -156,30 +168,79 @@ function AppInner() {
         </header>
 
         <header className="mobile-header">
-          <div className="logo-mark">
-            <img src="/logo.png" alt="Lumique" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="logo-mark">
+              <img src="/logo.png" alt="Lumique" />
+            </div>
+            <h1>
+              <span style={{ color: '#fff', fontWeight: 800 }}>Lumique</span>
+              <span style={{ margin: '0 8px', color: '#555', fontWeight: 300 }}>|</span>
+              <span style={{ color: '#bbb', fontWeight: 500 }}>{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</span>
+            </h1>
           </div>
-          <h1>
-            <span style={{ color: '#fff', fontWeight: 800 }}>Lumique</span>
-            <span style={{ margin: '0 8px', color: '#555', fontWeight: 300 }}>|</span>
-            <span style={{ color: '#bbb', fontWeight: 500 }}>{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</span>
-          </h1>
+          <button
+            onClick={isAdmin ? logout : requestLogin}
+            style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: 4, color: isAdmin ? 'var(--emerald-400)' : '#888', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '6px 10px', borderRadius: 99, whiteSpace: 'nowrap' }}
+          >
+            {isAdmin ? (
+              <><div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--emerald-400)' }} />로그아웃</>
+            ) : (
+              <>🔒 로그인</>
+            )}
+          </button>
         </header>
 
         <main className="main-content">{renderPage()}</main>
       </div>
 
       <nav className="bottom-nav">
-        {TABS.map(t => (
+        {MOBILE_TABS.map(t => (
           <button key={t.id}
-            className={`nav-item ${tab === t.id && !showAdd ? 'active' : ''}`}
-            onClick={() => { setTab(t.id); setShowAdd(false); }}>
+            className={`nav-item ${(t.id === 'members' ? (tab === 'members' || tab === 'dues') : tab === t.id) && !showAdd ? 'active' : ''}`}
+            onClick={() => {
+              if (t.id === 'more') {
+                setShowMoreMenu(true);
+              } else {
+                setTab(t.id);
+                setShowAdd(false);
+              }
+            }}>
             {t.icon}<span>{t.short}</span>
           </button>
         ))}
       </nav>
 
-      {!showAdd && <button className="fab" onClick={handleAddClick} title="거래 추가">＋</button>}
+      {/* 모바일 더보기 바텀시트 */}
+      {showMoreMenu && (
+        <div className="modal-overlay" onClick={() => setShowMoreMenu(false)} style={{ zIndex: 9999 }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: 'var(--c-white)', borderRadius: '20px 20px 0 0',
+            padding: '12px 20px 32px', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
+            animation: 'slideUp 0.25s ease'
+          }}>
+            <div style={{ width: 40, height: 4, background: 'var(--slate-200)', borderRadius: 99, margin: '0 auto 20px' }} />
+            {[
+              { id: 'ledger', label: '입출금 내역', icon: '📋' },
+              { id: 'dues', label: '납부 현황', icon: '✅' },
+              { id: 'settings', label: '설정', icon: '⚙️' },
+            ].map(item => (
+              <button key={item.id} onClick={() => { setTab(item.id); setShowAdd(false); setShowMoreMenu(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                  padding: '14px 8px', border: 'none', background: tab === item.id ? 'var(--slate-50)' : 'none',
+                  borderRadius: 12, fontSize: 15, fontWeight: 600, color: 'var(--slate-700)',
+                  cursor: 'pointer', textAlign: 'left'
+                }}>
+                <span style={{ fontSize: 20 }}>{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!showAdd && <button className="fab fab-pc-only" onClick={handleAddClick} title="거래 추가">＋</button>}
 
       {showPwdModal && <ChangePwdModal onClose={() => setShowPwdModal(false)} />}
       {showLoginModal && <LoginModal />}

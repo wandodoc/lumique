@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { calcMemberDues, formatKRW } from '../utils/calculations';
-import ShareDuesModal from '../components/ShareDuesModal';
 import './Pages.css';
 
 const PARTS = ['전체', 'VOIX', 'DANCE', 'SESSION'];
@@ -143,7 +142,6 @@ export default function MemberDuesPage() {
   const [partFilter, setPartFilter] = useState('전체');
   const [showInactive, setShowInactive] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [showShareModal, setShowShareModal] = useState(false);
   const [viewMode, setViewMode] = useState('summary'); // 'summary' | 'detail'
   
   const currentYear = new Date().getFullYear();
@@ -224,9 +222,6 @@ export default function MemberDuesPage() {
         <div className="flex-between" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="card-title" style={{ margin: 0 }}>전체 납부 현황</span>
-            <button type="button" onClick={() => setShowShareModal(true)} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 99, color: 'var(--blue-600)', cursor: 'pointer', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', outline: 'none', transition: 'all 0.2s' }} className="share-btn">
-              📤 공유
-            </button>
           </div>
           <strong style={{ color: 'var(--blue-500)', fontSize: 20 }}>{overallPct}%</strong>
         </div>
@@ -335,9 +330,6 @@ export default function MemberDuesPage() {
         <MemberModal member={selected} transactions={transactions} onClose={() => setSelected(null)} />
       )}
 
-      {showShareModal && (
-        <ShareDuesModal onClose={() => setShowShareModal(false)} currentPartFilter={partFilter} />
-      )}
     </div>
   );
 }
