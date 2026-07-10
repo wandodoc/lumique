@@ -455,11 +455,11 @@ export default function AnalyticsPage() {
               <span className="card-title" style={{ margin: 0, display: 'block', marginBottom: 4 }}>계정과목별 파트 상세 내역</span>
               <span style={{ fontSize: 13, color: 'var(--slate-500)', fontWeight: 600 }}>{period === 'all' ? '전체 기간' : `${period}년`} 파트별 누적 잔액</span>
             </div>
-            <div style={{ display: 'flex', gap: 16, background: 'var(--slate-50)', padding: '12px 16px', borderRadius: 12, border: '1px solid var(--slate-100)' }}>
+            <div style={{ display: 'flex', gap: 40, background: 'var(--slate-50)', padding: '16px 32px', borderRadius: 12, border: '1px solid var(--slate-100)' }}>
               {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
                 <div key={p} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 700, marginBottom: 4 }}>{p}</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: periodPartBal[p] < 0 ? 'var(--rose-600)' : 'var(--slate-800)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 700, marginBottom: 6 }}>{p}</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: periodPartBal[p] < 0 ? 'var(--rose-600)' : 'var(--slate-800)' }}>
                     {formatKRW(periodPartBal[p])}
                   </span>
                 </div>
