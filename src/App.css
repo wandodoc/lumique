@@ -390,14 +390,14 @@
   opacity: 0;
   pointer-events: none;
   display: flex;
-  background: rgba(250, 249, 245, 0.96); /* 연한 베이지 톤 화이트 */
+  background: rgba(250, 248, 242, 0.98); /* 아주 미세하게 베이지 톤이 도는 화이트 */
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid #e4e4e7; /* zinc-200 */
+  border: 1.5px solid #e4e4e7; /* 얇지만 확실한 경계선 (zinc-200) */
   border-radius: 99px;
-  padding: 8px 16px; /* 크기 확장 */
-  gap: 10px; /* 아이템 간격 확장 */
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06); /* 깊은 그림자 */
+  padding: 10px 20px; /* 더 커진 크기와 터치하기 편한 패딩 */
+  gap: 12px; /* 아이템 간격 추가 확장 */
+  box-shadow: 0 20px 48px -6px rgba(0, 0, 0, 0.18), 0 10px 20px -6px rgba(0, 0, 0, 0.10); /* 확실하게 둥둥 뜨는 깊은 그림자 */
   z-index: 99;
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
 }
@@ -412,11 +412,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 18px; /* 터치 영역 확장 */
+  padding: 8px 20px; /* 터치 조작이 쉬운 넓은 영역 */
   border: none;
   background: none;
   border-radius: 99px;
-  font-size: 14px; /* 글자 크기 조정 */
+  font-size: 14px; /* 눈에 잘 띄는 글자 크기 */
   font-weight: 700;
   color: #4b5563; /* zinc-600 */
   cursor: pointer;

@@ -251,21 +251,21 @@ export default function AnalyticsPage() {
           </table>
         </div>
 
-        {/* Mobile: Simple Category -> Part breakdown details without table structure or boxes */}
+        {/* Mobile: Card List (원래 있던 계정과목 UI 디자인 및 스타일 뼈대 그대로 유지) */}
         <div className="md-mobile-view" style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {data.map(item => (
-              <div key={item.cat} style={{ paddingBottom: 12, borderBottom: '1px solid var(--slate-200)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700, color: 'var(--slate-800)', fontSize: 14 }}>{item.cat}</span>
-                  <span style={{ fontWeight: 700, color: totalColor, fontSize: 14 }}>{formatKRW(item.total)}</span>
+              <div key={item.cat} style={{ background: 'var(--white)', padding: 16, borderRadius: 12, border: '1px solid var(--slate-200)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: '1px solid var(--slate-100)', paddingBottom: 10 }}>
+                  <span style={{ fontWeight: 800, color: 'var(--slate-800)', fontSize: 16 }}>{item.cat}</span>
+                  <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(item.total)}</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, paddingLeft: 4 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
                   {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
                     (item[p] > 0 || item[p] < 0) && (
-                      <div key={p} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--slate-500)' }}>{p}</span>
-                        <span style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{formatKRW(item[p])}</span>
+                      <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--slate-500)', fontWeight: 500 }}>{p}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--slate-700)' }}>{formatKRW(item[p])}</span>
                       </div>
                     )
                   ))}

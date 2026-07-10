@@ -271,7 +271,7 @@ function AppInner() {
         {activeSubmenu === 'dues_group' && [
           { id: 'ledger', label: '입출금 내역', icon: '📋' },
           { id: 'dues', label: '납부 현황', icon: '✅' },
-          { id: 'analytics', label: '요약 통계', icon: '📊' },
+          { id: 'analytics', label: '요약', icon: '📊' },
         ].map(item => (
           <button key={item.id} 
             className={`submenu-item ${tab === item.id ? 'active' : ''}`}
