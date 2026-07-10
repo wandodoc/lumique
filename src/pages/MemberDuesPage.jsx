@@ -196,13 +196,17 @@ export default function MemberDuesPage() {
 
       {/* 필터 및 뷰 전환 */}
       <div className="flex-between" style={{ flexWrap: 'wrap', gap: 10 }}>
-        <div className="filter-row" style={{ margin: 0 }}>
-          {PARTS.map(p => (
-            <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
-              onClick={() => setPartFilter(p)}>{p}</button>
-          ))}
-          <button className={`filter-chip ${showInactive ? 'active' : ''}`}
-            onClick={() => setShowInactive(v => !v)}>탈퇴 포함</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div className="filter-row" style={{ margin: 0 }}>
+            {PARTS.map(p => (
+              <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
+                onClick={() => setPartFilter(p)}>{p}</button>
+            ))}
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--slate-600)', cursor: 'pointer', fontWeight: 600 }}>
+            <input type="checkbox" checked={showInactive} onChange={() => setShowInactive(v => !v)} style={{ width: 16, height: 16, accentColor: 'var(--blue-500)', cursor: 'pointer' }} />
+            탈퇴 포함
+          </label>
         </div>
         
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

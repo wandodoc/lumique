@@ -340,7 +340,7 @@ export default function MembersPage() {
           )}
           {performances.map(p => (
             <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--slate-100)', borderRadius: 99, padding: '4px 10px 4px 14px' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{p.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{p.key.replace(/-/g, '.')}</span>
               {isAdmin && (
                 <button onClick={() => handleDeletePerf(p.key)}
                   style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
@@ -365,13 +365,17 @@ export default function MembersPage() {
       {view === '회원 목록' && (
         <>
           <div className="flex-between">
-            <div className="filter-row">
-              {PARTS.map(p => (
-                <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
-                  onClick={() => setPartFilter(p)}>{p}</button>
-              ))}
-              <button className={`filter-chip ${showInactive ? 'active' : ''}`}
-                onClick={() => setShowInactive(v => !v)}>탈퇴 포함</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div className="filter-row" style={{ margin: 0 }}>
+                {PARTS.map(p => (
+                  <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
+                    onClick={() => setPartFilter(p)}>{p}</button>
+                ))}
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--slate-600)', cursor: 'pointer', fontWeight: 600 }}>
+                <input type="checkbox" checked={showInactive} onChange={() => setShowInactive(v => !v)} style={{ width: 16, height: 16, accentColor: 'var(--blue-500)', cursor: 'pointer' }} />
+                탈퇴 포함
+              </label>
             </div>
             {isAdmin && <button className="btn-sm" onClick={() => setModal('add')}>+ 추가</button>}
           </div>

@@ -150,110 +150,20 @@ export default function AnalyticsPage() {
 
       {/* 요약 카드 3개 */}
       <div className="analytics-summary-grid">
-        <div className="card card-pad has-tooltip" style={{ textAlign: 'center', overflow: 'visible' }}>
-          <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 4 }}>총 수입</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>+{formatKRW(totalIncome)}</div>
-          <div className="tooltip-box">
-            <div className="tooltip-title">수입 구성 (필터 기간)</div>
-            {incomeByCategory.length === 0 ? (
-              <div style={{ color: 'var(--slate-400)', fontSize: 11 }}>내역 없음</div>
-            ) : (
-              incomeByCategory.map(item => (
-                <div className="tooltip-row" key={item.cat}>
-                  <span>{item.cat}</span>
-                  <strong>{formatKRW(item.total)}</strong>
-                </div>
-              ))
-            )}
-          </div>
+        <div className="card card-pad" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>총 수입</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#059669' }}>+{formatKRW(totalIncome)}</div>
         </div>
-        <div className="card card-pad has-tooltip" style={{ textAlign: 'center', overflow: 'visible' }}>
-          <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 4 }}>총 지출</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--red-500)' }}>-{formatKRW(totalExpense)}</div>
-          <div className="tooltip-box">
-            <div className="tooltip-title">지출 구성 (필터 기간)</div>
-            {expenseByCategory.length === 0 ? (
-              <div style={{ color: 'var(--slate-400)', fontSize: 11 }}>내역 없음</div>
-            ) : (
-              expenseByCategory.map(item => (
-                <div className="tooltip-row" key={item.cat}>
-                  <span>{item.cat}</span>
-                  <strong>{formatKRW(item.total)}</strong>
-                </div>
-              ))
-            )}
-          </div>
+        <div className="card card-pad" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>총 지출</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--red-500)' }}>-{formatKRW(totalExpense)}</div>
         </div>
-        <div className="card card-pad has-tooltip" style={{ textAlign: 'center', overflow: 'visible' }}>
-          <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 4 }}>순잔액</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: netBalance >= 0 ? '#059669' : 'var(--red-500)' }}>
+        <div className="card card-pad" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>순잔액</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: netBalance >= 0 ? '#059669' : 'var(--red-500)' }}>
             {netBalance >= 0 ? '+' : ''}{formatKRW(netBalance)}
           </div>
-          <div className="tooltip-box">
-            <div className="tooltip-title">순잔액 계산</div>
-            <div className="tooltip-row">
-              <span>총 수입</span>
-              <strong style={{ color: 'var(--emerald-400)' }}>+{formatKRW(totalIncome)}</strong>
-            </div>
-            <div className="tooltip-row">
-              <span>총 지출</span>
-              <strong style={{ color: 'var(--rose-400)' }}>-{formatKRW(totalExpense)}</strong>
-            </div>
-            <div className="tooltip-divider" />
-            <div className="tooltip-row">
-              <span>순잔액</span>
-              <strong>{netBalance >= 0 ? '+' : ''}{formatKRW(netBalance)}</strong>
-            </div>
-          </div>
         </div>
-      </div>
-
-      {/* 월별 수입/지출 바 차트 */}
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <span className="card-title">월별 수입 / 지출</span>
-        {monthly.length === 0
-          ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 24 }}>해당 기간 데이터가 없습니다</div>
-          : <>
-            <div className="bar-chart" style={{ overflowX: 'auto' }}>
-              {monthly.map(m => (
-                <div key={m.month} className="bar-chart-col">
-                  <div className="bar-pair">
-                    <div className="bar income" style={{ height: `${(m.income / maxIncome) * 100}%` }} title={`+${formatKRW(m.income)}`} />
-                    <div className="bar expense" style={{ height: `${(m.expense / maxExpense) * 100}%` }} title={`-${formatKRW(m.expense)}`} />
-                  </div>
-                  <span className="bar-label">{m.month.slice(5)}월</span>
-                </div>
-              ))}
-            </div>
-            <div className="bar-legend">
-              <span><i style={{ background: 'var(--green-500)' }} />수입</span>
-              <span><i style={{ background: 'var(--red-500)' }} />지출</span>
-            </div>
-          </>
-        }
-      </div>
-
-      {/* 누적 잔액 추세 */}
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <span className="card-title">월별 누적 잔액 추세</span>
-        {balanceTrend.length === 0
-          ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 24 }}>해당 기간 데이터가 없습니다</div>
-          : <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 100, paddingTop: 8, overflowX: 'auto' }}>
-              {balanceTrend.map((b, i) => {
-                const h = Math.abs(b.balance) / maxBalance * 80;
-                const isNeg = b.balance < 0;
-                return (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                    <div style={{ height: 80, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                      <div title={formatKRW(b.balance)}
-                        style={{ width: '60%', height: `${h}px`, minHeight: 4, background: isNeg ? '#fca5a5' : '#6ee7b7', borderRadius: '4px 4px 0 0' }} />
-                    </div>
-                    <span style={{ fontSize: 10, color: 'var(--slate-500)' }}>{b.month.slice(5)}월</span>
-                  </div>
-                );
-              })}
-            </div>
-        }
       </div>
 
       {/* 지출 계정과목 + 수입 카테고리 나란히 */}
