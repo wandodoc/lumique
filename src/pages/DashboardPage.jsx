@@ -90,6 +90,13 @@ export default function DashboardPage({ onAddClick, setTab }) {
   const unpaidCount = members.filter(m =>
     m.status === 'active' && calcMemberDues(m, transactions).diff < 0
   ).length;
+
+  const activeMembers = members.filter(m => m.status === 'active');
+  const paidThisMonth = activeMembers.filter(m => {
+    const dues = calcMemberDues(m, transactions);
+    return dues.diff >= 0;
+  });
+  const duesRate = activeMembers.length > 0 ? Math.round((paidThisMonth.length / activeMembers.length) * 100) : 0;
   const recentTxs = [...transactions]
     .sort((a, b) => b.datetime.localeCompare(a.datetime))
     .slice(0, 6);
@@ -195,21 +202,39 @@ export default function DashboardPage({ onAddClick, setTab }) {
         </div>
       </div>
 
-      {/* 파트별 잔고 현황 */}
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
-            const pb = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
-            return (
-              <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: '10px 4px', textAlign: 'center', minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
-                <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#e11d48' : '#0f172a', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
-                  {formatKRW(pb)}
+      <div className="dash-grid-2" style={{ gap: 16, marginBottom: 16 }}>
+        {/* 파트별 잔고 현황 */}
+        <div className="card card-pad">
+          <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
+              const pb = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
+              return (
+                <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: '10px 4px', textAlign: 'center', minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
+                  <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#e11d48' : '#0f172a', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                    {formatKRW(pb)}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 이번 달 회비 납부율 */}
+        <div className="card card-pad">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)' }}>
+              {duesRate}%
+            </span>
+          </div>
+          <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)', transition: 'width 0.6s ease' }} />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
+            활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
+          </div>
         </div>
       </div>
 

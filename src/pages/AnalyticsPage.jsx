@@ -119,18 +119,6 @@ export default function AnalyticsPage() {
   }, [filteredTxs, txMap]);
   const maxIncomeCat = Math.max(...incomeByCategory.map(e => e.total), 1);
 
-  // 파트별 잔액
-  const partBal = calcPartBalances(filteredTxs);
-
-  // 이번 달 회비 납부율
-  const now = new Date();
-  const thisYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const activeMembers = members.filter(m => m.status === 'active');
-  const paidThisMonth = activeMembers.filter(m => {
-    const dues = calcMemberDues(m, transactions);
-    return dues.diff >= 0;
-  });
-  const duesRate = activeMembers.length > 0 ? Math.round((paidThisMonth.length / activeMembers.length) * 100) : 0;
 
   const INCOME_COLORS = ['#059669', '#2b74e2', '#f59e0b', '#7c3aed', '#e2596b'];
   const EXPENSE_COLORS = ['#e2596b', '#f97316', '#f59e0b', '#8b5cf6', '#6b7280'];
@@ -207,50 +195,6 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* 파트별 잔고 & 회비 납부율 */}
-      <div className="analytics-bottom-grid">
-        {/* 파트별 잔고 현황 */}
-        <div className="card card-pad">
-          <div className="flex-between" style={{ marginBottom: 12 }}>
-            <span className="card-title" style={{ margin: 0 }}>파트별 잔고 현황</span>
-            <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 잔액</span>
-              <span className={netBalance >= 0 ? '' : 'text-red'} style={{ fontSize: 16, fontWeight: 800 }}>
-                {netBalance < 0 ? '-' : ''}{formatKRW(Math.abs(netBalance))}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
-              const val = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
-              return (
-                <div key={p} style={{ padding: '10px 4px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)', textAlign: 'center', minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
-                  <div className={val < 0 ? 'text-red' : ''} style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
-                    {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 이번 달 회비 납부율 */}
-        <div className="card card-pad">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
-            <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)' }}>
-              {duesRate}%
-            </span>
-          </div>
-          <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)', transition: 'width 0.6s ease' }} />
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
-            활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
-          </div>
-        </div>
-      </div>
 
     </div>
   );
