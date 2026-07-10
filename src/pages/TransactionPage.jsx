@@ -508,9 +508,9 @@ export default function TransactionPage() {
         </div>
         
         {/* 총계 푸터 */}
-        <div className="table-footer flex-between" style={{ background: 'var(--slate-50)' }}>
+        <div className="table-footer flex-between" style={{ background: 'var(--slate-50)', flexWrap: 'wrap', gap: 10 }}>
           <span className="text-muted">총 {filtered.length}건 조회</span>
-          <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <div><span className="text-muted" style={{ marginRight: 6 }}>총 수입</span><strong className="text-green">+{formatKRW(totalIncome)}</strong></div>
             <div><span className="text-muted" style={{ marginRight: 6 }}>총 지출</span><strong className="text-red">-{formatKRW(totalExpense)}</strong></div>
           </div>

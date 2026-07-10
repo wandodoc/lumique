@@ -169,7 +169,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
           <div className="month-divider" />
           <div className="month-col has-tooltip">
             <span>잔액</span>
-            <strong style={{ color: thisMonth.income - thisMonth.expense >= 0 ? 'var(--blue-500)' : 'var(--red-500)' }}>
+            <strong style={{ color: thisMonth.income - thisMonth.expense >= 0 ? 'inherit' : 'var(--red-500)' }}>
               {thisMonth.income - thisMonth.expense >= 0 ? '+' : '-'}{formatKRW(Math.abs(thisMonth.income - thisMonth.expense))}
             </strong>
             <div className="tooltip-box">

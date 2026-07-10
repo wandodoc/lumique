@@ -160,7 +160,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="card card-pad" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>순잔액</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: netBalance >= 0 ? '#059669' : 'var(--red-500)' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: netBalance >= 0 ? 'inherit' : 'var(--red-500)' }}>
             {netBalance >= 0 ? '+' : ''}{formatKRW(netBalance)}
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
       {/* 지출 계정과목 + 수입 카테고리 나란히 */}
       <div className="dash-grid-2" style={{ gap: 16, marginBottom: 16 }}>
         <div className="card card-pad">
-          <span className="card-title">지출 계정과목</span>
+          <span className="card-title">지출 구성</span>
           {expenseByCategory.length === 0
             ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>지출 내역 없음</div>
             : expenseByCategory.map(({ cat, total }, i) => (
@@ -188,7 +188,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="card card-pad">
-          <span className="card-title">수입 분류</span>
+          <span className="card-title">수입 구성</span>
           {incomeByCategory.length === 0
             ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>수입 내역 없음</div>
             : incomeByCategory.map(({ cat, total }, i) => (
@@ -226,7 +226,7 @@ export default function AnalyticsPage() {
               return (
                 <div key={p} style={{ padding: '10px 4px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)', textAlign: 'center', minWidth: 0 }}>
                   <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
-                  <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, color: val < 0 ? 'var(--red-500)' : (PART_COLORS[p] || '#3b82f6'), whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                  <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, color: val < 0 ? 'var(--red-500)' : 'inherit', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
                     {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
                   </div>
                 </div>

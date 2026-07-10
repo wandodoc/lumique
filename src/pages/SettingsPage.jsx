@@ -120,7 +120,7 @@ export default function SettingsPage() {
             <span className="reg-value">
               {r.label === '파트 구분' ? (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>VOIX(SESSION 포함)</span>
+                  <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>VOIX · SESSION</span>
                   <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>DANCE</span>
                   <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>공통</span>
                 </div>
