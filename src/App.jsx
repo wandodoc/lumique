@@ -12,14 +12,14 @@ import LoginModal from './components/LoginModal';
 import './App.css';
 
 const MOBILE_TABS = [
-  { id: 'home', short: '홈',
+  { id: 'home', short: '대시보드',
     icon: <svg viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> },
-  { id: 'analytics', short: '요약',
-    icon: <svg viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg> },
-  { id: 'members', short: '회원',
-    icon: <svg viewBox="0 0 24 24"><path d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg> },
-  { id: 'more', short: '더보기',
-    icon: <svg viewBox="0 0 24 24"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg> },
+  { id: 'dues_group', short: '회비',
+    icon: <svg viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
+  { id: 'activity_group', short: '활동',
+    icon: <svg viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg> },
+  { id: 'settings', short: '설정',
+    icon: <svg viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
 ];
 
 const TABS = [
@@ -82,12 +82,21 @@ function AppInner() {
   const [tab, setTab] = useState('home');
   const [showAdd, setShowAdd] = useState(false);
   const [showPwdModal, setShowPwdModal] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [activeSubmenu, setActiveSubmenu] = useState(null); // 'dues_group' | 'activity_group' | null
+  const [expandedGroups, setExpandedGroups] = useState({ dues: true, activity: true });
   const { isAdmin, requestLogin, logout, showLoginModal } = useAuth();
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    setActiveSubmenu(null);
   }, [tab, showAdd]);
+
+  const toggleGroup = (key) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   const handleAddClick = () => {
     if (isAdmin) setShowAdd(true);
@@ -133,30 +142,63 @@ function AppInner() {
             })()}
           </div>
 
-          {/* 그룹 탭들 */}
+          {/* 그룹 탭들 (아코디언 트리 구조) */}
           {[
-            { title: '회비 관리', ids: ['ledger', 'dues', 'analytics'] },
-            { title: '활동 관리', ids: ['members', 'perf'] }
-          ].map((g) => (
-            <div key={g.title} style={{ marginTop: 24 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray-500)', padding: '0 24px', marginBottom: 4 }}>
-                {g.title}
+            { 
+              key: 'dues', 
+              title: '회비 관리', 
+              ids: ['ledger', 'dues', 'analytics'],
+              icon: <svg viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            },
+            { 
+              key: 'activity', 
+              title: '활동 관리', 
+              ids: ['members', 'perf'],
+              icon: <svg viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            }
+          ].map((g) => {
+            const isExpanded = !!expandedGroups[g.key];
+            const hasActiveChild = g.ids.includes(tab);
+            
+            return (
+              <div key={g.key} className="sidebar-group-accordion" style={{ marginTop: 20 }}>
+                {/* 아코디언 헤더 */}
+                <button
+                  type="button"
+                  className={`sidebar-group-header ${hasActiveChild ? 'has-active' : ''}`}
+                  onClick={() => toggleGroup(g.key)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {g.icon}
+                    <span>{g.title}</span>
+                  </div>
+                  <span className={`chevron ${isExpanded ? 'rotated' : ''}`}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 9l-7 7-7-7"/></svg>
+                  </span>
+                </button>
+
+                {/* 하위 아이템 */}
+                <div className={`sidebar-group-content ${isExpanded ? 'expanded' : ''}`}>
+                  <div className="sidebar-group-content-inner">
+                    {g.ids.map(id => {
+                      const t = TABS.find(x => x.id === id);
+                      return (
+                        <button key={t.id}
+                          className={`sidebar-nav-item sub-item ${tab === t.id && !showAdd ? 'active' : ''}`}
+                          onClick={() => { setTab(t.id); setShowAdd(false); }}>
+                          <span className="dot" />
+                          <span>{t.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-              {g.ids.map(id => {
-                const t = TABS.find(x => x.id === id);
-                return (
-                  <button key={t.id}
-                    className={`sidebar-nav-item ${tab === t.id && !showAdd ? 'active' : ''}`}
-                    onClick={() => { setTab(t.id); setShowAdd(false); }}>
-                    {t.icon}<span>{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+            );
+          })}
 
           {/* 설정 (독립 탭) */}
-          <div style={{ marginTop: 24 }}>
+          <div style={{ marginTop: 20 }}>
             {(() => {
               const t = TABS.find(x => x.id === 'settings');
               return (
@@ -216,7 +258,45 @@ function AppInner() {
           </div>
         </header>
 
-        <main className="main-content">{renderPage()}</main>
+        <main className="main-content" onClick={() => setActiveSubmenu(null)}>{renderPage()}</main>
+      </div>
+
+      {/* 모바일 서브메뉴 플로팅 바 (Bottom Bar 바로 위) */}
+      <div className={`mobile-submenu-bar ${activeSubmenu ? 'show' : ''}`}>
+        {activeSubmenu === 'dues_group' && [
+          { id: 'ledger', label: '입출금 내역', icon: '📋' },
+          { id: 'dues', label: '납부 현황', icon: '✅' },
+          { id: 'analytics', label: '요약 통계', icon: '📊' },
+        ].map(item => (
+          <button key={item.id} 
+            className={`submenu-item ${tab === item.id ? 'active' : ''}`}
+            onClick={() => {
+              setTab(item.id);
+              setShowAdd(false);
+              setActiveSubmenu(null);
+            }}
+          >
+            <span className="submenu-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+
+        {activeSubmenu === 'activity_group' && [
+          { id: 'members', label: '회원 관리', icon: '👥' },
+          { id: 'perf', label: '공연 현황', icon: '📅' },
+        ].map(item => (
+          <button key={item.id} 
+            className={`submenu-item ${tab === item.id ? 'active' : ''}`}
+            onClick={() => {
+              setTab(item.id);
+              setShowAdd(false);
+              setActiveSubmenu(null);
+            }}
+          >
+            <span className="submenu-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
       </div>
 
       <nav className="bottom-nav">
@@ -224,20 +304,22 @@ function AppInner() {
           const isActive = (() => {
             if (showAdd) return false;
             if (t.id === 'home') return tab === 'home';
-            if (t.id === 'analytics') return tab === 'analytics';
-            if (t.id === 'members') return tab === 'members';
-            if (t.id === 'more') return tab === 'ledger' || tab === 'dues' || tab === 'perf' || tab === 'settings';
+            if (t.id === 'dues_group') return tab === 'ledger' || tab === 'dues' || tab === 'analytics';
+            if (t.id === 'activity_group') return tab === 'members' || tab === 'perf';
+            if (t.id === 'settings') return tab === 'settings';
             return tab === t.id;
           })();
+          
           return (
             <button key={t.id}
               className={`nav-item ${isActive ? 'active' : ''}`}
               onClick={() => {
-                if (t.id === 'more') {
-                  setShowMoreMenu(true);
+                if (t.id === 'dues_group' || t.id === 'activity_group') {
+                  setActiveSubmenu(prev => prev === t.id ? null : t.id);
                 } else {
                   setTab(t.id);
                   setShowAdd(false);
+                  setActiveSubmenu(null);
                 }
               }}>
               {t.icon}<span>{t.short}</span>
@@ -246,37 +328,6 @@ function AppInner() {
         })}
       </nav>
 
-      {/* 모바일 더보기 바텀시트 */}
-      {showMoreMenu && (
-        <div className="modal-overlay" onClick={() => setShowMoreMenu(false)} style={{ zIndex: 9999 }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            position: 'fixed', bottom: 0, left: 0, right: 0,
-            background: 'var(--c-white)', borderRadius: '20px 20px 0 0',
-            padding: '12px 20px 32px', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
-            animation: 'slideUp 0.25s ease'
-          }}>
-            <div style={{ width: 40, height: 4, background: 'var(--slate-200)', borderRadius: 99, margin: '0 auto 20px' }} />
-            {[
-              { id: 'ledger', label: '입출금 내역', icon: '📋' },
-              { id: 'dues', label: '납부 현황', icon: '✅' },
-              { id: 'perf', label: '공연 현황', icon: '📅' },
-              { id: 'settings', label: '설정', icon: '⚙️' },
-            ].map(item => (
-              <button key={item.id} onClick={() => { setTab(item.id); setShowAdd(false); setShowMoreMenu(false); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-                  padding: '14px 8px', border: 'none', background: tab === item.id ? 'var(--slate-50)' : 'none',
-                  borderRadius: 12, fontSize: 15, fontWeight: 600, color: 'var(--slate-700)',
-                  cursor: 'pointer', textAlign: 'left'
-                }}>
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {!showAdd && <button className="fab fab-pc-only" onClick={handleAddClick} title="거래 추가">＋</button>}
 
       {showPwdModal && <ChangePwdModal onClose={() => setShowPwdModal(false)} />}
@@ -284,6 +335,7 @@ function AppInner() {
     </div>
   );
 }
+
 
 export default function App() {
   return (

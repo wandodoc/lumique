@@ -37,30 +37,7 @@
   display: flex; flex-direction: column; gap: 16px;
 }
 
-/* ===== 하단 탭바 (모바일) ===== */
-.bottom-nav {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  height: var(--nav-h);
-  background: var(--c-black);
-  border-top: 1px solid var(--c-dark);
-  display: flex; z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.nav-item {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 4px; color: #666;
-  font-size: 11px; font-weight: 600;
-  padding-top: 8px; transition: var(--transition);
-}
-/* 활성 탭: 흰색 (어두운 배경이므로 흰색 OK, 노란색 사용 안 함) */
-.nav-item.active { color: var(--c-white); }
-.nav-item svg {
-  width: 22px; height: 22px;
-  stroke: currentColor; stroke-width: 1.8;
-  fill: none; stroke-linecap: round; stroke-linejoin: round;
-}
-.nav-item.active svg { stroke-width: 2.2; }
+
 
 /* ===== FAB ===== */
 .fab {
@@ -227,4 +204,195 @@
     flex-direction: column;
     gap: 16px;
   }
+}
+
+/* ===== PC 사이드바 아코디언 트리 ===== */
+.sidebar-group-accordion {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 24px;
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.2s;
+}
+
+.sidebar-group-header:hover {
+  color: var(--c-white);
+}
+
+.sidebar-group-header.has-active {
+  color: var(--c-white);
+}
+
+.sidebar-group-header svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.sidebar-group-header .chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  color: var(--gray-500);
+}
+
+.sidebar-group-header .chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.sidebar-group-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out;
+}
+
+.sidebar-group-content.expanded {
+  max-height: 200px;
+}
+
+.sidebar-group-content-inner {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 8px 30px;
+}
+
+.sidebar-nav-item.sub-item {
+  margin-top: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-nav-item.sub-item .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--gray-500);
+  transition: background 0.2s;
+}
+
+.sidebar-nav-item.sub-item.active .dot {
+  background: var(--c-white);
+}
+
+/* ===== 모바일 하단 탭 바 (화이트/연베이지 감성) ===== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-h);
+  background: var(--c-white);
+  border-top: 1px solid var(--slate-200);
+  display: flex;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--gray-400);
+  font-size: 11px;
+  font-weight: 600;
+  padding-top: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--transition);
+}
+
+.nav-item.active {
+  color: var(--slate-800);
+}
+
+.nav-item svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-item.active svg {
+  stroke-width: 2.2;
+}
+
+/* ===== 모바일 가로 서브메뉴 플로팅 바 ===== */
+.mobile-submenu-bar {
+  position: fixed;
+  bottom: var(--nav-h);
+  left: 50%;
+  transform: translate(-50%, 20px);
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 99px;
+  padding: 6px 12px;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  z-index: 99;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.mobile-submenu-bar.show {
+  transform: translate(-50%, -12px);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--slate-600);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+
+.submenu-item.active {
+  background: var(--slate-100);
+  color: var(--slate-900);
+}
+
+.submenu-icon {
+  font-size: 14px;
 }
