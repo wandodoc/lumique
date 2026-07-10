@@ -3,12 +3,7 @@ import { useApp } from '../context/AppContext';
 import { calcMonthlyStats, calcPartBalances, calcMemberDues, formatKRW, isRefundTx } from '../utils/calculations';
 import './Pages.css';
 
-const PERIOD_OPTIONS = [
-  { label: '전체', value: 'all' },
-  { label: '올해', value: 'year' },
-  { label: '최근 6개월', value: '6m' },
-  { label: '최근 3개월', value: '3m' },
-];
+
 
 const PART_COLORS = {
   VOIX: '#2b74e2', DANCE: '#e2596b', SESSION: '#7c3aed', 공통: '#059669',
@@ -19,16 +14,20 @@ export default function AnalyticsPage() {
   const { transactions, members } = state;
   const [period, setPeriod] = useState('all');
 
+  const availableYears = useMemo(() => {
+    const years = new Set([new Date().getFullYear()]);
+    transactions.forEach(t => {
+      if (t.datetime) years.add(parseInt(t.datetime.slice(0, 4), 10));
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [transactions]);
+
   // 기간 필터
   const filteredTxs = useMemo(() => {
-    const now = new Date();
     return transactions.filter(tx => {
       if (period === 'all') return true;
       const d = new Date(tx.datetime);
-      if (period === 'year') return d.getFullYear() === now.getFullYear();
-      if (period === '6m') return (now - d) <= 1000 * 60 * 60 * 24 * 182;
-      if (period === '3m') return (now - d) <= 1000 * 60 * 60 * 24 * 91;
-      return true;
+      return d.getFullYear() === Number(period);
     });
   }, [transactions, period]);
 
@@ -36,20 +35,28 @@ export default function AnalyticsPage() {
   const totalExpense = filteredTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netBalance = totalIncome - totalExpense;
 
-  // 월별 통계 (최근 7개월)
-  const monthly = calcMonthlyStats(filteredTxs).slice(-7);
+  // 월별 통계 (기간에 맞게 표시)
+  const monthly = useMemo(() => {
+    const stats = calcMonthlyStats(filteredTxs);
+    if (period === 'all') return stats.slice(-12); // 전체면 최근 12개월만 보여줌 (너무 길면 깨짐)
+    return stats; // 특정 연도면 그 연도 전체
+  }, [filteredTxs, period]);
+
   const maxIncome = Math.max(...monthly.map(m => m.income), 1);
   const maxExpense = Math.max(...monthly.map(m => m.expense), 1);
 
   // 누적 잔액 추세 (월별)
   const balanceTrend = useMemo(() => {
-    const sortedMonthly = calcMonthlyStats(filteredTxs);
+    const allMonthly = calcMonthlyStats(transactions);
     let running = 0;
-    return sortedMonthly.slice(-7).map(m => {
+    const allTrend = allMonthly.map(m => {
       running += m.income - m.expense;
       return { month: m.month, balance: running };
     });
-  }, [filteredTxs]);
+    
+    if (period === 'all') return allTrend.slice(-12);
+    return allTrend.filter(t => t.month.startsWith(String(period)));
+  }, [transactions, period]);
   const maxBalance = Math.max(...balanceTrend.map(b => Math.abs(b.balance)), 1);
 
   const txMap = useMemo(() => {
@@ -132,17 +139,17 @@ export default function AnalyticsPage() {
     <div className="page fade-in">
 
       {/* 기간 필터 */}
-      <div className="segmented-control" style={{ marginBottom: 20, width: 'fit-content' }}>
-        {PERIOD_OPTIONS.map(opt => (
-          <button key={opt.value} className={`segment-btn ${period === opt.value ? 'active' : ''}`}
-            onClick={() => setPeriod(opt.value)}>
-            {opt.label}
+      <div className="segmented-control" style={{ marginBottom: 20, width: 'max-content', maxWidth: '100%', overflowX: 'auto' }}>
+        <button className={`segment-btn ${period === 'all' ? 'active' : ''}`} onClick={() => setPeriod('all')}>전체</button>
+        {availableYears.map(y => (
+          <button key={y} className={`segment-btn ${period === String(y) ? 'active' : ''}`} onClick={() => setPeriod(String(y))}>
+            {y}년
           </button>
         ))}
       </div>
 
       {/* 요약 카드 3개 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="analytics-summary-grid">
         <div className="card card-pad has-tooltip" style={{ textAlign: 'center', overflow: 'visible' }}>
           <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 4 }}>총 수입</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>+{formatKRW(totalIncome)}</div>
@@ -207,7 +214,7 @@ export default function AnalyticsPage() {
         {monthly.length === 0
           ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 24 }}>해당 기간 데이터가 없습니다</div>
           : <>
-            <div className="bar-chart">
+            <div className="bar-chart" style={{ overflowX: 'auto' }}>
               {monthly.map(m => (
                 <div key={m.month} className="bar-chart-col">
                   <div className="bar-pair">
@@ -231,7 +238,7 @@ export default function AnalyticsPage() {
         <span className="card-title">월별 누적 잔액 추세</span>
         {balanceTrend.length === 0
           ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 24 }}>해당 기간 데이터가 없습니다</div>
-          : <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 100, paddingTop: 8 }}>
+          : <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 100, paddingTop: 8, overflowX: 'auto' }}>
               {balanceTrend.map((b, i) => {
                 const h = Math.abs(b.balance) / maxBalance * 80;
                 const isNeg = b.balance < 0;
@@ -290,45 +297,48 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* 파트별 잔고 현황 */}
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
-        <div className="flex-between" style={{ marginBottom: 12 }}>
-          <span className="card-title" style={{ margin: 0 }}>파트별 잔고 현황</span>
-          <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 잔액</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: netBalance >= 0 ? '#0f172a' : 'var(--red-500)' }}>
-              {netBalance < 0 ? '-' : ''}{formatKRW(Math.abs(netBalance))}
-            </span>
+      {/* 파트별 잔고 & 회비 납부율 */}
+      <div className="analytics-bottom-grid">
+        {/* 파트별 잔고 현황 */}
+        <div className="card card-pad">
+          <div className="flex-between" style={{ marginBottom: 12 }}>
+            <span className="card-title" style={{ margin: 0 }}>파트별 잔고 현황</span>
+            <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 잔액</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: netBalance >= 0 ? '#0f172a' : 'var(--red-500)' }}>
+                {netBalance < 0 ? '-' : ''}{formatKRW(Math.abs(netBalance))}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
+              const val = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
+              return (
+                <div key={p} style={{ padding: '10px 4px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)', textAlign: 'center', minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
+                  <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, color: val < 0 ? 'var(--red-500)' : (PART_COLORS[p] || '#3b82f6'), whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                    {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
-            const val = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
-            return (
-              <div key={p} style={{ padding: '10px 4px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)', textAlign: 'center', minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
-                <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, color: val < 0 ? 'var(--red-500)' : (PART_COLORS[p] || '#3b82f6'), whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
-                  {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* 이번 달 회비 납부율 */}
-      <div className="card card-pad">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
-          <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? '#059669' : duesRate >= 50 ? '#f59e0b' : 'var(--red-500)' }}>
-            {duesRate}%
-          </span>
-        </div>
-        <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? '#059669' : duesRate >= 50 ? '#f59e0b' : 'var(--red-500)', transition: 'width 0.6s ease' }} />
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
-          활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
+        {/* 이번 달 회비 납부율 */}
+        <div className="card card-pad">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? '#059669' : duesRate >= 50 ? '#f59e0b' : 'var(--red-500)' }}>
+              {duesRate}%
+            </span>
+          </div>
+          <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? '#059669' : duesRate >= 50 ? '#f59e0b' : 'var(--red-500)', transition: 'width 0.6s ease' }} />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
+            활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
+          </div>
         </div>
       </div>
 

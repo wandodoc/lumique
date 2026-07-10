@@ -441,10 +441,9 @@ export default function TransactionPage() {
                           {item.category}/{item.part}
                         </span>
                         <span style={{ fontWeight: 600 }}>{item.desc || '내용 없음'}</span>
-                        <span style={{ 
-                          color: item.linkedTxId ? '#94a3b8' : (tx.type === 'income' ? 'var(--emerald-600)' : 'var(--rose-600)'), 
-                          fontWeight: 700,
-                          textDecoration: item.linkedTxId ? 'line-through' : 'none'
+                        <span className={item.linkedTxId ? 'diagonal-strike' : ''} style={{ 
+                          color: item.linkedTxId ? undefined : (tx.type === 'income' ? 'var(--emerald-600)' : 'var(--rose-600)'), 
+                          fontWeight: 700
                         }}>
                           ({formatKRW(Number(item.amount) || 0)})
                         </span>
@@ -501,8 +500,7 @@ export default function TransactionPage() {
                     : tx.part}
                 </span>
               </div>
-              <div className={`td-amount ${tx.linkedTxId ? 'text-muted' : (tx.type === 'income' ? 'text-green' : 'text-red')}`}
-                   style={{ textDecoration: tx.linkedTxId ? 'line-through' : 'none' }}>
+              <div className={`td-amount ${tx.linkedTxId ? 'diagonal-strike' : (tx.type === 'income' ? 'text-green' : 'text-red')}`}>
                 <strong>{formatKRW(tx.amount)}</strong>
               </div>
             </div>

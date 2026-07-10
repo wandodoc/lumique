@@ -9,6 +9,48 @@
 .text-blue  { color: var(--blue-500); }
 .text-muted { color: var(--slate-500); font-size: 13px; }
 
+.diagonal-strike {
+  position: relative;
+  display: inline-block;
+  color: var(--slate-400) !important;
+  text-decoration: none !important;
+}
+.diagonal-strike::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -5%;
+  width: 110%;
+  height: 1.5px;
+  background-color: var(--slate-400);
+  transform: translateY(-50%) rotate(-10deg);
+  pointer-events: none;
+}
+
+.analytics-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+@media (max-width: 640px) {
+  .analytics-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analytics-bottom-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 768px) {
+  .analytics-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ===================================================================
    DESIGN TOKENS — 버튼 / 입력 높이를 단 하나의 기준으로 통일
    height-sm  = 32px  (작은 칩/배지 버튼)

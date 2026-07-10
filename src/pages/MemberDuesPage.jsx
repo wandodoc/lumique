@@ -96,8 +96,7 @@ function MemberModal({ member, transactions, onClose }) {
                 {tx.isSplit && <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--slate-500)' }}>({tx.splitDesc || '분할'})</span>}
               </div>
               <strong 
-                className={tx.linkedTxId ? 'text-muted' : (tx.amount < 0 ? 'text-red' : 'text-green')}
-                style={{ textDecoration: tx.linkedTxId ? 'line-through' : 'none' }}>
+                className={tx.linkedTxId ? 'diagonal-strike' : (tx.amount < 0 ? 'text-red' : 'text-green')}>
                 {tx.amount > 0 ? '+' : ''}{formatKRW(tx.amount)}
               </strong>
             </div>
