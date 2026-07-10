@@ -348,7 +348,7 @@
 
 /* ===== 이달 요약 ===== */
 .month-summary { display: flex; align-items: center; }
-.month-col { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.month-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .month-col span   { display: block; font-size: 12px; color: var(--slate-500); margin-bottom: 5px; }
 .month-col strong { font-size: 16px; font-weight: 700; }
 .month-divider    { width: 1px; height: 36px; background: var(--slate-200); flex-shrink: 0; }
