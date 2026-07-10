@@ -232,18 +232,33 @@ export default function DashboardPage({ onAddClick, setTab }) {
           <div className="progress-track" style={{ height: 16, borderRadius: 8 }}>
             <div className="progress-fill" style={{ width: `${duesRate}%`, background: duesColor, borderRadius: 8 }} />
           </div>
+          
+          {/* 미납 내역 알림 (카드 내부로 통합) */}
+          {unpaidCount > 0 && (
+            <div 
+              onClick={() => setTab?.('dues')}
+              style={{ 
+                marginTop: 16, 
+                padding: '10px 12px', 
+                background: '#fef2f2', 
+                border: '1px solid #fecdd3', 
+                borderRadius: 8, 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 14 }}>⚠️</span>
+                <span style={{ fontSize: 13, color: '#9f1239', fontWeight: 600 }}>미납 회원 <strong style={{ fontWeight: 800 }}>{unpaidCount}명</strong></span>
+              </div>
+              <span style={{ fontSize: 12, color: '#e11d48', fontWeight: 700 }}>납부 현황 확인 ❯</span>
+            </div>
+          )}
         </div>
       </div>
       </div>
-
-      {/* 미납 배너 */}
-      {unpaidCount > 0 && (
-        <div className="alert-banner" onClick={() => setTab?.('dues')} style={{ cursor: 'pointer' }}>
-          <span className="alert-icon">⚠️</span>
-          <span>미납 회원 <strong>{unpaidCount}명</strong></span>
-          <span className="alert-hint">납부 현황 탭에서 확인 →</span>
-        </div>
-      )}
 
       {/* 최근 거래 타임라인 */}
       <div className="card">
