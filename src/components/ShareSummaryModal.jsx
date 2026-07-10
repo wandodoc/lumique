@@ -454,15 +454,15 @@ export default function ShareSummaryModal({ onClose }) {
               </div>
 
               {/* 파트별 잔고 현황 */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
                 {[
                   { label: 'VOIX·SESSION', val: (imageStats.realPartBalances['VOIX'] || 0) + (imageStats.realPartBalances['SESSION'] || 0) },
                   { label: 'DANCE', val: imageStats.realPartBalances['DANCE'] || 0 },
                   { label: '공통', val: imageStats.realPartBalances['공통'] || 0 },
                 ].map(p => (
-                  <div key={p.label} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 14px', textAlign: 'center', minWidth: 90 }}>
-                    <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: p.val < 0 ? '#e11d48' : '#0f172a' }}>
+                  <div key={p.label} style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: p.val < 0 ? '#e11d48' : '#334155' }}>
                       {p.val < 0 ? '-' : ''}{Math.abs(p.val).toLocaleString()}원
                     </div>
                   </div>
