@@ -389,11 +389,11 @@ export default function ShareSummaryModal({ onClose }) {
           <button className="btn-primary" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={handleCopyText}>
             📋 텍스트 복사
           </button>
-          <button className="btn-primary" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--emerald-600)' }} onClick={handleCopyImage}>
+          <button className="btn-primary md-pc-view" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--emerald-600)' }} onClick={handleCopyImage}>
             🖼️ 이미지 복사
           </button>
-          <button className="btn-secondary" style={{ flex: '0 1 80px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }} onClick={handleDownloadImage} title="이미지 다운로드">
-            💾 저장
+          <button className="btn-secondary" style={{ flex: '1 1 80px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: 6 }} onClick={handleDownloadImage} title="이미지 다운로드">
+            💾 이미지 저장
           </button>
         </div>
 
