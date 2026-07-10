@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatKRW, getDuesStartMonth, calcPartBalances, isRefundTx } from '../utils/calculations';
 import { toPng } from 'html-to-image';
@@ -34,6 +34,34 @@ export default function ShareSummaryModal({ onClose }) {
 
   const cardRef = useRef(null);
   const [copyStatus, setCopyStatus] = useState(''); // '', 'text', 'image', 'error'
+  const [scale, setScale] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [cardHeight, setCardHeight] = useState(650);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const modalBodyWidth = Math.min(window.innerWidth - 64, 460);
+      if (modalBodyWidth < 420) {
+        setScale(modalBodyWidth / 420);
+      } else {
+        setScale(1);
+      }
+      setIsMobile(window.innerWidth < 768);
+      if (cardRef.current) {
+        setCardHeight(cardRef.current.offsetHeight);
+      }
+    };
+    
+    // Run after a short tick to allow rendering
+    const timer = setTimeout(handleResize, 100);
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timer);
+    };
+  }, [targetYm, priorYm]);
 
   const targetMonthNum = parseInt(targetYm.split('-')[1], 10) || 0;
   const priorMonthNum = parseInt(priorYm.split('-')[1], 10) || 0;
@@ -357,6 +385,107 @@ export default function ShareSummaryModal({ onClose }) {
     return { realTotalBalance, realPartBalances, targetIncomeTotal, targetExpenseTotal, topIncomes, topExpenses };
   }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesSummary, expenseSummaryByCategory]);
 
+  const renderCardContent = (refToUse = null) => (
+    <div ref={refToUse} style={{
+      width: '420px',
+      minWidth: '420px',
+      margin: '0 auto',
+      padding: '32px 24px',
+      background: '#ffffff',
+      borderRadius: 24,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: 'var(--slate-800)',
+      boxSizing: 'border-box'
+    }}>
+      {/* 1. 상단 헤더 (로고 & 배지) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <img src="/logo.png" alt="Lumique" style={{ height: 18, width: 'auto', objectFit: 'contain' }} />
+          <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: 17, fontWeight: 800, color: '#334155', letterSpacing: '-0.5px' }}>Lumique</div>
+        </div>
+        <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700 }}>
+          {targetMonthNum}월 재무 현황
+        </div>
+      </div>
+
+      {/* 2. 중앙 총 잔액 */}
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 4 }}>현재 총 잔액</div>
+        <div style={{ fontSize: 36, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
+          {imageStats.realTotalBalance < 0 ? '-' : ''}{Math.abs(imageStats.realTotalBalance).toLocaleString()}원
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 8 }}>
+          업데이트: {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
+        </div>
+
+        {/* 파트별 잔고 현황 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+          {[
+            { label: 'VOIX·SESSION', val: (imageStats.realPartBalances['VOIX'] || 0) + (imageStats.realPartBalances['SESSION'] || 0) },
+            { label: 'DANCE', val: imageStats.realPartBalances['DANCE'] || 0 },
+            { label: '공통', val: imageStats.realPartBalances['공통'] || 0 },
+          ].map(p => (
+            <div key={p.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: p.val < 0 ? '#e11d48' : '#334155' }}>
+                {p.val < 0 ? '-' : ''}{Math.abs(p.val).toLocaleString()}원
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 수입/지출 바 */}
+      <div style={{ background: 'var(--slate-50)', padding: 16, borderRadius: 16, marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 수입</div>
+            <div style={{ fontSize: 16, color: '#16a34a', fontWeight: 800 }}>+{imageStats.targetIncomeTotal.toLocaleString()}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 지출</div>
+            <div style={{ fontSize: 16, color: '#e11d48', fontWeight: 800 }}>-{imageStats.targetExpenseTotal.toLocaleString()}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#e2e8f0' }}>
+          <div style={{ width: `${imageStats.targetIncomeTotal + imageStats.targetExpenseTotal > 0 ? (imageStats.targetIncomeTotal / (imageStats.targetIncomeTotal + imageStats.targetExpenseTotal)) * 100 : 50}%`, background: '#22c55e' }} />
+          <div style={{ width: `${imageStats.targetIncomeTotal + imageStats.targetExpenseTotal > 0 ? (imageStats.targetExpenseTotal / (imageStats.targetIncomeTotal + imageStats.targetExpenseTotal)) * 100 : 50}%`, background: '#ef4444' }} />
+        </div>
+      </div>
+
+      {/* 3. 수입/지출 핵심 항목 */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>수입 (Top 4)</div>
+            {imageStats.topIncomes.slice(0, 4).map(item => (
+              <div key={item.cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                <span style={{ color: 'var(--slate-600)' }}>{item.cat}</span>
+                <span style={{ fontWeight: 700 }}>{item.amount.toLocaleString()}</span>
+              </div>
+            ))}
+            {imageStats.topIncomes.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>수입 없음</div>}
+          </div>
+          <div style={{ width: 1, background: '#e2e8f0' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>지출 (Top 4)</div>
+            {imageStats.topExpenses.slice(0, 4).map(item => (
+              <div key={item.cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
+                <span style={{ color: 'var(--slate-600)' }}>{item.cat}</span>
+                <span style={{ fontWeight: 700 }}>{item.amount.toLocaleString()}</span>
+              </div>
+            ))}
+            {imageStats.topExpenses.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>지출 없음</div>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: 24, fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>
+        Lumique Financial Ledger
+      </div>
+    </div>
+  );
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
@@ -389,9 +518,11 @@ export default function ShareSummaryModal({ onClose }) {
           <button className="btn-primary" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={handleCopyText}>
             📋 텍스트 복사
           </button>
-          <button className="btn-primary md-pc-view" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--emerald-600)' }} onClick={handleCopyImage}>
-            🖼️ 이미지 복사
-          </button>
+          {!isMobile && (
+            <button className="btn-primary" style={{ flex: '1 1 120px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--emerald-600)' }} onClick={handleCopyImage}>
+              🖼️ 이미지 복사
+            </button>
+          )}
           <button className="btn-secondary" style={{ flex: '1 1 80px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: 6 }} onClick={handleDownloadImage} title="이미지 다운로드">
             💾 이미지 저장
           </button>
@@ -416,114 +547,78 @@ export default function ShareSummaryModal({ onClose }) {
         )}
 
         {/* 텍스트 미리보기 및 이미지 카드 렌더링 */}
-        <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
+        <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
           
-          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12, textAlign: 'center' }}>공유 카드 이미지 미리보기</div>
+          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12, textAlign: 'center' }}>
+            공유 카드 이미지 미리보기 {scale < 1 && <span style={{ color: 'var(--blue-500)', textTransform: 'none' }}>(터치하여 크게 보기)</span>}
+          </div>
           
           {/* 실제로 이미지로 변환될 DOM 영역 */}
-          <div ref={cardRef} style={{
-            width: '420px',
-            minWidth: '420px',
-            margin: '0 auto',
-            padding: '32px 24px',
-            background: '#ffffff',
-            borderRadius: 24,
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            color: 'var(--slate-800)',
-            boxSizing: 'border-box'
+          <div style={{
+            width: '100%',
+            overflow: 'hidden',
+            display: 'flex',
+            justifyContent: 'center'
           }}>
-            {/* 1. 상단 헤더 (로고 & 배지) */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <img src="/logo.png" alt="Lumique" style={{ height: 18, width: 'auto', objectFit: 'contain' }} />
-                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: 17, fontWeight: 800, color: '#334155', letterSpacing: '-0.5px' }}>Lumique</div>
-              </div>
-              <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700 }}>
-                {targetMonthNum}월 재무 현황
-              </div>
-            </div>
-
-            {/* 2. 중앙 총 잔액 */}
-            <div style={{ textAlign: 'center', marginBottom: 32 }}>
-              <div style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 4 }}>현재 총 잔액</div>
-              <div style={{ fontSize: 36, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
-                {imageStats.realTotalBalance < 0 ? '-' : ''}{Math.abs(imageStats.realTotalBalance).toLocaleString()}원
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 8 }}>
-                업데이트: {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
-              </div>
-
-              {/* 파트별 잔고 현황 */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
-                {[
-                  { label: 'VOIX·SESSION', val: (imageStats.realPartBalances['VOIX'] || 0) + (imageStats.realPartBalances['SESSION'] || 0) },
-                  { label: 'DANCE', val: imageStats.realPartBalances['DANCE'] || 0 },
-                  { label: '공통', val: imageStats.realPartBalances['공통'] || 0 },
-                ].map(p => (
-                  <div key={p.label} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginBottom: 4 }}>{p.label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: p.val < 0 ? '#e11d48' : '#334155' }}>
-                      {p.val < 0 ? '-' : ''}{Math.abs(p.val).toLocaleString()}원
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 수입/지출 바 */}
-            <div style={{ background: 'var(--slate-50)', padding: 16, borderRadius: 16, marginBottom: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 수입</div>
-                  <div style={{ fontSize: 16, color: '#16a34a', fontWeight: 800 }}>+{imageStats.targetIncomeTotal.toLocaleString()}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 지출</div>
-                  <div style={{ fontSize: 16, color: '#e11d48', fontWeight: 800 }}>-{imageStats.targetExpenseTotal.toLocaleString()}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#e2e8f0' }}>
-                <div style={{ width: `${imageStats.targetIncomeTotal + imageStats.targetExpenseTotal > 0 ? (imageStats.targetIncomeTotal / (imageStats.targetIncomeTotal + imageStats.targetExpenseTotal)) * 100 : 50}%`, background: '#22c55e' }} />
-                <div style={{ width: `${imageStats.targetIncomeTotal + imageStats.targetExpenseTotal > 0 ? (imageStats.targetExpenseTotal / (imageStats.targetIncomeTotal + imageStats.targetExpenseTotal)) * 100 : 50}%`, background: '#ef4444' }} />
-              </div>
-            </div>
-
-            {/* 3. 수입/지출 핵심 항목 */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>수입 (Top 4)</div>
-                  {imageStats.topIncomes.slice(0, 4).map(item => (
-                    <div key={item.cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                      <span style={{ color: 'var(--slate-600)' }}>{item.cat}</span>
-                      <span style={{ fontWeight: 700 }}>{item.amount.toLocaleString()}</span>
-                    </div>
-                  ))}
-                  {imageStats.topIncomes.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>수입 없음</div>}
-                </div>
-                <div style={{ width: 1, background: '#e2e8f0' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12, borderBottom: '2px solid #e2e8f0', paddingBottom: 8 }}>지출 (Top 4)</div>
-                  {imageStats.topExpenses.slice(0, 4).map(item => (
-                    <div key={item.cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-                      <span style={{ color: 'var(--slate-600)' }}>{item.cat}</span>
-                      <span style={{ fontWeight: 700 }}>{item.amount.toLocaleString()}</span>
-                    </div>
-                  ))}
-                  {imageStats.topExpenses.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-400)' }}>지출 없음</div>}
-                </div>
-              </div>
-            </div>
-
-
-            
-            <div style={{ textAlign: 'center', marginTop: 24, fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>
-              Lumique Financial Ledger
+            <div style={{
+              width: 420,
+              height: cardHeight * scale,
+              transform: `scale(${scale})`,
+              transformOrigin: 'top center',
+              cursor: 'pointer',
+              marginBottom: cardHeight * (scale - 1)
+            }} onClick={() => setIsFullscreen(true)}>
+              {renderCardContent(cardRef)}
             </div>
           </div>
 
         </div>
       </div>
+
+      {/* 전체화면 보기 모달 */}
+      {isFullscreen && (
+        <div className="modal-overlay" onClick={() => setIsFullscreen(false)} style={{ zIndex: 99999, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ 
+            maxWidth: '100%', 
+            width: 'auto', 
+            background: 'none', 
+            boxShadow: 'none', 
+            padding: 0,
+            overflow: 'visible',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            position: 'relative'
+          }}>
+            <button onClick={() => setIsFullscreen(false)} style={{
+              position: 'absolute',
+              top: -46,
+              right: 12,
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              borderRadius: '50%',
+              width: 36,
+              height: 36,
+              color: '#fff',
+              fontSize: 20,
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>✕</button>
+            <div style={{
+              transform: window.innerWidth < 460 ? `scale(${Math.min(1, (window.innerWidth - 32) / 420)})` : 'scale(1)',
+              transformOrigin: 'center center',
+              borderRadius: 24,
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
+            }}>
+              {renderCardContent(null)}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

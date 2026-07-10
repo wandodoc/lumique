@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import DashboardPage from './pages/DashboardPage';
@@ -82,6 +82,10 @@ function AppInner() {
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const { isAdmin, requestLogin, logout, showLoginModal } = useAuth();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab, showAdd]);
 
   const handleAddClick = () => {
     if (isAdmin) setShowAdd(true);
@@ -178,16 +182,6 @@ function AppInner() {
               <span style={{ color: '#bbb', fontWeight: 500 }}>{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</span>
             </h1>
           </div>
-          <button
-            onClick={isAdmin ? logout : requestLogin}
-            style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: 4, color: isAdmin ? 'var(--emerald-400)' : '#888', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '6px 10px', borderRadius: 99, whiteSpace: 'nowrap' }}
-          >
-            {isAdmin ? (
-              <><div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--emerald-400)' }} />로그아웃</>
-            ) : (
-              <>🔒 로그인</>
-            )}
-          </button>
         </header>
 
         <main className="main-content">{renderPage()}</main>

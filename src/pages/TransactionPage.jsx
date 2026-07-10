@@ -12,7 +12,8 @@ const TYPES_FILTER = ['전체', '수입', '지출'];
 
 export default function TransactionPage() {
   const { state, dispatch } = useApp();
-  const { isAdmin, requestLogin } = useAuth();
+  const { isAdmin: rawIsAdmin, requestLogin } = useAuth();
+  const isAdmin = rawIsAdmin && window.innerWidth >= 768;
   const { transactions, members } = state;
 
   const [partFilter, setPartFilter] = useState('전체');

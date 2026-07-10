@@ -203,7 +203,7 @@ function PerfView({ performances, members, onToggle }) {
               ? <div style={{ padding: '16px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)' }}>참여자 없음</div>
               : participated.map(m => (
                   <div key={m.id} 
-                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: 'pointer' }}
+                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: (window.innerWidth >= 768) ? 'pointer' : 'default' }}
                        onClick={(e) => onToggle(e, m, selectedPerf)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
@@ -225,7 +225,7 @@ function PerfView({ performances, members, onToggle }) {
               ? <div style={{ padding: '16px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)' }}>전원 참여</div>
               : notParticipated.map(m => (
                   <div key={m.id} 
-                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: 'pointer' }}
+                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: (window.innerWidth >= 768) ? 'pointer' : 'default' }}
                        onClick={(e) => onToggle(e, m, selectedPerf)}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
@@ -247,7 +247,8 @@ function PerfView({ performances, members, onToggle }) {
    ========================================================= */
 export default function MembersPage() {
   const { state, dispatch } = useApp();
-  const { isAdmin, requestLogin } = useAuth();
+  const { isAdmin: rawIsAdmin, requestLogin } = useAuth();
+  const isAdmin = rawIsAdmin && window.innerWidth >= 768;
   const { members, performances } = state;
 
   const [partFilter, setPartFilter] = useState('전체');
@@ -258,7 +259,8 @@ export default function MembersPage() {
 
   const togglePerformance = (e, member, perfKey) => {
     e.stopPropagation();
-    if (!isAdmin) { requestLogin(); return; }
+    if (window.innerWidth < 768) return; // no edit/login on mobile
+    if (!rawIsAdmin) { requestLogin(); return; }
     const current = member.performances?.[perfKey] === '참여';
     dispatch({
       type: 'UPDATE_MEMBER',
@@ -305,6 +307,17 @@ export default function MembersPage() {
 
   return (
     <div className="page fade-in">
+      {/* 뷰 전환 탭 (맨 상단으로 이동) */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <div className="segmented-control">
+          {VIEWS.map(v => (
+            <button key={v}
+              className={`segment-btn ${view === v ? 'active' : ''}`}
+              onClick={() => setView(v)}>{v}</button>
+          ))}
+        </div>
+      </div>
+
       {/* 인원 요약 */}
       <div className="card card-pad">
         <div className="flex-between" style={{ marginBottom: 14 }}>
@@ -348,65 +361,55 @@ export default function MembersPage() {
         </div>
       </div>
 
-      {/* 뷰 전환 탭 */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-        <div className="segmented-control">
-          {VIEWS.map(v => (
-            <button key={v}
-              className={`segment-btn ${view === v ? 'active' : ''}`}
-              onClick={() => setView(v)}>{v}</button>
-          ))}
-        </div>
-      </div>
-
       {/* ===== 회원 목록 뷰 ===== */}
       {view === '회원 목록' && (
         <>
-          <div className="flex-between">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <div className="filter-row" style={{ margin: 0 }}>
-                {PARTS.map(p => (
-                  <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
-                    onClick={() => setPartFilter(p)}>{p}</button>
-                ))}
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--slate-600)', cursor: 'pointer', fontWeight: 600 }}>
-                <input type="checkbox" checked={showInactive} onChange={() => setShowInactive(v => !v)} style={{ width: 16, height: 16, accentColor: 'var(--blue-500)', cursor: 'pointer' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              {PARTS.map(p => (
+                <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
+                  style={{ padding: '6px 12px', fontSize: 12, margin: 0 }}
+                  onClick={() => setPartFilter(p)}>{p}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--slate-600)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                <input type="checkbox" checked={showInactive} onChange={() => setShowInactive(v => !v)} style={{ width: 14, height: 14, accentColor: 'var(--blue-500)', cursor: 'pointer' }} />
                 탈퇴 포함
               </label>
+              {isAdmin && <button className="btn-sm" onClick={() => setModal('add')}>+ 추가</button>}
             </div>
-            {isAdmin && <button className="btn-sm" onClick={() => setModal('add')}>+ 추가</button>}
           </div>
 
           {Object.entries(grouped).map(([part, list]) => (
             list.length > 0 && (
               <div key={part} className="card" style={{ overflowX: 'auto' }}>
                 {/* 헤더 */}
-                <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-100)', minWidth: 'max-content' }}>
-                  <div style={{ width: 130, flexShrink: 0 }}>
-                    <span className={`badge badge-${part.toLowerCase()}`}>{part}</span>
-                    <span className="text-muted" style={{ fontSize: 12, marginLeft: 6 }}>{list.length}명</span>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-100)', minWidth: 'max-content' }}>
+                  <div style={{ width: 80, flexShrink: 0 }}>
+                    <span className={`badge badge-${part.toLowerCase()}`} style={{ padding: '2px 6px', fontSize: 10 }}>{part}</span>
+                    <span className="text-muted" style={{ fontSize: 11, marginLeft: 4 }}>{list.length}명</span>
                   </div>
-                  <div style={{ width: 80, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--slate-500)', textAlign: 'center', letterSpacing: '.2px' }}>가입일</div>
+                  <div style={{ width: 75, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--slate-500)', textAlign: 'center', letterSpacing: '.2px' }}>가입일</div>
                   {performances.map(p => (
-                    <div key={p.key} style={{ width: 72, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--slate-500)', textAlign: 'center' }}>{p.label}</div>
+                    <div key={p.key} style={{ width: 64, flexShrink: 0, fontSize: 10, fontWeight: 700, color: 'var(--slate-500)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
                   ))}
-                  <div style={{ width: 40, flexShrink: 0 }} />
+                  <div style={{ width: 30, flexShrink: 0 }} />
                 </div>
 
                 {/* 행 */}
                 {list.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', minWidth: 'max-content', transition: 'background .12s' }}
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--slate-100)', minWidth: 'max-content', transition: 'background .12s' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--slate-50)'}
                     onMouseLeave={e => e.currentTarget.style.background = ''}>
                     {/* 이름 */}
-                    <div style={{ width: 130, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
-                      {m.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
+                    <div style={{ width: 80, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
+                      {m.status === 'inactive' && <span className="badge badge-gray" style={{ fontSize: 9, padding: '1px 3px' }}>탈퇴</span>}
                     </div>
                     {/* 가입일 */}
-                    <div style={{ width: 80, flexShrink: 0, fontSize: 12, color: 'var(--slate-500)', textAlign: 'center' }}>
-                      {m.joinDate?.replace(/-/g, '.')}
+                    <div style={{ width: 75, flexShrink: 0, fontSize: 11, color: 'var(--slate-500)', textAlign: 'center' }}>
+                      {m.joinDate?.slice(2).replace(/-/g, '.')}
                     </div>
                     {/* 공연 참여 토글 */}
                     {performances.map(p => {
@@ -414,31 +417,31 @@ export default function MembersPage() {
                       const joinedAfter = joinDateStr > p.key;
                       const participated = m.performances?.[p.key] === '참여';
                       return (
-                        <div key={p.key} style={{ width: 72, flexShrink: 0, textAlign: 'center' }}>
+                        <div key={p.key} style={{ width: 64, flexShrink: 0, textAlign: 'center' }}>
                           {joinedAfter ? (
                             <span style={{ fontSize: 11, color: 'var(--slate-300)', fontWeight: 500 }}>—</span>
                           ) : (
                             <button
                               onClick={(e) => togglePerformance(e, m, p.key)}
                               style={{
-                                padding: '3px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700, border: 'none',
-                                cursor: isAdmin ? 'pointer' : 'default',
+                                padding: '2px 6px', borderRadius: 99, fontSize: 10, fontWeight: 700, border: 'none',
+                                cursor: (window.innerWidth >= 768) ? 'pointer' : 'default',
                                 background: participated ? 'var(--emerald-50)' : 'var(--rose-50)',
                                 color: participated ? 'var(--emerald-600)' : 'var(--rose-400)',
                                 transition: 'all .15s',
-                                minWidth: 44,
+                                minWidth: 40,
                               }}>
-                              {participated ? '참여' : '미참여'}
+                              {participated ? '참여' : '미참'}
                             </button>
                           )}
                         </div>
                       );
                     })}
                     {/* 수정 버튼 */}
-                    <div style={{ width: 40, flexShrink: 0, textAlign: 'right' }}>
+                    <div style={{ width: 30, flexShrink: 0, textAlign: 'right' }}>
                       {isAdmin && (
                         <button onClick={(e) => { e.stopPropagation(); setModal(m); }}
-                          style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>✎</button>
+                          style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✎</button>
                       )}
                     </div>
                   </div>
