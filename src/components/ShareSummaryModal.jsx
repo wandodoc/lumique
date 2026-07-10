@@ -432,17 +432,21 @@ export default function ShareSummaryModal({ onClose }) {
             color: 'var(--slate-800)',
             boxSizing: 'border-box'
           }}>
-            {/* 1. 상단 타이틀 & 총 잔액 */}
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-                <img src="/logo.png" alt="Lumique" style={{ height: 28, width: 'auto', objectFit: 'contain' }} />
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.5px' }}>Lumique</div>
+            {/* 1. 상단 헤더 (로고 & 배지) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <img src="/logo.png" alt="Lumique" style={{ height: 18, width: 'auto', objectFit: 'contain' }} />
+                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: 17, fontWeight: 800, color: '#334155', letterSpacing: '-0.5px' }}>Lumique</div>
               </div>
-              <div style={{ display: 'inline-block', background: '#eff6ff', color: '#1d4ed8', padding: '4px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
+              <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700 }}>
                 {targetMonthNum}월 재무 현황
               </div>
-              <div style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 4 }}>총 잔액</div>
-              <div style={{ fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
+            </div>
+
+            {/* 2. 중앙 총 잔액 */}
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <div style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 4 }}>현재 총 잔액</div>
+              <div style={{ fontSize: 36, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
                 {imageStats.realTotalBalance < 0 ? '-' : ''}{Math.abs(imageStats.realTotalBalance).toLocaleString()}원
               </div>
               <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 8 }}>
