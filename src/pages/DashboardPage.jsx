@@ -117,7 +117,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
             </p>
           )}
         </div>
-        <h2 className="hero-amount" style={{ color: totalBalance < 0 ? '#fca5a5' : 'inherit', marginBottom: 8 }}>
+        <h2 className="hero-amount" style={{ color: totalBalance < 0 ? '#fca5a5' : 'inherit', marginBottom: 8, fontSize: 'clamp(26px, 5vw, 34px)' }}>
           {totalBalance < 0 ? '-' : ''}{formatKRW(Math.abs(totalBalance))}
         </h2>
         <p className="hero-sub" style={{ marginBottom: 20 }}>토스뱅크 1001-7629-3105</p>
@@ -129,7 +129,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
             return (
               <div key={p} style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap' }}>{p}</div>
-                <div style={{ fontSize: 'clamp(15px, 4vw, 18px)', fontWeight: 800, color: pb < 0 ? '#fca5a5' : '#ffffff', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                <div style={{ fontSize: 'clamp(15px, 4vw, 22px)', fontWeight: 800, color: pb < 0 ? '#fca5a5' : '#ffffff', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
                   {formatKRW(pb)}
                 </div>
               </div>

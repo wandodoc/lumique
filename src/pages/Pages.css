@@ -394,7 +394,7 @@
 /* ===== Dashboard Layout ===== */
 .dashboard-middle-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 16px;
   margin-bottom: 16px;
 }

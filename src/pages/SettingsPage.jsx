@@ -5,7 +5,6 @@ const REGULATIONS = [
   { label: '계좌', value: '토스뱅크 1001-7629-3105' },
   { label: '납부 기준', value: '매월 5일 10,000원' },
   { label: '신규 부원', value: '15일 이후 가입 시 익월부터 납부' },
-  { label: '파트 구분', value: 'VOIX(SESSION 포함) | DANCE | 공통' },
 ];
 
 const INCOME_CATS = [
@@ -117,17 +116,7 @@ export default function SettingsPage() {
         {REGULATIONS.map(r => (
           <div key={r.label} className="reg-row">
             <span className="reg-label">{r.label}</span>
-            <span className="reg-value">
-              {r.label === '파트 구분' ? (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>VOIX · SESSION</span>
-                  <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>DANCE</span>
-                  <span className="filter-chip" style={{ cursor: 'default', height: 28, padding: '0 12px', fontSize: 12 }}>공통</span>
-                </div>
-              ) : (
-                r.value
-              )}
-            </span>
+            <span className="reg-value">{r.value}</span>
           </div>
         ))}
       </div>
