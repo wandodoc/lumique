@@ -141,7 +141,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
       {/* 중간 그리드: 요약 및 납부율 */}
       <div className="dashboard-middle-grid">
         {/* 이달 요약 */}
-        <div className="card card-pad" style={{ overflow: 'visible' }}>
+        <div className="card card-pad" style={{ overflow: 'visible', display: 'flex', flexDirection: 'column' }}>
         <div className="flex-between" style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="card-title" style={{ margin: 0 }}>이번 달 요약</span>
@@ -151,7 +151,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
           </div>
           <span className="badge badge-gray">{thisMonth.month}</span>
         </div>
-        <div className="month-summary">
+        <div className="month-summary" style={{ flex: 1 }}>
           <div className="month-col has-tooltip">
             <span>수입</span>
             <strong className="text-green">+{formatKRW(thisMonth.income)}</strong>
