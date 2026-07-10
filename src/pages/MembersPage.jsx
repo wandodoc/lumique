@@ -411,7 +411,8 @@ export default function MembersPage({ initialView = '회원 목록' }) {
         <>
           {/* 고정(Sticky) 상단 필터 바 */}
           <div className="filter-bar-sticky">
-            <div className="filter-bar-main">
+            {/* 윗줄 (Top Row): 전체 너비 검색창 */}
+            <div className="filter-bar-top-row">
               <div className="search-input-wrapper">
                 <svg className="search-icon" viewBox="0 0 24 24">
                   <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -424,6 +425,10 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                   className="search-input"
                 />
               </div>
+            </div>
+
+            {/* 아랫줄 (Bottom Row): 파트 필터 및 토글 스위치 */}
+            <div className="filter-bar-bottom-row">
               <div className="part-filters">
                 {PARTS.map(p => (
                   <button 
@@ -435,21 +440,20 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="filter-bar-sub">
-              <label className="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  checked={showInactive} 
-                  onChange={() => setShowInactive(v => !v)} 
-                />
-                탈퇴 회원 포함
-              </label>
-              {isAdmin && (
-                <button className="btn-sm" onClick={() => setModal('add')}>
-                  + 회원 추가
-                </button>
-              )}
+
+              <div className="filter-actions-right">
+                <div className="toggle-switch-wrapper" onClick={() => setShowInactive(v => !v)}>
+                  <span className="toggle-label">탈퇴 회원 포함</span>
+                  <div className={`toggle-switch ${showInactive ? 'active' : ''}`}>
+                    <div className="toggle-handle" />
+                  </div>
+                </div>
+                {isAdmin && (
+                  <button className="btn-sm" onClick={() => setModal('add')}>
+                    + 회원 추가
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

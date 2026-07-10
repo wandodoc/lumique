@@ -751,7 +751,7 @@
    NEW OFFICE-LOOK MEMBRES & PERF VIEW STYLES
    =================================================================== */
 
-/* 상단 필터 바 고정 */
+/* 상단 필터 바 고정 - [2안: 상하 분리형 레이아웃] */
 .filter-bar-sticky {
   position: sticky;
   top: 64px; /* pc-header 하단에 붙게 함. App.css의 pc-header 높이가 var(--header-h) = 64px이므로 */
@@ -761,7 +761,7 @@
   border-bottom: 1px solid var(--slate-200);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px; /* gap-4 */
   margin-bottom: 24px;
 }
 
@@ -773,56 +773,68 @@
     padding: 12px 16px;
     margin: -16px -12px 16px -12px;
     border-bottom: 1.5px solid var(--slate-200);
+    gap: 12px;
   }
 }
 
-.filter-bar-main {
+.filter-bar-top-row {
+  width: 100%;
+}
+
+.filter-bar-bottom-row {
   display: flex;
-  gap: 12px;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   width: 100%;
 }
 
 @media (max-width: 640px) {
-  .filter-bar-main {
+  .filter-bar-bottom-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 10px;
   }
 }
 
 .search-input-wrapper {
   position: relative;
-  flex: 1;
+  width: 100%;
 }
 
 .search-input {
   width: 100%;
-  height: var(--btn-h-sm);
-  padding: 0 12px 0 32px;
-  border: 1.5px solid var(--slate-200);
-  border-radius: 99px;
-  font-size: 13px;
+  height: 42px; /* py-2.5 ~ py-3 에 부합하는 충분한 높이 */
+  padding: 0 16px 0 38px;
+  border: 1px solid #e4e4e7; /* 아주 연한 그레이 (zinc-200) */
+  border-radius: 8px;
+  font-size: 14px;
   color: var(--slate-900);
   background: var(--white);
-  transition: var(--transition);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box;
 }
 
-.search-input:focus {
-  border-color: var(--c-black);
-  box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+.search-input::placeholder {
+  color: #a1a1aa; /* text-zinc-400 */
+}
+
+.search-input:focus, .search-input:hover {
+  border-color: #27272a; /* 부드러운 다크 그레이/블랙 (zinc-800) */
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
 }
 
 .search-icon {
   position: absolute;
-  left: 12px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   fill: none;
-  stroke: var(--slate-400);
+  stroke: #a1a1aa; /* text-zinc-400 */
   stroke-width: 2.5;
   pointer-events: none;
 }
@@ -838,27 +850,89 @@
   display: none;
 }
 
-.filter-bar-sub {
-  display: flex;
-  justify-content: space-between;
+/* 파트 필터 버튼 스타일 */
+.filter-chip {
+  display: inline-flex;
   align-items: center;
-  font-size: 12px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  justify-content: center;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--slate-600);
-  font-weight: 600;
+  background: var(--slate-100);
+  border: none;
+  border-radius: 99px; /* 정갈하고 둥근 캡슐 형태 */
   cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.checkbox-label input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--c-black);
+.filter-chip:not(.active):hover {
+  background: #f4f4f5; /* 연한 그레이 (zinc-100) */
+  color: #18181b;
+}
+
+.filter-chip.active {
+  background: #18181b; /* 블랙 배경 */
+  color: #ffffff;
+}
+
+/* 우측 액션 그룹 (토글 스위치 + 회원 추가) */
+.filter-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .filter-actions-right {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+/* iOS/토스 스타일 슬라이드 토글 스위치 */
+.toggle-switch-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  user-select: none;
+}
+
+.toggle-label {
+  font-size: 12px;
+  color: #71717a; /* text-zinc-500 */
+  font-weight: 600;
+}
+
+.toggle-switch {
+  width: 36px;
+  height: 20px;
+  background: #e4e4e7; /* zinc-200 */
+  border-radius: 99px;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.toggle-switch.active {
+  background: #18181b; /* zinc-900 (black) */
+}
+
+.toggle-handle {
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-switch.active .toggle-handle {
+  transform: translateX(16px);
 }
 
 /* 데스크톱 테이블 뷰 */
