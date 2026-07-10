@@ -62,8 +62,10 @@ function MemberCard({ member, transactions, onClick }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 16, alignItems: 'flex-start' }}>
            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
               <span className={`badge badge-${member.part.toLowerCase()}`}>{member.part}</span>
-              <span style={{ fontSize: 18, fontWeight: 800 }}>{member.name}</span>
-              {member.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
+                <span style={{ fontSize: 18, fontWeight: 800, whiteSpace: 'nowrap' }}>{member.name}</span>
+                {member.status === 'inactive' && <span className="badge badge-gray" style={{ whiteSpace: 'nowrap', margin: 0 }}>탈퇴</span>}
+              </div>
            </div>
            {statusBadge}
         </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { sortByPartAndName } from '../utils/calculations';
@@ -245,7 +245,7 @@ function PerfView({ performances, members, onToggle }) {
 /* =========================================================
    메인 페이지
    ========================================================= */
-export default function MembersPage() {
+export default function MembersPage({ initialView = '회원 목록' }) {
   const { state, dispatch } = useApp();
   const { isAdmin: rawIsAdmin, requestLogin } = useAuth();
   const isAdmin = rawIsAdmin && window.innerWidth >= 768;
@@ -255,7 +255,11 @@ export default function MembersPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [modal, setModal] = useState(null);
   const [showAddPerf, setShowAddPerf] = useState(false);
-  const [view, setView] = useState('회원 목록'); // '회원 목록' | '공연별 현황'
+  const [view, setView] = useState(initialView);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
 
   const togglePerformance = (e, member, perfKey) => {
     e.stopPropagation();

@@ -362,7 +362,7 @@ export default function AnalyticsPage() {
               className={`filter-chip ${partFilter === p ? 'active' : ''}`} 
               onClick={() => setPartFilter(p)}
             >
-              {p === '전체' ? '모든 파트' : p}
+              {p}
             </button>
           ))}
         </div>
