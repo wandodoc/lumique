@@ -121,10 +121,25 @@ export default function DashboardPage({ onAddClick, setTab }) {
             </p>
           )}
         </div>
-        <h2 className="hero-amount" style={{ color: totalBalance < 0 ? 'var(--red-500)' : 'inherit' }}>
+        <h2 className="hero-amount" style={{ color: totalBalance < 0 ? '#fca5a5' : 'inherit', marginBottom: 8 }}>
           {totalBalance < 0 ? '-' : ''}{formatKRW(Math.abs(totalBalance))}
         </h2>
-        <p className="hero-sub">토스뱅크 1001-7629-3105</p>
+        <p className="hero-sub" style={{ marginBottom: 20 }}>토스뱅크 1001-7629-3105</p>
+        
+        {/* 파트별 잔고 현황 (히어로 내부에 병합) */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 16 }}>
+          {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
+            const pb = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
+            return (
+              <div key={p} style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap' }}>{p}</div>
+                <div style={{ fontSize: 'clamp(13px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#fca5a5' : '#ffffff', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                  {formatKRW(pb)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* 이달 요약 */}
@@ -203,37 +218,29 @@ export default function DashboardPage({ onAddClick, setTab }) {
         </div>
       </div>
 
-      <div className="dashboard-bottom-grid">
-        {/* 파트별 잔고 현황 */}
-        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column' }}>
-          <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, flex: 1, alignItems: 'center' }}>
-            {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
-              const pb = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
-              return (
-                <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: '12px 4px', textAlign: 'center', minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
-                  <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#e11d48' : '#0f172a', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
-                    {formatKRW(pb)}
-                  </div>
-                </div>
-              );
-            })}
+      {/* 이번 달 회비 납부율 (단일 카드) */}
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
+          <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>회원 {activeMembers.length}명 중 {paidThisMonth.length}명 납부</span>
+        </div>
+        
+        {/* PC 뷰: 원형 도넛 그래프 */}
+        <div className="md-pc-view" style={{ padding: '16px 0' }}>
+          <div className="donut-chart" style={{ background: `conic-gradient(${duesColor} ${duesRate}%, var(--slate-100) 0)`, width: 120, height: 120, position: 'relative' }}>
+            <div style={{ position: 'absolute', width: 90, height: 90, background: 'var(--white)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 22, fontWeight: 800, color: duesColor }}>{duesRate}%</span>
+            </div>
           </div>
         </div>
 
-        {/* 이번 달 회비 납부율 */}
-        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
-            <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>회원 {activeMembers.length}명 중 {paidThisMonth.length}명 납부</span>
+        {/* 모바일 뷰: 가로 막대 그래프 */}
+        <div className="md-mobile-view">
+          <div className="progress-track" style={{ height: 12, marginTop: 16 }}>
+            <div className="progress-fill" style={{ width: `${duesRate}%`, background: duesColor }} />
           </div>
-          
-          {/* 원형 도넛 그래프 */}
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
-            <div className="donut-chart" style={{ background: `conic-gradient(${duesColor} ${duesRate}%, var(--slate-100) 0)` }}>
-              <span className="donut-value" style={{ color: duesColor }}>{duesRate}%</span>
-            </div>
+          <div style={{ textAlign: 'right', marginTop: 10, fontSize: 15, fontWeight: 800, color: duesColor }}>
+            {duesRate}%
           </div>
         </div>
       </div>
