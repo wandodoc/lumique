@@ -116,7 +116,7 @@ function AppInner() {
           <div className="logo-mark">
             <img src="/logo.png" alt="Lumique" />
           </div>
-          <div><h1>Lumique</h1><p>Workspace</p></div>
+          <div><h1>Lumique</h1><p>동아리 운영 관리 시스템</p></div>
         </div>
         <nav style={{ flex: 1, overflowY: 'auto', paddingBottom: 20 }}>
           {/* 대시보드 (독립 탭) */}
