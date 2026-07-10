@@ -152,15 +152,15 @@ export default function AnalyticsPage() {
       <div className="analytics-summary-grid">
         <div className="card card-pad" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>총 수입</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#059669' }}>+{formatKRW(totalIncome)}</div>
+          <div className="text-green" style={{ fontSize: 20, fontWeight: 800 }}>+{formatKRW(totalIncome)}</div>
         </div>
         <div className="card card-pad" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>총 지출</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--red-500)' }}>-{formatKRW(totalExpense)}</div>
+          <div className="text-red" style={{ fontSize: 20, fontWeight: 800 }}>-{formatKRW(totalExpense)}</div>
         </div>
         <div className="card card-pad" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 4, fontWeight: 600 }}>순잔액</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: netBalance >= 0 ? 'inherit' : 'var(--red-500)' }}>
+          <div className={netBalance >= 0 ? '' : 'text-red'} style={{ fontSize: 20, fontWeight: 800 }}>
             {netBalance >= 0 ? '+' : ''}{formatKRW(netBalance)}
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function AnalyticsPage() {
               <div key={cat} className="cat-row">
                 <div className="cat-row-top">
                   <span className="cat-name" style={{ fontSize: 12 }}>{cat}</span>
-                  <span style={{ fontWeight: 600, fontSize: 12 }}>{formatKRW(total)}</span>
+                  <span className="text-red" style={{ fontWeight: 600, fontSize: 12 }}>{formatKRW(total)}</span>
                 </div>
                 <div className="cat-bar-track">
                   <div className="cat-bar-fill" style={{ width: `${(total / maxCat) * 100}%`, background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
@@ -195,7 +195,7 @@ export default function AnalyticsPage() {
               <div key={cat} className="cat-row">
                 <div className="cat-row-top">
                   <span className="cat-name" style={{ fontSize: 12 }}>{cat}</span>
-                  <span style={{ fontWeight: 600, fontSize: 12, color: '#059669' }}>{formatKRW(total)}</span>
+                  <span className="text-green" style={{ fontWeight: 600, fontSize: 12 }}>{formatKRW(total)}</span>
                 </div>
                 <div className="cat-bar-track">
                   <div className="cat-bar-fill" style={{ width: `${(total / maxIncomeCat) * 100}%`, background: INCOME_COLORS[i % INCOME_COLORS.length] }} />
@@ -215,7 +215,7 @@ export default function AnalyticsPage() {
             <span className="card-title" style={{ margin: 0 }}>파트별 잔고 현황</span>
             <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>총 잔액</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: netBalance >= 0 ? '#0f172a' : 'var(--red-500)' }}>
+              <span className={netBalance >= 0 ? '' : 'text-red'} style={{ fontSize: 16, fontWeight: 800 }}>
                 {netBalance < 0 ? '-' : ''}{formatKRW(Math.abs(netBalance))}
               </span>
             </div>
@@ -226,7 +226,7 @@ export default function AnalyticsPage() {
               return (
                 <div key={p} style={{ padding: '10px 4px', borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-100)', textAlign: 'center', minWidth: 0 }}>
                   <div style={{ fontSize: 11, color: 'var(--slate-500)', marginBottom: 2, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
-                  <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, color: val < 0 ? 'var(--red-500)' : 'inherit', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                  <div className={val < 0 ? 'text-red' : ''} style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 700, whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
                     {val < 0 ? '-' : ''}{formatKRW(Math.abs(val))}
                   </div>
                 </div>
@@ -239,12 +239,12 @@ export default function AnalyticsPage() {
         <div className="card card-pad">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
-            <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? '#059669' : duesRate >= 50 ? '#f59e0b' : 'var(--red-500)' }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)' }}>
               {duesRate}%
             </span>
           </div>
           <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? '#059669' : duesRate >= 50 ? '#f59e0b' : 'var(--red-500)', transition: 'width 0.6s ease' }} />
+            <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)', transition: 'width 0.6s ease' }} />
           </div>
           <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
             활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
