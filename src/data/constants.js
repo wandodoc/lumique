@@ -46,6 +46,13 @@ export const EXPENSE_CATEGORIES = [
   CATEGORIES.PARKING,
 ];
 
+export const CATEGORY_ICONS = {
+  '회비': '💰', '공연 수입': '🎭', '이자/기타': '📈',
+  '연습실 대여': '🎵', '비품': '🛒', '소모품': '📦',
+  '식대': '🍽️', '사례비': '🤝', '주차비': '🚗',
+  '기타지출': '💸', '기타수입': '💵'
+};
+
 // 회비 기준
 export const MONTHLY_DUES = 10000; // 월 만원
 

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { formatKRW, isRefundTx } from '../utils/calculations';
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/constants';
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, CATEGORY_ICONS } from '../data/constants';
 import ExcelImportModal from '../components/ExcelImportModal';
 import EditTransactionModal from '../components/EditTransactionModal';
 import './Pages.css';
@@ -489,10 +489,10 @@ export default function TransactionPage() {
                 </span>
               </div>
               <div className="td-cat">
-                <span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {tx.splitItems && tx.splitItems.length > 0
                     ? [...new Set(tx.splitItems.map(item => item.category).filter(Boolean))].join(', ') || '분할'
-                    : tx.category}
+                    : <><span style={{ fontSize: 13 }}>{CATEGORY_ICONS[tx.category] || '📌'}</span> {tx.category}</>}
                 </span>
                 <span className="text-muted" style={{ fontSize: 11, display: 'block' }}>
                   {tx.splitItems && tx.splitItems.length > 0

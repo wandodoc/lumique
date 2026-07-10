@@ -11,11 +11,7 @@ const PART_CONFIGS = {
   공통:    { label: '공통',    colorClass: 'common' },
 };
 
-const CATEGORY_ICONS = {
-  '회비': '💰', '공연 수입': '🎭', '이자/기타': '📈',
-  '연습실 대여': '🎵', '비품': '🛒', '소모품': '📦',
-  '식대': '🍽️', '사례비': '🤝', '주차비': '🚗',
-};
+import { CATEGORY_ICONS } from '../data/constants';
 
 export default function DashboardPage({ onAddClick, setTab }) {
   const { state } = useApp();
@@ -142,8 +138,10 @@ export default function DashboardPage({ onAddClick, setTab }) {
         </div>
       </div>
 
-      {/* 이달 요약 */}
-      <div className="card card-pad" style={{ overflow: 'visible', marginBottom: 16 }}>
+      {/* 중간 그리드: 요약 및 납부율 */}
+      <div className="dashboard-middle-grid">
+        {/* 이달 요약 */}
+        <div className="card card-pad" style={{ overflow: 'visible' }}>
         <div className="flex-between" style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="card-title" style={{ margin: 0 }}>이번 달 요약</span>
@@ -244,6 +242,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
           </div>
         </div>
       </div>
+      </div>
 
       {/* 미납 배너 */}
       {unpaidCount > 0 && (
@@ -256,8 +255,11 @@ export default function DashboardPage({ onAddClick, setTab }) {
 
       {/* 최근 거래 타임라인 */}
       <div className="card">
-        <div className="card-pad" style={{ paddingBottom: 0 }}>
-          <span className="card-title">최근 거래</span>
+        <div className="card-pad flex-between" style={{ paddingBottom: 0, marginBottom: 12 }}>
+          <span className="card-title" style={{ margin: 0 }}>최근 거래</span>
+          <button onClick={() => setTab?.('ledger')} style={{ background: 'transparent', border: 'none', color: 'var(--slate-500)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+            더 보기 <span style={{ fontSize: 10 }}>❯</span>
+          </button>
         </div>
         {recentTxs.map((tx, i) => (
           <div key={tx.id} className="timeline-row">

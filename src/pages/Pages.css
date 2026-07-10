@@ -391,6 +391,19 @@
 .member-card-name  { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .member-card-nums  { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--slate-500); }
 
+/* ===== Dashboard Layout ===== */
+.dashboard-middle-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 768px) {
+  .dashboard-middle-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ===== Member Dues Responsive Layout ===== */
 .member-dues-grid {
   display: grid;
