@@ -199,31 +199,98 @@ export default function AnalyticsPage() {
 
   const renderMatrixTable = (data, isIncome) => {
     if (data.length === 0) return <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 20, fontSize: 13 }}>내역 없음</div>;
+    
+    // 합계 계산
+    const gTotal = data.reduce((acc, curr) => {
+      acc['VOIX·SESSION'] += curr['VOIX·SESSION'] || 0;
+      acc['DANCE'] += curr['DANCE'] || 0;
+      acc['공통'] += curr['공통'] || 0;
+      acc.total += curr.total || 0;
+      return acc;
+    }, { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 });
+
+    const totalColor = isIncome ? 'var(--emerald-600)' : 'var(--rose-600)';
+    const totalBg = isIncome ? 'var(--emerald-50)' : 'var(--rose-50)';
+    const totalBorder = isIncome ? '#a7f3d0' : '#fecdd3';
+    const totalLabelColor = isIncome ? 'var(--emerald-800)' : 'var(--rose-800)';
+
     return (
-      <div style={{ overflowX: 'auto', marginBottom: 24, border: '1px solid var(--slate-100)', borderRadius: 8 }}>
-        <table className="matrix-table">
-          <thead>
-            <tr>
-              <th style={{ minWidth: 120 }}>계정과목</th>
-              <th>VOIX·SESSION</th>
-              <th>DANCE</th>
-              <th>공통</th>
-              <th style={{ color: 'var(--slate-800)', fontWeight: 700 }}>총액</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map(item => (
-              <tr key={item.cat}>
-                <td style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</td>
-                <td style={{ color: item['VOIX·SESSION'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['VOIX·SESSION'] ? formatKRW(item['VOIX·SESSION']) : '-'}</td>
-                <td style={{ color: item['DANCE'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['DANCE'] ? formatKRW(item['DANCE']) : '-'}</td>
-                <td style={{ color: item['공통'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['공통'] ? formatKRW(item['공통']) : '-'}</td>
-                <td style={{ fontWeight: 700, color: isIncome ? 'var(--emerald-600)' : 'var(--rose-600)' }}>{formatKRW(item.total)}</td>
+      <>
+        {/* PC: Matrix Table */}
+        <div className="md-pc-view" style={{ overflowX: 'auto', marginBottom: 24, border: '1px solid var(--slate-100)', borderRadius: 8, display: 'block' }}>
+          <table className="matrix-table">
+            <thead>
+              <tr>
+                <th style={{ minWidth: 120 }}>계정과목</th>
+                <th>VOIX·SESSION</th>
+                <th>DANCE</th>
+                <th>공통</th>
+                <th style={{ color: 'var(--slate-800)', fontWeight: 700 }}>총액</th>
               </tr>
+            </thead>
+            <tbody>
+              {data.map(item => (
+                <tr key={item.cat}>
+                  <td style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</td>
+                  <td style={{ color: item['VOIX·SESSION'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['VOIX·SESSION'] ? formatKRW(item['VOIX·SESSION']) : '-'}</td>
+                  <td style={{ color: item['DANCE'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['DANCE'] ? formatKRW(item['DANCE']) : '-'}</td>
+                  <td style={{ color: item['공통'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['공통'] ? formatKRW(item['공통']) : '-'}</td>
+                  <td style={{ fontWeight: 700, color: totalColor }}>{formatKRW(item.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: totalBg, borderTop: `2px solid ${totalBorder}` }}>
+                <td style={{ fontWeight: 800, color: totalLabelColor }}>총계</td>
+                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['VOIX·SESSION'])}</td>
+                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['DANCE'])}</td>
+                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['공통'])}</td>
+                <td style={{ fontWeight: 800, color: totalColor }}>{formatKRW(gTotal.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* Mobile: Card List */}
+        <div className="md-mobile-view" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {data.map(item => (
+              <div key={item.cat} style={{ background: 'var(--white)', padding: 16, borderRadius: 12, border: '1px solid var(--slate-200)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: '1px solid var(--slate-100)', paddingBottom: 10 }}>
+                  <span style={{ fontWeight: 800, color: 'var(--slate-800)', fontSize: 16 }}>{item.cat}</span>
+                  <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(item.total)}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+                  {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
+                    item[p] > 0 && (
+                      <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--slate-500)', fontWeight: 500 }}>{p}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--slate-700)' }}>{formatKRW(item[p])}</span>
+                      </div>
+                    )
+                  ))}
+                  {item.total === 0 && <div style={{ color: 'var(--slate-400)' }}>-</div>}
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+            {/* Mobile Grand Total */}
+            <div style={{ background: totalBg, padding: 16, borderRadius: 12, border: `1px solid ${totalBorder}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: `1px solid ${totalBorder}`, paddingBottom: 10 }}>
+                <span style={{ fontWeight: 800, color: totalLabelColor, fontSize: 16 }}>총 합계</span>
+                <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(gTotal.total)}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+                {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
+                  <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: totalLabelColor, opacity: 0.8, fontWeight: 600 }}>{p}</span>
+                    <span style={{ fontWeight: 700, color: totalLabelColor }}>{formatKRW(gTotal[p])}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
     );
   };
 

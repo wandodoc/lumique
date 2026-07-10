@@ -299,6 +299,7 @@
   font-size: 13px; font-weight: 600; color: var(--gray-500);
   background: transparent; border: none; cursor: pointer;
   transition: var(--transition);
+  white-space: nowrap;
 }
 .segment-btn.active {
   background: var(--white); color: var(--black);
