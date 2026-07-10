@@ -229,21 +229,10 @@ export default function DashboardPage({ onAddClick, setTab }) {
             <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>회원 {activeMembers.length}명 중 {paidThisMonth.length}명 납부</span>
           </div>
           
-          {/* PC용 도넛 그래프 */}
-          <div className="dues-donut-container" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          {/* 원형 도넛 그래프 */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
             <div className="donut-chart" style={{ background: `conic-gradient(${duesColor} ${duesRate}%, var(--slate-100) 0)` }}>
               <span className="donut-value" style={{ color: duesColor }}>{duesRate}%</span>
-            </div>
-          </div>
-
-          {/* 모바일용 프로그레스 바 */}
-          <div className="dues-bar-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--slate-500)' }}>납부 완료</span>
-              <span style={{ fontSize: 22, fontWeight: 800, color: duesColor }}>{duesRate}%</span>
-            </div>
-            <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesColor, transition: 'width 0.6s ease' }} />
             </div>
           </div>
         </div>

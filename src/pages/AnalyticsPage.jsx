@@ -189,12 +189,12 @@ export default function AnalyticsPage() {
 
       {/* 지출 계정과목 + 수입 카테고리 나란히 */}
       <div className="dash-grid-2" style={{ gap: 16, marginBottom: 16 }}>
-        <div className="card card-pad">
+        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column' }}>
           <span className="card-title" style={{ display: 'block', marginBottom: 16 }}>수입 구성</span>
           {incomeByCategory.length === 0
-            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>수입 내역 없음</div>
+            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>수입 내역 없음</div>
             : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                 <div className="donut-chart" style={{ width: 100, height: 100, flexShrink: 0, background: incGradient }}>
                   <div style={{ position: 'absolute', width: 70, height: 70, background: 'var(--c-white)', borderRadius: '50%' }} />
                 </div>
@@ -221,12 +221,12 @@ export default function AnalyticsPage() {
           }
         </div>
 
-        <div className="card card-pad">
+        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column' }}>
           <span className="card-title" style={{ display: 'block', marginBottom: 16 }}>지출 구성</span>
           {expenseByCategory.length === 0
-            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>지출 내역 없음</div>
+            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>지출 내역 없음</div>
             : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                 <div className="donut-chart" style={{ width: 100, height: 100, flexShrink: 0, background: expGradient }}>
                   <div style={{ position: 'absolute', width: 70, height: 70, background: 'var(--c-white)', borderRadius: '50%' }} />
                 </div>

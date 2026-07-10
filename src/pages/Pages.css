@@ -63,10 +63,6 @@
   }
 }
 
-/* 도넛 그래프 (PC 전용) / 프로그레스 바 (모바일 전용) */
-.dues-donut-container { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 10px 0; }
-.dues-bar-container { display: none; }
-
 .donut-chart {
   width: 90px;
   height: 90px;
@@ -89,11 +85,6 @@
   position: relative;
   font-size: 18px;
   font-weight: 800;
-}
-
-@media (max-width: 768px) {
-  .dues-donut-container { display: none; }
-  .dues-bar-container { display: block; }
 }
 
 /* ===================================================================
