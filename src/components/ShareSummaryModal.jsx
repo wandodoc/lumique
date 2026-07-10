@@ -515,28 +515,7 @@ export default function ShareSummaryModal({ onClose }) {
               </div>
             </div>
 
-            {/* 4. 파트별 잔고 현황 */}
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#334155', marginBottom: 12 }}>파트별 잔고 현황</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
-                  let partBal = 0;
-                  if (p === 'VOIX · SESSION') {
-                    partBal = (imageStats.realPartBalances['VOIX'] || 0) + (imageStats.realPartBalances['SESSION'] || 0);
-                  } else {
-                    partBal = imageStats.realPartBalances[p] || 0;
-                  }
-                  return (
-                    <div key={p} style={{ background: partBal < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${partBal < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: 12, textAlign: 'center' }}>
-                      <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4 }}>{p}</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: partBal < 0 ? '#e11d48' : '#0f172a' }}>
-                        {partBal.toLocaleString()}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+
             
             <div style={{ textAlign: 'center', marginTop: 24, fontSize: 11, color: '#cbd5e1', fontWeight: 600 }}>
               Lumique Financial Ledger
