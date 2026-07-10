@@ -76,8 +76,8 @@ function MemberFormModal({ member, performances, onSave, onClose }) {
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--slate-700)', marginTop: 4 }}>공연 참여</div>
               <div className="perf-grid">
                 {performances.map(p => {
-                  const joinMonth = form.joinDate?.slice(0, 7) ?? '9999-99';
-                  const disabled = joinMonth > p.key;
+                  const joinDateStr = form.joinDate || '9999-99-99';
+                  const disabled = joinDateStr > p.key;
                   return (
                     <div key={p.key} className="perf-item">
                       <span className="text-muted" style={{ fontSize: 11 }}>{p.label}</span>
@@ -158,8 +158,8 @@ function PerfView({ performances, members, onToggle }) {
 
   // 해당 공연 시점에 가입해 있던 회원만 대상
   const eligible = sortByName(members.filter(m => {
-    const joinMonth = m.joinDate?.slice(0, 7) ?? '9999-99';
-    return joinMonth <= selectedPerf;
+    const joinDateStr = m.joinDate || '9999-99-99';
+    return joinDateStr <= selectedPerf;
   }));
   const participated  = eligible.filter(m => m.performances?.[selectedPerf] === '참여');
   const notParticipated = eligible.filter(m => m.performances?.[selectedPerf] !== '참여');
@@ -408,8 +408,8 @@ export default function MembersPage() {
                     </div>
                     {/* 공연 참여 토글 */}
                     {performances.map(p => {
-                      const joinMonth = m.joinDate?.slice(0, 7) ?? '9999-99';
-                      const joinedAfter = joinMonth > p.key;
+                      const joinDateStr = m.joinDate || '9999-99-99';
+                      const joinedAfter = joinDateStr > p.key;
                       const participated = m.performances?.[p.key] === '참여';
                       return (
                         <div key={p.key} style={{ width: 72, flexShrink: 0, textAlign: 'center' }}>
