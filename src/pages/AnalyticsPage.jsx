@@ -31,8 +31,25 @@ export default function AnalyticsPage() {
     });
   }, [transactions, period]);
 
-  const totalIncome = filteredTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = filteredTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const txMap = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => map[t.id] = t);
+    return map;
+  }, [transactions]);
+
+  let totalIncome = 0;
+  let totalExpense = 0;
+  filteredTxs.forEach(tx => {
+    const isRefund = isRefundTx(tx, txMap);
+    if (tx.type === 'income') {
+      if (isRefund) totalExpense -= tx.amount;
+      else totalIncome += tx.amount;
+    } else {
+      if (isRefund) totalIncome -= tx.amount;
+      else totalExpense += tx.amount;
+    }
+  });
+
   const netBalance = totalIncome - totalExpense;
 
   // 월별 통계 (기간에 맞게 표시)
@@ -59,11 +76,7 @@ export default function AnalyticsPage() {
   }, [transactions, period]);
   const maxBalance = Math.max(...balanceTrend.map(b => Math.abs(b.balance)), 1);
 
-  const txMap = useMemo(() => {
-    const map = {};
-    transactions.forEach(t => map[t.id] = t);
-    return map;
-  }, [transactions]);
+
 
   // 지출 계정과목별 — 실제 거래 데이터에서 동적 집계
   const expenseByCategory = useMemo(() => {

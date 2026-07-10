@@ -51,6 +51,51 @@
   }
 }
 
+.dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 768px) {
+  .dashboard-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 도넛 그래프 (PC 전용) / 프로그레스 바 (모바일 전용) */
+.dues-donut-container { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 10px 0; }
+.dues-bar-container { display: none; }
+
+.donut-chart {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+.donut-chart::before {
+  content: "";
+  position: absolute;
+  width: 66px;
+  height: 66px;
+  background: var(--c-white);
+  border-radius: 50%;
+}
+.donut-value {
+  position: relative;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+@media (max-width: 768px) {
+  .dues-donut-container { display: none; }
+  .dues-bar-container { display: block; }
+}
+
 /* ===================================================================
    DESIGN TOKENS — 버튼 / 입력 높이를 단 하나의 기준으로 통일
    height-sm  = 32px  (작은 칩/배지 버튼)

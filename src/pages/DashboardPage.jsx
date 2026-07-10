@@ -97,6 +97,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
     return dues.diff >= 0;
   });
   const duesRate = activeMembers.length > 0 ? Math.round((paidThisMonth.length / activeMembers.length) * 100) : 0;
+  const duesColor = duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)';
   const recentTxs = [...transactions]
     .sort((a, b) => b.datetime.localeCompare(a.datetime))
     .slice(0, 6);
@@ -202,7 +203,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
         </div>
       </div>
 
-      <div className="dash-grid-2" style={{ gap: 16, marginBottom: 16 }}>
+      <div className="dashboard-bottom-grid">
         {/* 파트별 잔고 현황 */}
         <div className="card card-pad">
           <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
@@ -223,17 +224,30 @@ export default function DashboardPage({ onAddClick, setTab }) {
 
         {/* 이번 달 회비 납부율 */}
         <div className="card card-pad">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
-            <span style={{ fontSize: 22, fontWeight: 800, color: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)' }}>
-              {duesRate}%
-            </span>
+          <span className="card-title" style={{ display: 'block', marginBottom: 10 }}>이번 달 회비 납부율</span>
+          
+          {/* PC용 도넛 그래프 */}
+          <div className="dues-donut-container">
+            <div className="donut-chart" style={{ background: `conic-gradient(${duesColor} ${duesRate}%, var(--slate-100) 0)` }}>
+              <span className="donut-value" style={{ color: duesColor }}>{duesRate}%</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 4 }}>
+              활성 <strong>{activeMembers.length}</strong>명 중 <strong>{paidThisMonth.length}</strong>명 납부
+            </div>
           </div>
-          <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesRate >= 80 ? 'var(--emerald-500)' : duesRate >= 50 ? '#f59e0b' : 'var(--rose-500)', transition: 'width 0.6s ease' }} />
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
-            활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
+
+          {/* 모바일용 프로그레스 바 */}
+          <div className="dues-bar-container">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: 'var(--slate-500)' }}>납부 완료</span>
+              <span style={{ fontSize: 22, fontWeight: 800, color: duesColor }}>{duesRate}%</span>
+            </div>
+            <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesColor, transition: 'width 0.6s ease' }} />
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
+              활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
+            </div>
           </div>
         </div>
       </div>
