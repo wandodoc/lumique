@@ -215,82 +215,42 @@ export default function AnalyticsPage() {
     const totalLabelColor = isIncome ? 'var(--emerald-800)' : 'var(--rose-800)';
 
     return (
-      <>
-        {/* PC: Matrix Table */}
-        <div className="md-pc-view" style={{ overflowX: 'auto', marginBottom: 24, border: '1px solid var(--slate-100)', borderRadius: 8, display: 'block' }}>
-          <table className="matrix-table">
-            <thead>
-              <tr>
-                <th style={{ minWidth: 120 }}>계정과목</th>
-                <th>VOIX·SESSION</th>
-                <th>DANCE</th>
-                <th>공통</th>
-                <th style={{ color: 'var(--slate-800)', fontWeight: 700 }}>총액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map(item => (
-                <tr key={item.cat}>
-                  <td style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</td>
-                  <td style={{ color: item['VOIX·SESSION'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['VOIX·SESSION'] ? formatKRW(item['VOIX·SESSION']) : '-'}</td>
-                  <td style={{ color: item['DANCE'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['DANCE'] ? formatKRW(item['DANCE']) : '-'}</td>
-                  <td style={{ color: item['공통'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['공통'] ? formatKRW(item['공통']) : '-'}</td>
-                  <td style={{ fontWeight: 700, color: totalColor }}>{formatKRW(item.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ background: totalBg, borderTop: `2px solid ${totalBorder}` }}>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>총계</td>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['VOIX·SESSION'])}</td>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['DANCE'])}</td>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['공통'])}</td>
-                <td style={{ fontWeight: 800, color: totalColor }}>{formatKRW(gTotal.total)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Mobile: Card List */}
-        <div className="md-mobile-view" style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {data.map(item => (
-              <div key={item.cat} style={{ background: 'var(--white)', padding: 16, borderRadius: 12, border: '1px solid var(--slate-200)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: '1px solid var(--slate-100)', paddingBottom: 10 }}>
-                  <span style={{ fontWeight: 800, color: 'var(--slate-800)', fontSize: 16 }}>{item.cat}</span>
-                  <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(item.total)}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-                  {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
-                    item[p] > 0 && (
-                      <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--slate-500)', fontWeight: 500 }}>{p}</span>
-                        <span style={{ fontWeight: 700, color: 'var(--slate-700)' }}>{formatKRW(item[p])}</span>
-                      </div>
-                    )
-                  ))}
-                  {item.total === 0 && <div style={{ color: 'var(--slate-400)' }}>-</div>}
-                </div>
-              </div>
-            ))}
-            {/* Mobile Grand Total */}
-            <div style={{ background: totalBg, padding: 16, borderRadius: 12, border: `1px solid ${totalBorder}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: `1px solid ${totalBorder}`, paddingBottom: 10 }}>
-                <span style={{ fontWeight: 800, color: totalLabelColor, fontSize: 16 }}>총 합계</span>
-                <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(gTotal.total)}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
-                {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+        {data.map(item => (
+          <div key={item.cat} style={{ background: 'var(--white)', padding: 16, borderRadius: 12, border: '1px solid var(--slate-200)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: '1px solid var(--slate-100)', paddingBottom: 10 }}>
+              <span style={{ fontWeight: 800, color: 'var(--slate-800)', fontSize: 16 }}>{item.cat}</span>
+              <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(item.total)}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+              {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
+                item[p] > 0 && (
                   <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: totalLabelColor, opacity: 0.8, fontWeight: 600 }}>{p}</span>
-                    <span style={{ fontWeight: 700, color: totalLabelColor }}>{formatKRW(gTotal[p])}</span>
+                    <span style={{ color: 'var(--slate-500)', fontWeight: 500 }}>{p}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--slate-700)' }}>{formatKRW(item[p])}</span>
                   </div>
-                ))}
-              </div>
+                )
+              ))}
+              {item.total === 0 && <div style={{ color: 'var(--slate-400)' }}>-</div>}
             </div>
           </div>
+        ))}
+        {/* Grand Total */}
+        <div style={{ background: totalBg, padding: 16, borderRadius: 12, border: `1px solid ${totalBorder}`, marginTop: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderBottom: `1px solid ${totalBorder}`, paddingBottom: 10 }}>
+            <span style={{ fontWeight: 800, color: totalLabelColor, fontSize: 16 }}>총 합계</span>
+            <span style={{ fontWeight: 800, color: totalColor, fontSize: 16 }}>{formatKRW(gTotal.total)}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+            {['VOIX·SESSION', 'DANCE', '공통'].map(p => (
+              <div key={p} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: totalLabelColor, opacity: 0.8, fontWeight: 600 }}>{p}</span>
+                <span style={{ fontWeight: 700, color: totalLabelColor }}>{formatKRW(gTotal[p])}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </>
+      </div>
     );
   };
 
@@ -321,19 +281,26 @@ export default function AnalyticsPage() {
     <div className="page fade-in">
 
       {/* 필터 영역 */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div className="segmented-control" style={{ width: 'max-content', maxWidth: '100%', overflowX: 'auto' }}>
-          <button className={`segment-btn ${period === 'all' ? 'active' : ''}`} onClick={() => setPeriod('all')}>전체 연도</button>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select 
+          className="filter-select" 
+          value={period} 
+          onChange={e => setPeriod(e.target.value)}
+          style={{ width: '120px' }}
+        >
+          <option value="all">전체 연도</option>
           {availableYears.map(y => (
-            <button key={y} className={`segment-btn ${period === String(y) ? 'active' : ''}`} onClick={() => setPeriod(String(y))}>
-              {y}년
-            </button>
+            <option key={y} value={String(y)}>{y}년</option>
           ))}
-        </div>
+        </select>
 
-        <div className="segmented-control" style={{ width: 'max-content', maxWidth: '100%', overflowX: 'auto' }}>
+        <div className="filter-row" style={{ margin: 0, flexWrap: 'wrap' }}>
           {['전체', 'VOIX · SESSION', 'DANCE', '공통'].map(p => (
-            <button key={p} className={`segment-btn ${partFilter === p ? 'active' : ''}`} onClick={() => setPartFilter(p)}>
+            <button 
+              key={p} 
+              className={`filter-chip ${partFilter === p ? 'active' : ''}`} 
+              onClick={() => setPartFilter(p)}
+            >
               {p === '전체' ? '모든 파트' : p}
             </button>
           ))}
