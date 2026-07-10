@@ -144,6 +144,12 @@ function AddPerfModal({ onSave, onClose, existing }) {
 function PerfView({ performances, members, onToggle }) {
   const [selectedPerf, setSelectedPerf] = useState(performances[0]?.key ?? null);
 
+  useEffect(() => {
+    if (!selectedPerf || !performances.find(p => p.key === selectedPerf)) {
+      setSelectedPerf(performances[0]?.key ?? null);
+    }
+  }, [performances, selectedPerf]);
+
   if (performances.length === 0) {
     return (
       <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 40 }}>
@@ -311,59 +317,52 @@ export default function MembersPage({ initialView = '회원 목록' }) {
 
   return (
     <div className="page fade-in">
-      {/* 뷰 전환 탭 (맨 상단으로 이동) */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <div className="segmented-control">
-          {VIEWS.map(v => (
-            <button key={v}
-              className={`segment-btn ${view === v ? 'active' : ''}`}
-              onClick={() => setView(v)}>{v}</button>
-          ))}
-        </div>
-      </div>
-
       {/* 인원 요약 */}
-      <div className="card card-pad">
-        <div className="flex-between" style={{ marginBottom: 14 }}>
-          <span className="card-title" style={{ margin: 0 }}>인원 현황</span>
-          <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue-500)' }}>{counts.total}명</span>
+      {view === '회원 목록' && (
+        <div className="card card-pad">
+          <div className="flex-between" style={{ marginBottom: 14 }}>
+            <span className="card-title" style={{ margin: 0 }}>인원 현황</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue-500)' }}>{counts.total}명</span>
+          </div>
+          <div className="member-count-row">
+            <div className="member-count-chip" style={{ background: 'var(--voix-bg)', color: 'var(--voix-color)' }}>
+              VOIX <strong>{counts.VOIX}</strong>
+            </div>
+            <div className="member-count-chip" style={{ background: 'var(--dance-bg)', color: 'var(--dance-color)' }}>
+              DANCE <strong>{counts.DANCE}</strong>
+            </div>
+            <div className="member-count-chip" style={{ background: 'var(--session-bg)', color: 'var(--session-color)' }}>
+              SESSION <strong>{counts.SESSION}</strong>
+            </div>
+          </div>
         </div>
-        <div className="member-count-row">
-          <div className="member-count-chip" style={{ background: 'var(--voix-bg)', color: 'var(--voix-color)' }}>
-            VOIX <strong>{counts.VOIX}</strong>
-          </div>
-          <div className="member-count-chip" style={{ background: 'var(--dance-bg)', color: 'var(--dance-color)' }}>
-            DANCE <strong>{counts.DANCE}</strong>
-          </div>
-          <div className="member-count-chip" style={{ background: 'var(--session-bg)', color: 'var(--session-color)' }}>
-            SESSION <strong>{counts.SESSION}</strong>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* 공연 목록 */}
-      <div className="card card-pad" style={{ paddingBottom: 14 }}>
-        <div className="flex-between" style={{ marginBottom: 10 }}>
-          <span className="card-title" style={{ margin: 0 }}>공연 일정</span>
-          {isAdmin && (
-            <button className="btn-sm" onClick={() => setShowAddPerf(true)}>+ 공연 추가</button>
-          )}
+      {view === '공연별 현황' && (
+        <div className="card card-pad" style={{ paddingBottom: 14 }}>
+          <div className="flex-between" style={{ marginBottom: 10 }}>
+            <span className="card-title" style={{ margin: 0 }}>공연 일정</span>
+            {isAdmin && (
+              <button className="btn-sm" onClick={() => setShowAddPerf(true)}>+ 공연 추가</button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {performances.length === 0 && (
+              <span className="text-muted">등록된 공연이 없습니다</span>
+            )}
+            {performances.map(p => (
+              <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--slate-100)', borderRadius: 99, padding: '4px 10px 4px 14px' }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{p.key.replace(/-/g, '.')}</span>
+                {isAdmin && (
+                  <button onClick={() => handleDeletePerf(p.key)}
+                    style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {performances.length === 0 && (
-            <span className="text-muted">등록된 공연이 없습니다</span>
-          )}
-          {performances.map(p => (
-            <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--slate-100)', borderRadius: 99, padding: '4px 10px 4px 14px' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{p.key.replace(/-/g, '.')}</span>
-              {isAdmin && (
-                <button onClick={() => handleDeletePerf(p.key)}
-                  style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* ===== 회원 목록 뷰 ===== */}
       {view === '회원 목록' && (

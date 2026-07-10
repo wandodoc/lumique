@@ -136,7 +136,7 @@ function AppInner() {
           {/* 그룹 탭들 */}
           {[
             { title: '회비 관리', ids: ['ledger', 'dues', 'analytics'] },
-            { title: '클럽 관리', ids: ['members', 'perf'] }
+            { title: '멤버 & 공연', ids: ['members', 'perf'] }
           ].map((g) => (
             <div key={g.title} style={{ marginTop: 24 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gray-500)', padding: '0 24px', marginBottom: 4 }}>
@@ -220,20 +220,30 @@ function AppInner() {
       </div>
 
       <nav className="bottom-nav">
-        {MOBILE_TABS.map(t => (
-          <button key={t.id}
-            className={`nav-item ${(t.id === 'members' ? (tab === 'members' || tab === 'dues') : tab === t.id) && !showAdd ? 'active' : ''}`}
-            onClick={() => {
-              if (t.id === 'more') {
-                setShowMoreMenu(true);
-              } else {
-                setTab(t.id);
-                setShowAdd(false);
-              }
-            }}>
-            {t.icon}<span>{t.short}</span>
-          </button>
-        ))}
+        {MOBILE_TABS.map(t => {
+          const isActive = (() => {
+            if (showAdd) return false;
+            if (t.id === 'home') return tab === 'home';
+            if (t.id === 'analytics') return tab === 'analytics';
+            if (t.id === 'members') return tab === 'members';
+            if (t.id === 'more') return tab === 'ledger' || tab === 'dues' || tab === 'perf' || tab === 'settings';
+            return tab === t.id;
+          })();
+          return (
+            <button key={t.id}
+              className={`nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => {
+                if (t.id === 'more') {
+                  setShowMoreMenu(true);
+                } else {
+                  setTab(t.id);
+                  setShowAdd(false);
+                }
+              }}>
+              {t.icon}<span>{t.short}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {/* 모바일 더보기 바텀시트 */}
@@ -249,6 +259,7 @@ function AppInner() {
             {[
               { id: 'ledger', label: '입출금 내역', icon: '📋' },
               { id: 'dues', label: '납부 현황', icon: '✅' },
+              { id: 'perf', label: '공연 현황', icon: '📅' },
               { id: 'settings', label: '설정', icon: '⚙️' },
             ].map(item => (
               <button key={item.id} onClick={() => { setTab(item.id); setShowAdd(false); setShowMoreMenu(false); }}
