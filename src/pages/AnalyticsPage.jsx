@@ -13,6 +13,7 @@ export default function AnalyticsPage() {
   const { state } = useApp();
   const { transactions, members } = state;
   const [period, setPeriod] = useState('all');
+  const [partFilter, setPartFilter] = useState('전체');
 
   const availableYears = useMemo(() => {
     const years = new Set([new Date().getFullYear()]);
@@ -22,14 +23,25 @@ export default function AnalyticsPage() {
     return Array.from(years).sort((a, b) => b - a);
   }, [transactions]);
 
-  // 기간 필터
+  // 기간 및 파트 필터
   const filteredTxs = useMemo(() => {
     return transactions.filter(tx => {
-      if (period === 'all') return true;
-      const d = new Date(tx.datetime);
-      return d.getFullYear() === Number(period);
+      if (period !== 'all') {
+        const d = new Date(tx.datetime);
+        if (d.getFullYear() !== Number(period)) return false;
+      }
+      
+      if (partFilter !== '전체') {
+        if (partFilter === 'VOIX · SESSION') {
+          if (tx.part !== 'VOIX' && tx.part !== 'SESSION') return false;
+        } else {
+          if (tx.part !== partFilter) return false;
+        }
+      }
+      
+      return true;
     });
-  }, [transactions, period]);
+  }, [transactions, period, partFilter]);
 
   const txMap = useMemo(() => {
     const map = {};
@@ -132,74 +144,62 @@ export default function AnalyticsPage() {
   }, [filteredTxs, txMap]);
   const maxIncomeCat = Math.max(...incomeByCategory.map(e => e.total), 1);
 
+  // 계정과목별 파트 비중 계산 (현재 기간(period) 기준, partFilter 무시)
+  const periodTxs = useMemo(() => {
+    return transactions.filter(tx => {
+      if (period === 'all') return true;
+      return new Date(tx.datetime).getFullYear() === Number(period);
+    });
+  }, [transactions, period]);
+
+  const partBreakdown = useMemo(() => {
+    const map = { income: {}, expense: {} };
+    periodTxs.forEach(t => {
+      const isRefund = isRefundTx(t, txMap);
+      const isIncome = t.type === 'income' && !isRefund;
+      const isRecovery = t.type === 'expense' && isRefund;
+      const isExpense = t.type === 'expense' && !isRefund;
+      const isReturn = t.type === 'income' && isRefund;
+      
+      let type = null;
+      if (isIncome || isRecovery) type = 'income';
+      if (isExpense || isReturn) type = 'expense';
+      if (!type) return;
+      
+      const multiplier = (isRecovery || isReturn) ? -1 : 1;
+      const partKey = (t.part === 'VOIX' || t.part === 'SESSION') ? 'VOIX·SESSION' : (t.part || '공통');
+      
+      if (t.splitItems && t.splitItems.length > 0) {
+        t.splitItems.forEach(item => {
+          const cat = item.category || '기타';
+          if (!map[type][cat]) map[type][cat] = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
+          const amt = (Number(item.amount) || 0) * multiplier;
+          map[type][cat][partKey] += amt;
+          map[type][cat].total += amt;
+        });
+      } else {
+        const cat = t.category || '기타';
+        if (!map[type][cat]) map[type][cat] = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
+        const amt = t.amount * multiplier;
+        map[type][cat][partKey] += amt;
+        map[type][cat].total += amt;
+      }
+    });
+
+    const formatData = (typeMap) => Object.entries(typeMap)
+      .map(([cat, data]) => ({ cat, ...data }))
+      .filter(x => x.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    return {
+      income: formatData(map.income),
+      expense: formatData(map.expense)
+    };
+  }, [periodTxs, txMap]);
+
 
   const INCOME_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
   const EXPENSE_COLORS = ['#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
-
-  // 매트릭스 테이블(교차 집계) 계산
-  const pivotData = useMemo(() => {
-    const incMap = {};
-    const expMap = {};
-    
-    incomeByCategory.forEach(c => {
-      incMap[c.cat] = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
-    });
-    expenseByCategory.forEach(c => {
-      expMap[c.cat] = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
-    });
-    
-    filteredTxs.forEach(t => {
-      const isRefund = isRefundTx(t, txMap);
-      const isInc = (t.type === 'income' && !isRefund) || (t.type === 'expense' && isRefund);
-      const isExp = (t.type === 'expense' && !isRefund) || (t.type === 'income' && isRefund);
-      
-      const multiplier = isRefund ? -1 : 1;
-      
-      const processItem = (cat, amt, part) => {
-        const pGroup = (part === 'VOIX' || part === 'SESSION') ? 'VOIX·SESSION' : (part === 'DANCE' ? 'DANCE' : '공통');
-        if (isInc && incMap[cat]) {
-          incMap[cat][pGroup] += amt * multiplier;
-          incMap[cat].total += amt * multiplier;
-        } else if (isExp && expMap[cat]) {
-          expMap[cat][pGroup] += amt * multiplier;
-          expMap[cat].total += amt * multiplier;
-        }
-      };
-
-      if (t.splitItems && t.splitItems.length > 0) {
-        t.splitItems.forEach(item => {
-          processItem(item.category || '기타', Number(item.amount) || 0, item.part || t.part);
-        });
-      } else {
-        processItem(t.category || '기타', t.amount, t.part);
-      }
-    });
-    
-    const incTotals = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
-    const expTotals = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
-    
-    Object.values(incMap).forEach(row => {
-      incTotals['VOIX·SESSION'] += row['VOIX·SESSION'];
-      incTotals['DANCE'] += row['DANCE'];
-      incTotals['공통'] += row['공통'];
-      incTotals.total += row.total;
-    });
-    Object.values(expMap).forEach(row => {
-      expTotals['VOIX·SESSION'] += row['VOIX·SESSION'];
-      expTotals['DANCE'] += row['DANCE'];
-      expTotals['공통'] += row['공통'];
-      expTotals.total += row.total;
-    });
-    
-    const netTotals = {
-      'VOIX·SESSION': incTotals['VOIX·SESSION'] - expTotals['VOIX·SESSION'],
-      'DANCE': incTotals['DANCE'] - expTotals['DANCE'],
-      '공통': incTotals['공통'] - expTotals['공통'],
-      total: incTotals.total - expTotals.total
-    };
-    
-    return { incMap, expMap, incTotals, expTotals, netTotals };
-  }, [filteredTxs, txMap, incomeByCategory, expenseByCategory]);
 
   let incPct = 0;
   const incGradArgs = incomeByCategory.map((item, i) => {
@@ -224,14 +224,24 @@ export default function AnalyticsPage() {
   return (
     <div className="page fade-in">
 
-      {/* 기간 필터 */}
-      <div className="segmented-control" style={{ marginBottom: 20, width: 'max-content', maxWidth: '100%', overflowX: 'auto' }}>
-        <button className={`segment-btn ${period === 'all' ? 'active' : ''}`} onClick={() => setPeriod('all')}>전체</button>
-        {availableYears.map(y => (
-          <button key={y} className={`segment-btn ${period === String(y) ? 'active' : ''}`} onClick={() => setPeriod(String(y))}>
-            {y}년
-          </button>
-        ))}
+      {/* 필터 영역 */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div className="segmented-control" style={{ width: 'max-content', maxWidth: '100%', overflowX: 'auto' }}>
+          <button className={`segment-btn ${period === 'all' ? 'active' : ''}`} onClick={() => setPeriod('all')}>전체 연도</button>
+          {availableYears.map(y => (
+            <button key={y} className={`segment-btn ${period === String(y) ? 'active' : ''}`} onClick={() => setPeriod(String(y))}>
+              {y}년
+            </button>
+          ))}
+        </div>
+
+        <div className="segmented-control" style={{ width: 'max-content', maxWidth: '100%', overflowX: 'auto' }}>
+          {['전체', 'VOIX · SESSION', 'DANCE', '공통'].map(p => (
+            <button key={p} className={`segment-btn ${partFilter === p ? 'active' : ''}`} onClick={() => setPartFilter(p)}>
+              {p === '전체' ? '모든 파트' : p}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 요약 카드 3개 */}
@@ -319,75 +329,55 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* 수익 및 지출 내역 교차표 */}
-      <div className="card card-pad">
-        <span className="card-title" style={{ display: 'block', marginBottom: 16 }}>수익 및 지출 내역 (파트별 상세)</span>
-        <div className="pivot-table-container">
-          <table className="pivot-table">
-            <thead>
-              <tr>
-                <th>구분</th>
-                <th>VOIX·SESSION</th>
-                <th>DANCE</th>
-                <th>공통</th>
-                <th>총 합계</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* 수입 섹션 */}
-              {incomeByCategory.map(c => {
-                const row = pivotData.incMap[c.cat];
-                return (
-                  <tr key={`inc-${c.cat}`}>
-                    <td>{c.cat}</td>
-                    <td>{row['VOIX·SESSION'] === 0 ? '-' : formatKRW(row['VOIX·SESSION'])}</td>
-                    <td>{row['DANCE'] === 0 ? '-' : formatKRW(row['DANCE'])}</td>
-                    <td>{row['공통'] === 0 ? '-' : formatKRW(row['공통'])}</td>
-                    <td className="text-green">{formatKRW(row.total)}</td>
-                  </tr>
-                );
-              })}
-              <tr className="summary-row inc-summary">
-                <td>수입 계</td>
-                <td>{formatKRW(pivotData.incTotals['VOIX·SESSION'])}</td>
-                <td>{formatKRW(pivotData.incTotals['DANCE'])}</td>
-                <td>{formatKRW(pivotData.incTotals['공통'])}</td>
-                <td className="text-green">{formatKRW(pivotData.incTotals.total)}</td>
-              </tr>
-              
-              {/* 지출 섹션 */}
-              {expenseByCategory.map(c => {
-                const row = pivotData.expMap[c.cat];
-                return (
-                  <tr key={`exp-${c.cat}`}>
-                    <td>{c.cat}</td>
-                    <td className={row['VOIX·SESSION'] > 0 ? 'text-red' : ''}>{row['VOIX·SESSION'] === 0 ? '-' : `-${formatKRW(row['VOIX·SESSION'])}`}</td>
-                    <td className={row['DANCE'] > 0 ? 'text-red' : ''}>{row['DANCE'] === 0 ? '-' : `-${formatKRW(row['DANCE'])}`}</td>
-                    <td className={row['공통'] > 0 ? 'text-red' : ''}>{row['공통'] === 0 ? '-' : `-${formatKRW(row['공통'])}`}</td>
-                    <td className="text-red">-{formatKRW(row.total)}</td>
-                  </tr>
-                );
-              })}
-              <tr className="summary-row exp-summary">
-                <td>지출 계</td>
-                <td className="text-red">-{formatKRW(pivotData.expTotals['VOIX·SESSION'])}</td>
-                <td className="text-red">-{formatKRW(pivotData.expTotals['DANCE'])}</td>
-                <td className="text-red">-{formatKRW(pivotData.expTotals['공통'])}</td>
-                <td className="text-red">-{formatKRW(pivotData.expTotals.total)}</td>
-              </tr>
-              
-              {/* 잔액 */}
-              <tr className="summary-row net-summary">
-                <td>잔액</td>
-                <td className={pivotData.netTotals['VOIX·SESSION'] < 0 ? 'text-red' : 'text-blue'}>{formatKRW(pivotData.netTotals['VOIX·SESSION'])}</td>
-                <td className={pivotData.netTotals['DANCE'] < 0 ? 'text-red' : 'text-blue'}>{formatKRW(pivotData.netTotals['DANCE'])}</td>
-                <td className={pivotData.netTotals['공통'] < 0 ? 'text-red' : 'text-blue'}>{formatKRW(pivotData.netTotals['공통'])}</td>
-                <td style={{ fontSize: 15, color: pivotData.netTotals.total < 0 ? 'var(--rose-600)' : 'var(--blue-600)' }}>
-                  {formatKRW(pivotData.netTotals.total)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      {/* 계정과목별 파트 비중 대시보드 */}
+      <div className="card card-pad" style={{ marginTop: 24, marginBottom: 40 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12 }}>
+          <span className="card-title" style={{ margin: 0 }}>계정과목별 파트 비중</span>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6' }}/>VOIX·SESSION</div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ec4899' }}/>DANCE</div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }}/>공통</div>
+          </div>
+        </div>
+
+        <div className="dash-grid-2">
+          {/* 수입 매트릭스 */}
+          <div>
+            <h4 style={{ margin: '0 0 16px 0', fontSize: 14, color: 'var(--slate-600)', borderBottom: '1px solid var(--slate-100)', paddingBottom: 8 }}>수입 부문</h4>
+            {partBreakdown.income.length === 0 ? <div style={{ fontSize: 13, color: 'var(--slate-400)', textAlign: 'center', padding: 20 }}>내역 없음</div> : null}
+            {partBreakdown.income.map(item => (
+              <div key={item.cat} style={{ marginBottom: 16 }}>
+                <div className="flex-between" style={{ fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</span>
+                  <span className="text-green" style={{ fontWeight: 800 }}>{formatKRW(item.total)}</span>
+                </div>
+                <div style={{ display: 'flex', height: 14, borderRadius: 99, overflow: 'hidden', background: 'var(--slate-100)' }}>
+                   <div style={{ width: `${Math.max(0, item['VOIX·SESSION']) / item.total * 100}%`, background: '#3b82f6', transition: 'width 0.5s ease' }} />
+                   <div style={{ width: `${Math.max(0, item['DANCE']) / item.total * 100}%`, background: '#ec4899', transition: 'width 0.5s ease' }} />
+                   <div style={{ width: `${Math.max(0, item['공통']) / item.total * 100}%`, background: '#10b981', transition: 'width 0.5s ease' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 지출 매트릭스 */}
+          <div>
+            <h4 style={{ margin: '0 0 16px 0', fontSize: 14, color: 'var(--slate-600)', borderBottom: '1px solid var(--slate-100)', paddingBottom: 8 }}>지출 부문</h4>
+            {partBreakdown.expense.length === 0 ? <div style={{ fontSize: 13, color: 'var(--slate-400)', textAlign: 'center', padding: 20 }}>내역 없음</div> : null}
+            {partBreakdown.expense.map(item => (
+              <div key={item.cat} style={{ marginBottom: 16 }}>
+                <div className="flex-between" style={{ fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</span>
+                  <span className="text-red" style={{ fontWeight: 800 }}>{formatKRW(item.total)}</span>
+                </div>
+                <div style={{ display: 'flex', height: 14, borderRadius: 99, overflow: 'hidden', background: 'var(--slate-100)' }}>
+                   <div style={{ width: `${Math.max(0, item['VOIX·SESSION']) / item.total * 100}%`, background: '#3b82f6', transition: 'width 0.5s ease' }} />
+                   <div style={{ width: `${Math.max(0, item['DANCE']) / item.total * 100}%`, background: '#ec4899', transition: 'width 0.5s ease' }} />
+                   <div style={{ width: `${Math.max(0, item['공통']) / item.total * 100}%`, background: '#10b981', transition: 'width 0.5s ease' }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
