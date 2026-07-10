@@ -7,7 +7,7 @@ import ExcelImportModal from '../components/ExcelImportModal';
 import EditTransactionModal from '../components/EditTransactionModal';
 import './Pages.css';
 
-const PARTS_FILTER = ['전체', 'VOIX', 'DANCE', 'SESSION', '공통'];
+const PARTS_FILTER = ['전체', 'VOIX · SESSION', 'DANCE', '공통'];
 const TYPES_FILTER = ['전체', '수입', '지출'];
 
 export default function TransactionPage() {
@@ -62,7 +62,7 @@ export default function TransactionPage() {
   }, [typeFilter]);
 
   const filtered = useMemo(() => transactions
-    .filter(tx => partFilter === '전체' || tx.part === partFilter)
+    .filter(tx => partFilter === '전체' || (partFilter === 'VOIX · SESSION' ? (tx.part === 'VOIX' || tx.part === 'SESSION') : tx.part === partFilter))
     .filter(tx => typeFilter === '전체' || (typeFilter === '수입' ? tx.type === 'income' : tx.type === 'expense'))
     .filter(tx => categoryFilter === '전체' || tx.category === categoryFilter)
     .filter(tx => yearFilter === '전체' || tx.datetime.startsWith(yearFilter))
@@ -84,7 +84,7 @@ export default function TransactionPage() {
   );
 
   const summaryFiltered = useMemo(() => transactions
-    .filter(tx => partFilter === '전체' || tx.part === partFilter)
+    .filter(tx => partFilter === '전체' || (partFilter === 'VOIX · SESSION' ? (tx.part === 'VOIX' || tx.part === 'SESSION') : tx.part === partFilter))
     // 수입/지출 탭을 눌러도 요약 카드에서는 양쪽 다 보이게 하기 위해 typeFilter 제외
     .filter(tx => categoryFilter === '전체' || tx.category === categoryFilter)
     .filter(tx => yearFilter === '전체' || tx.datetime.startsWith(yearFilter))
