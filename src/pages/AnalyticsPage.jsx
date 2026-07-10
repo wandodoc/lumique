@@ -204,13 +204,13 @@ export default function AnalyticsPage() {
                     const color = INCOME_COLORS[i % INCOME_COLORS.length];
                     return (
                       <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, color: 'var(--slate-600)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 14, color: 'var(--slate-700)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, width: 32, textAlign: 'right' }}>{pct}%</span>
-                          <span className="text-green" style={{ fontSize: 12, fontWeight: 700, width: 75, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatKRW(total)}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, width: 36, textAlign: 'right' }}>{pct}%</span>
+                          <span className="text-green" style={{ fontSize: 14, fontWeight: 800, width: 85, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatKRW(total)}</span>
                         </div>
                       </div>
                     );
@@ -236,13 +236,13 @@ export default function AnalyticsPage() {
                     const color = EXPENSE_COLORS[i % EXPENSE_COLORS.length];
                     return (
                       <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, color: 'var(--slate-600)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 14, color: 'var(--slate-700)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cat}</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, width: 32, textAlign: 'right' }}>{pct}%</span>
-                          <span className="text-red" style={{ fontSize: 12, fontWeight: 700, width: 75, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatKRW(total)}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, width: 36, textAlign: 'right' }}>{pct}%</span>
+                          <span className="text-red" style={{ fontSize: 14, fontWeight: 800, width: 85, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatKRW(total)}</span>
                         </div>
                       </div>
                     );

@@ -205,13 +205,13 @@ export default function DashboardPage({ onAddClick, setTab }) {
 
       <div className="dashboard-bottom-grid">
         {/* 파트별 잔고 현황 */}
-        <div className="card card-pad">
+        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column' }}>
           <span className="card-title" style={{ display: 'block', marginBottom: 12 }}>파트별 잔고 현황</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, flex: 1, alignItems: 'center' }}>
             {['VOIX · SESSION', 'DANCE', '공통'].map(p => {
               const pb = p === 'VOIX · SESSION' ? (partBal['VOIX'] || 0) + (partBal['SESSION'] || 0) : (partBal[p] || 0);
               return (
-                <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: '10px 4px', textAlign: 'center', minWidth: 0 }}>
+                <div key={p} style={{ background: pb < 0 ? '#fef2f2' : '#f8fafc', border: `1px solid ${pb < 0 ? '#fecdd3' : '#e2e8f0'}`, borderRadius: 12, padding: '12px 4px', textAlign: 'center', minWidth: 0 }}>
                   <div style={{ fontSize: 11, color: 'var(--slate-500)', fontWeight: 600, marginBottom: 4, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{p}</div>
                   <div style={{ fontSize: 'clamp(12px, 3.5vw, 15px)', fontWeight: 800, color: pb < 0 ? '#e11d48' : '#0f172a', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
                     {formatKRW(pb)}
@@ -223,30 +223,27 @@ export default function DashboardPage({ onAddClick, setTab }) {
         </div>
 
         {/* 이번 달 회비 납부율 */}
-        <div className="card card-pad">
-          <span className="card-title" style={{ display: 'block', marginBottom: 10 }}>이번 달 회비 납부율</span>
+        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
+            <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>회원 {activeMembers.length}명 중 {paidThisMonth.length}명 납부</span>
+          </div>
           
           {/* PC용 도넛 그래프 */}
-          <div className="dues-donut-container">
+          <div className="dues-donut-container" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <div className="donut-chart" style={{ background: `conic-gradient(${duesColor} ${duesRate}%, var(--slate-100) 0)` }}>
               <span className="donut-value" style={{ color: duesColor }}>{duesRate}%</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 4 }}>
-              활성 <strong>{activeMembers.length}</strong>명 중 <strong>{paidThisMonth.length}</strong>명 납부
             </div>
           </div>
 
           {/* 모바일용 프로그레스 바 */}
-          <div className="dues-bar-container">
+          <div className="dues-bar-container" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: 'var(--slate-500)' }}>납부 완료</span>
               <span style={{ fontSize: 22, fontWeight: 800, color: duesColor }}>{duesRate}%</span>
             </div>
             <div style={{ height: 10, borderRadius: 99, background: 'var(--slate-100)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${duesRate}%`, borderRadius: 99, background: duesColor, transition: 'width 0.6s ease' }} />
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 6 }}>
-              활성 {activeMembers.length}명 중 {paidThisMonth.length}명 납부 완료
             </div>
           </div>
         </div>

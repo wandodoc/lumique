@@ -56,7 +56,6 @@
   grid-template-columns: 2fr 1fr;
   gap: 16px;
   margin-bottom: 16px;
-  align-items: start;
 }
 @media (max-width: 768px) {
   .dashboard-bottom-grid {
