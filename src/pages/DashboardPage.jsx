@@ -217,28 +217,20 @@ export default function DashboardPage({ onAddClick, setTab }) {
       </div>
 
       {/* 이번 달 회비 납부율 (단일 카드) */}
-      <div className="card card-pad" style={{ marginBottom: 16 }}>
+      <div className="card card-pad" style={{ marginBottom: 16, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <span className="card-title" style={{ margin: 0 }}>이번 달 회비 납부율</span>
           <span style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>회원 {activeMembers.length}명 중 {paidThisMonth.length}명 납부</span>
         </div>
         
-        {/* PC 뷰: 원형 도넛 그래프 */}
-        <div className="md-pc-view" style={{ padding: '16px 0' }}>
-          <div className="donut-chart" style={{ background: `conic-gradient(${duesColor} ${duesRate}%, var(--slate-100) 0)`, width: 120, height: 120, position: 'relative' }}>
-            <div style={{ position: 'absolute', width: 90, height: 90, background: 'var(--white)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: duesColor }}>{duesRate}%</span>
-            </div>
+        {/* 가로 막대 그래프 (PC & 모바일 공통) */}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1 }}>
+          <div className="flex-between" style={{ marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--slate-600)' }}>진행률</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: duesColor, lineHeight: 1 }}>{duesRate}%</span>
           </div>
-        </div>
-
-        {/* 모바일 뷰: 가로 막대 그래프 */}
-        <div className="md-mobile-view">
-          <div className="progress-track" style={{ height: 12, marginTop: 16 }}>
-            <div className="progress-fill" style={{ width: `${duesRate}%`, background: duesColor }} />
-          </div>
-          <div style={{ textAlign: 'right', marginTop: 10, fontSize: 15, fontWeight: 800, color: duesColor }}>
-            {duesRate}%
+          <div className="progress-track" style={{ height: 16, borderRadius: 8 }}>
+            <div className="progress-fill" style={{ width: `${duesRate}%`, background: duesColor, borderRadius: 8 }} />
           </div>
         </div>
       </div>

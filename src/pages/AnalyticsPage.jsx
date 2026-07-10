@@ -394,15 +394,18 @@ export default function AnalyticsPage() {
 
       {/* 계정과목별 파트 비중 대시보드 */}
       <div className="card card-pad" style={{ marginTop: 24, marginBottom: 40 }}>
-        <div style={{ marginBottom: 20 }}>
-          <span className="card-title" style={{ margin: 0, display: 'block', marginBottom: 4 }}>계정과목별 파트 상세 내역</span>
-          <span style={{ fontSize: 12, color: 'var(--slate-500)' }}>{period === 'all' ? '전체 기간' : `${period}년`} 파트별 수입/지출 세부 매트릭스</span>
+        <div style={{ marginBottom: 24 }}>
+          <span className="card-title" style={{ margin: 0, display: 'block' }}>계정과목별 파트 상세 내역</span>
         </div>
 
-        <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--slate-600)' }}>수입 부문</h4>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid var(--emerald-200)' }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--emerald-700)' }}>수입 부문</span>
+        </div>
         {renderMatrixTable(partBreakdown.income, true)}
 
-        <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--slate-600)' }}>지출 부문</h4>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 32, marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid var(--rose-200)' }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--rose-700)' }}>지출 부문</span>
+        </div>
         {renderMatrixTable(partBreakdown.expense, false)}
       </div>
 
