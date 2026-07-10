@@ -141,14 +141,18 @@ function AddPerfModal({ onSave, onClose, existing }) {
 /* =========================================================
    공연별 현황 뷰
    ========================================================= */
+/* =========================================================
+   공연별 현황 뷰 (보드/카드 레이아웃)
+   ========================================================= */
 function PerfView({ performances, members, onToggle }) {
-  const [selectedPerf, setSelectedPerf] = useState(performances[0]?.key ?? null);
+  const [expandedPerfs, setExpandedPerfs] = useState({});
 
-  useEffect(() => {
-    if (!selectedPerf || !performances.find(p => p.key === selectedPerf)) {
-      setSelectedPerf(performances[0]?.key ?? null);
-    }
-  }, [performances, selectedPerf]);
+  const togglePerfExpand = (perfKey) => {
+    setExpandedPerfs(prev => ({
+      ...prev,
+      [perfKey]: !prev[perfKey]
+    }));
+  };
 
   if (performances.length === 0) {
     return (
@@ -158,92 +162,116 @@ function PerfView({ performances, members, onToggle }) {
     );
   }
 
-  const perf = performances.find(p => p.key === selectedPerf);
-
-  // 해당 공연 시점에 가입해 있던 회원만 대상
-  const eligible = sortByPartAndName(members.filter(m => {
-    const joinDateStr = m.joinDate || '9999-99-99';
-    return joinDateStr <= selectedPerf;
-  }));
-  const participated  = eligible.filter(m => m.performances?.[selectedPerf] === '참여');
-  const notParticipated = eligible.filter(m => m.performances?.[selectedPerf] !== '참여');
-
-  const pct = eligible.length > 0 ? Math.round((participated.length / eligible.length) * 100) : 0;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 공연 탭 선택 */}
-      <div className="segmented-control" style={{ overflowX: 'auto', whiteSpace: 'nowrap', display: 'flex' }}>
-        {performances.map(p => (
-          <button key={p.key}
-            className={`segment-btn ${selectedPerf === p.key ? 'active' : ''}`}
-            onClick={() => setSelectedPerf(p.key)}>
-            {p.key.replace(/-/g, '.')}
-          </button>
-        ))}
-      </div>
+    <div className="perf-board-layout">
+      {performances.map(p => {
+        const isExpanded = !!expandedPerfs[p.key];
+        const participated = members.filter(m => m.performances?.[p.key] === '참여');
+        
+        // 파트별 참여자 카운트
+        const counts = {
+          VOIX: participated.filter(m => m.part === 'VOIX').length,
+          DANCE: participated.filter(m => m.part === 'DANCE').length,
+          SESSION: participated.filter(m => m.part === 'SESSION').length,
+        };
 
-      {perf && (
-        <>
-          {/* 요약 카드 */}
-          <div className="card card-pad">
-            <div className="flex-between" style={{ marginBottom: 12 }}>
-              <span style={{ fontSize: 16, fontWeight: 800 }}>{perf.key.replace(/-/g, '.')}</span>
-              <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--blue-500)' }}>{pct}%</span>
-            </div>
-            <div className="progress-track"><div className="progress-fill" style={{ width: `${pct}%`, background: 'var(--blue-500)' }} /></div>
-            <div className="flex-between" style={{ marginTop: 10, fontSize: 13, color: 'var(--slate-500)' }}>
-              <span>대상 <strong style={{ color: 'var(--slate-700)' }}>{eligible.length}명</strong></span>
-              <span>참여 <strong style={{ color: 'var(--emerald-500)' }}>{participated.length}명</strong></span>
-              <span>미참여 <strong style={{ color: 'var(--rose-500)' }}>{notParticipated.length}명</strong></span>
-            </div>
-          </div>
+        const voixMembers = participated.filter(m => m.part === 'VOIX');
+        const danceMembers = participated.filter(m => m.part === 'DANCE');
+        const sessionMembers = participated.filter(m => m.part === 'SESSION');
 
-          {/* 참여자 목록 */}
-          <div className="card">
-            <div style={{ padding: '10px 16px', background: 'var(--emerald-50)', borderBottom: '1px solid #a7f3d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--emerald-600)' }}>✓ 참여</span>
-              <span className="badge badge-success">{participated.length}명</span>
+        return (
+          <div key={p.key} className="perf-card-new">
+            {/* 상단: 공연 명칭 및 날짜 */}
+            <div className="perf-card-header">
+              <div>
+                <h3 className="perf-title">{p.label}</h3>
+                <span className="perf-date">{p.key.replace(/-/g, '.')}</span>
+              </div>
+              <span className="perf-total-badge">총 {participated.length}명 참여</span>
             </div>
-            {participated.length === 0
-              ? <div style={{ padding: '16px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)' }}>참여자 없음</div>
-              : participated.map(m => (
-                  <div key={m.id} 
-                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: (window.innerWidth >= 768) ? 'pointer' : 'default' }}
-                       onClick={(e) => onToggle(e, m, selectedPerf)}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
-                      {m.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
+
+            {/* 중앙: 파트별 참여자 요약 */}
+            <div className="perf-card-middle">
+              <div className="part-summary-item">
+                <span className="part-summary-label voix">VOIX</span>
+                <span className="part-summary-value">{counts.VOIX}명</span>
+              </div>
+              <div className="part-summary-item">
+                <span className="part-summary-label dance">DANCE</span>
+                <span className="part-summary-value">{counts.DANCE}명</span>
+              </div>
+              <div className="part-summary-item">
+                <span className="part-summary-label session">SESSION</span>
+                <span className="part-summary-value">{counts.SESSION}명</span>
+              </div>
+            </div>
+
+            {/* 하단: 참여자 명단 보기 접이식 버튼 */}
+            <div className="perf-card-bottom">
+              <button 
+                type="button"
+                className="btn-toggle-participants"
+                onClick={() => togglePerfExpand(p.key)}
+              >
+                <span>참여자 명단 {isExpanded ? '접기' : '보기'}</span>
+                <span className={`chevron-icon ${isExpanded ? 'rotated' : ''}`}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 9l-7 7-7-7"/></svg>
+                </span>
+              </button>
+
+              <div className={`participants-accordion-content ${isExpanded ? 'expanded' : ''}`}>
+                <div className="participants-accordion-inner">
+                  {participated.length === 0 ? (
+                    <div className="no-participants">참여한 멤버가 없습니다.</div>
+                  ) : (
+                    <div className="participants-by-part">
+                      {voixMembers.length > 0 && (
+                        <div className="part-participants-group">
+                          <span className="part-title voix">VOIX</span>
+                          <div className="participant-chips">
+                            {voixMembers.map(m => (
+                              <span key={m.id} className="participant-chip">
+                                {m.name}
+                                {m.status === 'inactive' && <span className="chip-inactive-label">(탈퇴)</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {danceMembers.length > 0 && (
+                        <div className="part-participants-group">
+                          <span className="part-title dance">DANCE</span>
+                          <div className="participant-chips">
+                            {danceMembers.map(m => (
+                              <span key={m.id} className="participant-chip">
+                                {m.name}
+                                {m.status === 'inactive' && <span className="chip-inactive-label">(탈퇴)</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {sessionMembers.length > 0 && (
+                        <div className="part-participants-group">
+                          <span className="part-title session">SESSION</span>
+                          <div className="participant-chips">
+                            {sessionMembers.map(m => (
+                              <span key={m.id} className="participant-chip">
+                                {m.name}
+                                {m.status === 'inactive' && <span className="chip-inactive-label">(탈퇴)</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <span className={`badge badge-${m.part.toLowerCase()}`}>{m.part}</span>
-                  </div>
-                ))
-            }
-          </div>
-
-          {/* 미참여자 목록 */}
-          <div className="card">
-            <div style={{ padding: '10px 16px', background: 'var(--rose-50)', borderBottom: '1px solid #fca5a5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--rose-600)' }}>✗ 미참여</span>
-              <span className="badge badge-danger">{notParticipated.length}명</span>
+                  )}
+                </div>
+              </div>
             </div>
-            {notParticipated.length === 0
-              ? <div style={{ padding: '16px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)' }}>전원 참여</div>
-              : notParticipated.map(m => (
-                  <div key={m.id} 
-                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', borderBottom: '1px solid var(--slate-100)', cursor: (window.innerWidth >= 768) ? 'pointer' : 'default' }}
-                       onClick={(e) => onToggle(e, m, selectedPerf)}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{m.name}</span>
-                      {m.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
-                    </div>
-                    <span className={`badge badge-${m.part.toLowerCase()}`}>{m.part}</span>
-                  </div>
-                ))
-            }
           </div>
-        </>
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -258,7 +286,9 @@ export default function MembersPage({ initialView = '회원 목록' }) {
   const { members, performances } = state;
 
   const [partFilter, setPartFilter] = useState('전체');
+  const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [expandedMembers, setExpandedMembers] = useState({});
   const [modal, setModal] = useState(null);
   const [showAddPerf, setShowAddPerf] = useState(false);
   const [view, setView] = useState(initialView);
@@ -278,6 +308,13 @@ export default function MembersPage({ initialView = '회원 목록' }) {
     });
   };
 
+  const toggleExpand = (memberId) => {
+    setExpandedMembers(prev => ({
+      ...prev,
+      [memberId]: !prev[memberId]
+    }));
+  };
+
   const handleSave = (member) => {
     if (members.find(m => m.id === member.id)) dispatch({ type: 'UPDATE_MEMBER', member });
     else dispatch({ type: 'ADD_MEMBER', member });
@@ -295,18 +332,13 @@ export default function MembersPage({ initialView = '회원 목록' }) {
     }
   };
 
-  // 파트 순 + 이름 가나다 순 + 필터
+  // 파트 순 + 이름 가나다 순 + 필터 (검색어 포함)
   const filtered = sortByPartAndName(
     members
       .filter(m => showInactive || m.status === 'active')
       .filter(m => partFilter === '전체' || m.part === partFilter)
+      .filter(m => m.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
-
-  const grouped = {
-    VOIX:    filtered.filter(m => m.part === 'VOIX'),
-    DANCE:   filtered.filter(m => m.part === 'DANCE'),
-    SESSION: filtered.filter(m => m.part === 'SESSION'),
-  };
 
   const counts = {
     total:   members.filter(m => m.status === 'active').length,
@@ -367,97 +399,253 @@ export default function MembersPage({ initialView = '회원 목록' }) {
       {/* ===== 회원 목록 뷰 ===== */}
       {view === '회원 목록' && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', marginBottom: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              {PARTS.map(p => (
-                <button key={p} className={`filter-chip ${partFilter === p ? 'active' : ''}`}
-                  style={{ padding: '6px 12px', fontSize: 12, margin: 0 }}
-                  onClick={() => setPartFilter(p)}>{p}</button>
-              ))}
+          {/* 고정(Sticky) 상단 필터 바 */}
+          <div className="filter-bar-sticky">
+            <div className="filter-bar-main">
+              <div className="search-input-wrapper">
+                <svg className="search-icon" viewBox="0 0 24 24">
+                  <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input 
+                  type="text" 
+                  placeholder="이름으로 검색" 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                  className="search-input"
+                />
+              </div>
+              <div className="part-filters">
+                {PARTS.map(p => (
+                  <button 
+                    key={p} 
+                    className={`filter-chip ${partFilter === p ? 'active' : ''}`}
+                    onClick={() => setPartFilter(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--slate-600)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                <input type="checkbox" checked={showInactive} onChange={() => setShowInactive(v => !v)} style={{ width: 14, height: 14, accentColor: 'var(--blue-500)', cursor: 'pointer' }} />
-                탈퇴 포함
+            <div className="filter-bar-sub">
+              <label className="checkbox-label">
+                <input 
+                  type="checkbox" 
+                  checked={showInactive} 
+                  onChange={() => setShowInactive(v => !v)} 
+                />
+                탈퇴 회원 포함
               </label>
-              {isAdmin && <button className="btn-sm" onClick={() => setModal('add')}>+ 추가</button>}
+              {isAdmin && (
+                <button className="btn-sm" onClick={() => setModal('add')}>
+                  + 회원 추가
+                </button>
+              )}
             </div>
           </div>
 
-          {Object.entries(grouped).map(([part, list]) => (
-            list.length > 0 && (
-              <div key={part} className="card" style={{ overflowX: 'auto' }}>
-                {/* 헤더 */}
-                <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-100)', minWidth: 'max-content' }}>
-                  <div style={{ width: 80, flexShrink: 0 }}>
-                    <span className={`badge badge-${part.toLowerCase()}`} style={{ padding: '2px 6px', fontSize: 10 }}>{part}</span>
-                    <span className="text-muted" style={{ fontSize: 11, marginLeft: 4 }}>{list.length}명</span>
-                  </div>
-                  <div style={{ width: 75, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--slate-500)', textAlign: 'center', letterSpacing: '.2px' }}>가입일</div>
-                  {performances.map(p => (
-                    <div key={p.key} style={{ width: 64, flexShrink: 0, fontSize: 10, fontWeight: 700, color: 'var(--slate-500)', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</div>
-                  ))}
-                  <div style={{ width: 30, flexShrink: 0 }} />
-                </div>
-
-                {/* 행 */}
-                {list.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--slate-100)', minWidth: 'max-content', transition: 'background .12s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--slate-50)'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}>
-                    {/* 이름 */}
-                    <div style={{ width: 80, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</span>
-                      {m.status === 'inactive' && <span className="badge badge-gray" style={{ fontSize: 9, padding: '1px 3px' }}>탈퇴</span>}
-                    </div>
-                    {/* 가입일 */}
-                    <div style={{ width: 75, flexShrink: 0, fontSize: 11, color: 'var(--slate-500)', textAlign: 'center' }}>
-                      {m.joinDate?.slice(2).replace(/-/g, '.')}
-                    </div>
-                    {/* 공연 참여 토글 */}
-                    {performances.map(p => {
-                      const joinDateStr = m.joinDate || '9999-99-99';
-                      const joinedAfter = joinDateStr > p.key;
-                      const participated = m.performances?.[p.key] === '참여';
-                      return (
-                        <div key={p.key} style={{ width: 64, flexShrink: 0, textAlign: 'center' }}>
-                          {joinedAfter ? (
-                            <span style={{ fontSize: 11, color: 'var(--slate-300)', fontWeight: 500 }}>—</span>
-                          ) : (
-                            <button
-                              onClick={(e) => togglePerformance(e, m, p.key)}
-                              style={{
-                                padding: '2px 6px', borderRadius: 99, fontSize: 10, fontWeight: 700, border: 'none',
-                                cursor: (window.innerWidth >= 768) ? 'pointer' : 'default',
-                                background: participated ? 'var(--emerald-50)' : 'var(--rose-50)',
-                                color: participated ? 'var(--emerald-600)' : 'var(--rose-400)',
-                                transition: 'all .15s',
-                                minWidth: 40,
-                              }}>
-                              {participated ? '참여' : '미참'}
+          {/* 데스크톱 테이블 뷰 */}
+          <div className="desktop-member-table">
+            <div className="table-header-row">
+              <div className="col-name">이름</div>
+              <div className="col-part">파트</div>
+              <div className="col-joindate">가입일</div>
+              <div className="col-status">상태</div>
+              <div className="col-action"></div>
+            </div>
+            <div className="table-body">
+              {filtered.map(m => {
+                const isExpanded = !!expandedMembers[m.id];
+                const isInactive = m.status === 'inactive' || !!m.leaveDate;
+                return (
+                  <div key={m.id} className={`member-row-wrapper ${isInactive ? 'inactive-member' : ''}`}>
+                    <div className="member-table-row" onClick={() => toggleExpand(m.id)}>
+                      <div className="col-name">
+                        <span className={`member-name ${isInactive ? 'strike-name' : ''}`}>{m.name}</span>
+                      </div>
+                      <div className="col-part">
+                        <span className={`badge badge-${m.part.toLowerCase()}`}>{m.part}</span>
+                      </div>
+                      <div className="col-joindate">
+                        {m.joinDate?.replace(/-/g, '.')}
+                      </div>
+                      <div className="col-status">
+                        {isInactive ? (
+                          <span className="badge badge-gray">탈퇴</span>
+                        ) : (
+                          <span className="badge badge-success-light">활동 회원</span>
+                        )}
+                      </div>
+                      <div className="col-action">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {isAdmin && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setModal(m); }}
+                              className="edit-icon-btn"
+                              title="회원 수정"
+                            >
+                              ✎
                             </button>
                           )}
+                          <span className={`chevron-icon ${isExpanded ? 'rotated' : ''}`}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </span>
                         </div>
-                      );
-                    })}
-                    {/* 수정 버튼 */}
-                    <div style={{ width: 30, flexShrink: 0, textAlign: 'right' }}>
+                      </div>
+                    </div>
+                    
+                    {/* 데스크톱 아코디언 상세 내역 */}
+                    <div className={`accordion-details ${isExpanded ? 'expanded' : ''}`}>
+                      <div className="accordion-inner">
+                        <div className="desktop-detail-grid">
+                          <div className="detail-meta">
+                            <div className="meta-item">
+                              <span className="meta-label">가입일</span>
+                              <span className="meta-val">{m.joinDate}</span>
+                            </div>
+                            {isInactive && (
+                              <div className="meta-item">
+                                <span className="meta-label">탈퇴일</span>
+                                <span className="meta-val">{m.leaveDate || '-'}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="detail-perfs">
+                            <h4 className="detail-subtitle">역대 공연 참여 현황</h4>
+                            {performances.length === 0 ? (
+                              <span className="text-muted" style={{ fontSize: 12 }}>등록된 공연이 없습니다.</span>
+                            ) : (
+                              <div className="perf-history-grid">
+                                {performances.map(p => {
+                                  const joinDateStr = m.joinDate || '9999-99-99';
+                                  const joinedAfter = joinDateStr > p.key;
+                                  const participated = m.performances?.[p.key] === '참여';
+                                  
+                                  let statusText = '참여';
+                                  let badgeClass = 'badge-success-light';
+                                  if (joinedAfter) {
+                                    statusText = '가입 전';
+                                    badgeClass = 'badge-gray-light';
+                                  } else if (!participated) {
+                                    statusText = '미참여';
+                                    badgeClass = 'badge-danger-light';
+                                  }
+
+                                  return (
+                                    <div 
+                                      key={p.key} 
+                                      className="perf-grid-item" 
+                                      onClick={(e) => togglePerformance(e, m, p.key)}
+                                      style={{ cursor: 'pointer' }}
+                                      title={rawIsAdmin ? "클릭하여 참여 상태 토글" : ""}
+                                    >
+                                      <span className="perf-label">{p.label}</span>
+                                      <span className={`badge ${badgeClass}`}>
+                                        {statusText}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 모바일 카드 리스트 뷰 */}
+          <div className="mobile-member-list">
+            {filtered.map(m => {
+              const isExpanded = !!expandedMembers[m.id];
+              const isInactive = m.status === 'inactive' || !!m.leaveDate;
+              return (
+                <div 
+                  key={m.id} 
+                  className={`member-mobile-card ${isInactive ? 'inactive-member' : ''}`}
+                  onClick={() => toggleExpand(m.id)}
+                >
+                  <div className="card-summary-row">
+                    <div className="card-left-info">
+                      <span className={`badge badge-${m.part.toLowerCase()}`}>{m.part}</span>
+                      <span className={`member-name ${isInactive ? 'strike-name' : ''}`}>{m.name}</span>
+                      <span className="join-date-sub">({m.joinDate?.slice(2).replace(/-/g, '.')})</span>
+                    </div>
+                    <div className="card-right-info">
+                      {isInactive && <span className="badge badge-gray" style={{ fontSize: 9, padding: '2px 4px' }}>탈퇴</span>}
+                      <span className={`chevron-icon ${isExpanded ? 'rotated' : ''}`}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* 모바일 아코디언 상세 내역 */}
+                  <div className={`accordion-details ${isExpanded ? 'expanded' : ''}`} onClick={e => e.stopPropagation()}>
+                    <div className="accordion-inner">
+                      <div className="member-details-info">
+                        <p><strong>가입일 :</strong> {m.joinDate}</p>
+                        {isInactive && <p><strong>탈퇴일 :</strong> {m.leaveDate || '-'}</p>}
+                      </div>
+                      <div className="divider" />
+                      <h4 className="detail-subtitle">역대 공연 참여 현황</h4>
+                      {performances.length === 0 ? (
+                        <div className="text-muted" style={{ fontSize: 12, padding: '8px 0' }}>등록된 공연이 없습니다.</div>
+                      ) : (
+                        <div className="perf-history-list">
+                          {performances.map(p => {
+                            const joinDateStr = m.joinDate || '9999-99-99';
+                            const joinedAfter = joinDateStr > p.key;
+                            const participated = m.performances?.[p.key] === '참여';
+                            
+                            let statusText = '참여';
+                            let badgeClass = 'badge-success-light';
+                            if (joinedAfter) {
+                              statusText = '가입 전';
+                              badgeClass = 'badge-gray-light';
+                            } else if (!participated) {
+                              statusText = '미참여';
+                              badgeClass = 'badge-danger-light';
+                            }
+
+                            return (
+                              <div key={p.key} className="perf-history-item">
+                                <span className="perf-label">{p.label}</span>
+                                <span className={`badge ${badgeClass}`}>{statusText}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                       {isAdmin && (
-                        <button onClick={(e) => { e.stopPropagation(); setModal(m); }}
-                          style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✎</button>
+                        <div className="mobile-admin-actions">
+                          <button 
+                            type="button"
+                            className="btn-secondary btn-sm-action"
+                            onClick={(e) => { e.stopPropagation(); setModal(m); }}
+                          >
+                            회원 정보 수정
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )
-          ))}
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
 
       {/* ===== 공연별 현황 뷰 ===== */}
       {view === '공연별 현황' && (
-        <PerfView performances={performances} members={members.filter(m => showInactive || m.status === 'active')} onToggle={togglePerformance} />
+        <PerfView performances={performances} members={members} onToggle={togglePerformance} />
       )}
 
       {modal && (
