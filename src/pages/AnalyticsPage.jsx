@@ -294,27 +294,33 @@ export default function AnalyticsPage() {
     );
   };
 
-  const INCOME_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
-  const EXPENSE_COLORS = ['#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+  const INCOME_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#06B6D4', '#EC4899'];
+  const EXPENSE_COLORS = ['#EF4444', '#0EA5E9', '#F97316', '#14B8A6', '#8B5CF6', '#EAB308', '#D946EF', '#84CC16'];
 
   let incPct = 0;
   const incGradArgs = incomeByCategory.map((item, i) => {
     const pct = totalIncome > 0 ? (item.total / totalIncome) * 100 : 0;
+    if (pct === 0) return null;
     const color = INCOME_COLORS[i % INCOME_COLORS.length];
-    const str = `${color} ${incPct}% ${incPct + pct}%`;
+    const gap = 1.5; // 1.5% gap
+    const sliceEnd = Math.max(incPct, incPct + pct - (pct > gap ? gap : 0));
+    const str = `${color} ${incPct}% ${sliceEnd}%, transparent ${sliceEnd}% ${incPct + pct}%`;
     incPct += pct;
     return str;
-  }).join(', ');
+  }).filter(Boolean).join(', ');
   const incGradient = incGradArgs ? `conic-gradient(${incGradArgs})` : 'var(--slate-100)';
 
   let expPct = 0;
   const expGradArgs = expenseByCategory.map((item, i) => {
     const pct = totalExpense > 0 ? (item.total / totalExpense) * 100 : 0;
+    if (pct === 0) return null;
     const color = EXPENSE_COLORS[i % EXPENSE_COLORS.length];
-    const str = `${color} ${expPct}% ${expPct + pct}%`;
+    const gap = 1.5;
+    const sliceEnd = Math.max(expPct, expPct + pct - (pct > gap ? gap : 0));
+    const str = `${color} ${expPct}% ${sliceEnd}%, transparent ${sliceEnd}% ${expPct + pct}%`;
     expPct += pct;
     return str;
-  }).join(', ');
+  }).filter(Boolean).join(', ');
   const expGradient = expGradArgs ? `conic-gradient(${expGradArgs})` : 'var(--slate-100)';
 
   const periodPartBal = useMemo(() => {
