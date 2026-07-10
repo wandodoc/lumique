@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { calcMemberDues, formatKRW, sortByPartAndName } from '../utils/calculations';
+import { calcMemberDues, formatKRW } from '../utils/calculations';
 import ShareDuesModal from '../components/ShareDuesModal';
 import './Pages.css';
 
@@ -152,11 +152,32 @@ export default function MemberDuesPage() {
       return amt;
     });
   };
-  const filtered = sortByPartAndName(
-    members
-      .filter(m => showInactive || m.status === 'active')
-      .filter(m => partFilter === '전체' || m.part === partFilter)
-  );
+  const filtered = members
+    .filter(m => showInactive || m.status === 'active')
+    .filter(m => partFilter === '전체' || m.part === partFilter)
+    .sort((a, b) => {
+      const diffA = calcMemberDues(a, transactions).diff;
+      const diffB = calcMemberDues(b, transactions).diff;
+      
+      const getDiffGroup = diff => {
+        if (diff < 0) return 1; // 미납
+        if (diff > 0) return 2; // 초과 납부
+        return 3; // 완납
+      };
+      
+      const gA = getDiffGroup(diffA);
+      const gB = getDiffGroup(diffB);
+      
+      if (gA !== gB) return gA - gB;
+      
+      // 동일 그룹 내에서는 파트 > 이름 순 정렬
+      const partOrder = { 'VOIX': 1, 'DANCE': 2, 'SESSION': 3, '공통': 4 };
+      const wA = partOrder[a.part] || 99;
+      const wB = partOrder[b.part] || 99;
+      if (wA !== wB) return wA - wB;
+      
+      return a.name.localeCompare(b.name, 'ko');
+    });
 
   const unpaid = members.filter(m => m.status === 'active' && calcMemberDues(m, transactions).diff < 0);
   const { totalPaid, totalBasis } = members.filter(m => m.status === 'active').reduce((acc, m) => {
