@@ -225,8 +225,7 @@ export default function DashboardPage({ onAddClick, setTab }) {
         
         {/* 가로 막대 그래프 (PC & 모바일 공통) */}
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1 }}>
-          <div className="flex-between" style={{ marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--slate-600)' }}>진행률</span>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
             <span style={{ fontSize: 24, fontWeight: 800, color: duesColor, lineHeight: 1 }}>{duesRate}%</span>
           </div>
           <div className="progress-track" style={{ height: 16, borderRadius: 8 }}>
