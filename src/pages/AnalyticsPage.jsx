@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { calcMonthlyStats, calcPartBalances, calcMemberDues, formatKRW, isRefundTx } from '../utils/calculations';
 import './Pages.css';
@@ -14,6 +14,13 @@ export default function AnalyticsPage() {
   const { transactions, members } = state;
   const [period, setPeriod] = useState('all');
   const [partFilter, setPartFilter] = useState('전체');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const availableYears = useMemo(() => {
     const years = new Set([new Date().getFullYear()]);
@@ -214,44 +221,9 @@ export default function AnalyticsPage() {
     const totalBorder = isIncome ? '#a7f3d0' : '#fecdd3';
     const totalLabelColor = isIncome ? 'var(--emerald-800)' : 'var(--rose-800)';
 
-    return (
-      <>
-        {/* PC: Matrix Table */}
-        <div className="md-pc-view" style={{ overflowX: 'auto', marginBottom: 24, border: '1px solid var(--slate-100)', borderRadius: 8, display: 'block' }}>
-          <table className="matrix-table">
-            <thead>
-              <tr>
-                <th style={{ minWidth: 120 }}>계정과목</th>
-                <th>VOIX·SESSION</th>
-                <th>DANCE</th>
-                <th>공통</th>
-                <th style={{ color: 'var(--slate-800)', fontWeight: 700 }}>총액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map(item => (
-                <tr key={item.cat}>
-                  <td style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</td>
-                  <td style={{ color: item['VOIX·SESSION'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['VOIX·SESSION'] ? formatKRW(item['VOIX·SESSION']) : '-'}</td>
-                  <td style={{ color: item['DANCE'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['DANCE'] ? formatKRW(item['DANCE']) : '-'}</td>
-                  <td style={{ color: item['공통'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['공통'] ? formatKRW(item['공통']) : '-'}</td>
-                  <td style={{ fontWeight: 700, color: totalColor }}>{formatKRW(item.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ background: totalBg, borderTop: `2px solid ${totalBorder}` }}>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>총계</td>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['VOIX·SESSION'])}</td>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['DANCE'])}</td>
-                <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['공통'])}</td>
-                <td style={{ fontWeight: 800, color: totalColor }}>{formatKRW(gTotal.total)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Mobile: Card List (원래 있던 계정과목 UI 디자인 및 스타일 뼈대 그대로 유지) */}
+    if (isMobile) {
+      // 모바일 환경: table 마크업 전체를 완전히 배제하고 오직 깔끔한 카드 구조만 렌더링
+      return (
         <div className="md-mobile-view" style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {data.map(item => (
@@ -274,7 +246,43 @@ export default function AnalyticsPage() {
             ))}
           </div>
         </div>
-      </>
+      );
+    }
+
+    return (
+      <div className="md-pc-view" style={{ overflowX: 'auto', marginBottom: 24, border: '1px solid var(--slate-100)', borderRadius: 8, display: 'block' }}>
+        <table className="matrix-table">
+          <thead>
+            <tr>
+              <th style={{ minWidth: 120 }}>계정과목</th>
+              <th>VOIX·SESSION</th>
+              <th>DANCE</th>
+              <th>공통</th>
+              <th style={{ color: 'var(--slate-800)', fontWeight: 700 }}>총액</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(item => (
+              <tr key={item.cat}>
+                <td style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</td>
+                <td style={{ color: item['VOIX·SESSION'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['VOIX·SESSION'] ? formatKRW(item['VOIX·SESSION']) : '-'}</td>
+                <td style={{ color: item['DANCE'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['DANCE'] ? formatKRW(item['DANCE']) : '-'}</td>
+                <td style={{ color: item['공통'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['공통'] ? formatKRW(item['공통']) : '-'}</td>
+                <td style={{ fontWeight: 700, color: totalColor }}>{formatKRW(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: totalBg, borderTop: `2px solid ${totalBorder}` }}>
+              <td style={{ fontWeight: 800, color: totalLabelColor }}>총계</td>
+              <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['VOIX·SESSION'])}</td>
+              <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['DANCE'])}</td>
+              <td style={{ fontWeight: 800, color: totalLabelColor }}>{formatKRW(gTotal['공통'])}</td>
+              <td style={{ fontWeight: 800, color: totalColor }}>{formatKRW(gTotal.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     );
   };
 
