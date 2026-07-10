@@ -162,9 +162,12 @@ function PerfView({ performances, members, onToggle }) {
     );
   }
 
+  // 1. 공연 현황 최신순(내림차순) 정렬
+  const sortedPerformances = [...performances].sort((a, b) => b.key.localeCompare(a.key));
+
   return (
     <div className="perf-board-layout">
-      {performances.map(p => {
+      {sortedPerformances.map(p => {
         const isExpanded = !!expandedPerfs[p.key];
         const participated = members.filter(m => m.performances?.[p.key] === '참여');
         
@@ -175,9 +178,16 @@ function PerfView({ performances, members, onToggle }) {
           SESSION: participated.filter(m => m.part === 'SESSION').length,
         };
 
-        const voixMembers = participated.filter(m => m.part === 'VOIX');
-        const danceMembers = participated.filter(m => m.part === 'DANCE');
-        const sessionMembers = participated.filter(m => m.part === 'SESSION');
+        // 2. 파트 내 가나다순(오름차순) 정렬
+        const voixMembers = participated
+          .filter(m => m.part === 'VOIX')
+          .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        const danceMembers = participated
+          .filter(m => m.part === 'DANCE')
+          .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+        const sessionMembers = participated
+          .filter(m => m.part === 'SESSION')
+          .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 
         return (
           <div key={p.key} className="perf-card-new">
