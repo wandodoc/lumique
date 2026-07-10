@@ -19,36 +19,64 @@ function ProgressBar({ pct, color }) {
 
 function MemberCard({ member, transactions, onClick }) {
   const dues = calcMemberDues(member, transactions);
-  const pct = dues.basis > 0 ? (dues.paid / dues.basis) * 100 : 100;
+  const rawPct = dues.basis > 0 ? (dues.paid / dues.basis) * 100 : 100;
+  const pct = Math.min(100, Math.max(0, Math.round(rawPct)));
   const partColors = { VOIX: 'var(--voix-color)', DANCE: 'var(--dance-color)', SESSION: 'var(--session-color)' };
+  const mainColor = partColors[member.part] || 'var(--blue-500)';
 
   let statusBadge;
-  let cardStyle = {};
+  let cardStyle = { padding: 16 };
   
   if (dues.diff < 0) {
-    statusBadge = <span className="badge badge-danger">{formatKRW(Math.abs(dues.diff))} 미납</span>;
-    cardStyle = { border: '1px solid var(--red-300)', backgroundColor: '#fef2f2' };
+    statusBadge = <span className="badge badge-danger" style={{ whiteSpace: 'nowrap' }}>{formatKRW(Math.abs(dues.diff))} 미납</span>;
+    cardStyle = { ...cardStyle, border: '1px solid var(--red-300)', backgroundColor: '#fef2f2' };
   } else if (dues.diff > 0) {
-    statusBadge = <span className="badge" style={{ background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>{formatKRW(dues.diff)} 초과납부</span>;
-    cardStyle = { border: '1px solid var(--blue-300)', backgroundColor: '#eff6ff' };
+    statusBadge = <span className="badge" style={{ background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', whiteSpace: 'nowrap' }}>{formatKRW(dues.diff)} 초과납부</span>;
+    cardStyle = { ...cardStyle, border: '1px solid var(--blue-300)', backgroundColor: '#eff6ff' };
   } else {
-    statusBadge = <span className="badge badge-success">완납</span>;
+    statusBadge = <span className="badge badge-success" style={{ whiteSpace: 'nowrap' }}>완납</span>;
   }
+  
+  const gradient = `conic-gradient(${mainColor} ${pct}%, var(--slate-100) ${pct}% 100%)`;
 
   return (
     <div className="member-card" style={cardStyle} onClick={() => onClick(member)}>
-      <div className="member-card-top">
-        <div className="member-card-info">
-          <span className="member-card-name">{member.name}</span>
-          <span className={`badge badge-${member.part.toLowerCase()}`}>{member.part}</span>
-          {member.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
+      {/* 모바일 뷰: 가로 막대 그래프 */}
+      <div className="md-mobile-view">
+        <div className="member-card-top">
+          <div className="member-card-info">
+            <span className="member-card-name">{member.name}</span>
+            <span className={`badge badge-${member.part.toLowerCase()}`}>{member.part}</span>
+            {member.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
+          </div>
+          {statusBadge}
         </div>
-        {statusBadge}
+        <ProgressBar pct={pct} color={mainColor} />
+        <div className="member-card-nums">
+          <span>{formatKRW(dues.paid)} 납부</span>
+          <span className="text-muted">기준 {formatKRW(dues.basis)}</span>
+        </div>
       </div>
-      <ProgressBar pct={pct} color={partColors[member.part] || 'var(--blue-500)'} />
-      <div className="member-card-nums">
-        <span>{formatKRW(dues.paid)} 납부</span>
-        <span className="text-muted">기준 {formatKRW(dues.basis)}</span>
+
+      {/* PC 뷰: 원형 도넛 그래프 */}
+      <div className="md-pc-view">
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 16, alignItems: 'flex-start' }}>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
+              <span className={`badge badge-${member.part.toLowerCase()}`}>{member.part}</span>
+              <span style={{ fontSize: 18, fontWeight: 800 }}>{member.name}</span>
+              {member.status === 'inactive' && <span className="badge badge-gray">탈퇴</span>}
+           </div>
+           {statusBadge}
+        </div>
+        <div className="donut-chart" style={{ width: 100, height: 100, background: gradient, marginBottom: 16, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+           <div style={{ position: 'absolute', width: 74, height: 74, background: cardStyle.backgroundColor || 'var(--white)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+             <span style={{ fontSize: 18, fontWeight: 800, color: mainColor }}>{pct}%</span>
+           </div>
+        </div>
+        <div style={{ textAlign: 'center', width: '100%' }}>
+           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--slate-800)' }}>{formatKRW(dues.paid)} 납부</div>
+           <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 4 }}>기준 {formatKRW(dues.basis)}</div>
+        </div>
       </div>
     </div>
   );
@@ -249,7 +277,7 @@ export default function MemberDuesPage() {
 
       {/* 회원 목록 */}
       {viewMode === 'summary' ? (
-        <div className="card">
+        <div className="member-dues-grid">
           {filtered.map(m => (
             <MemberCard key={m.id} member={m} transactions={transactions} onClick={setSelected} />
           ))}

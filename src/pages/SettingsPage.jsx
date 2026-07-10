@@ -10,7 +10,7 @@ const REGULATIONS = [
 
 const INCOME_CATS = [
   { cat: '회비', part: '파트별', desc: '매월 5일, 1만 원' },
-  { cat: '공연 수익', part: '공통', desc: '공연 관람비' },
+  { cat: '공연 수입', part: '공통', desc: '공연 관람비' },
   { cat: '이자/기타', part: '공통', desc: '예금 이자' },
 ];
 

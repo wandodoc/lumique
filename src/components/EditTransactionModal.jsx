@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatKRW } from '../utils/calculations';
 
-const INCOME_CATEGORIES = ['회비', '공연 수익', '이자/기타'];
+const INCOME_CATEGORIES = ['회비', '공연 수입', '이자/기타'];
 const EXPENSE_CATEGORIES = ['연습실 대여', '비품', '소모품', '식대', '사례비', '주차비', '기타지출'];
 const PARTS = ['VOIX', 'DANCE', 'SESSION', '공통'];
 

@@ -197,6 +197,35 @@ export default function AnalyticsPage() {
     };
   }, [periodTxs, txMap]);
 
+  const renderMatrixTable = (data, isIncome) => {
+    if (data.length === 0) return <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 20, fontSize: 13 }}>내역 없음</div>;
+    return (
+      <div style={{ overflowX: 'auto', marginBottom: 24, border: '1px solid var(--slate-100)', borderRadius: 8 }}>
+        <table className="matrix-table">
+          <thead>
+            <tr>
+              <th style={{ minWidth: 120 }}>계정과목</th>
+              <th>VOIX·SESSION</th>
+              <th>DANCE</th>
+              <th>공통</th>
+              <th style={{ color: 'var(--slate-800)', fontWeight: 700 }}>총액</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(item => (
+              <tr key={item.cat}>
+                <td style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</td>
+                <td style={{ color: item['VOIX·SESSION'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['VOIX·SESSION'] ? formatKRW(item['VOIX·SESSION']) : '-'}</td>
+                <td style={{ color: item['DANCE'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['DANCE'] ? formatKRW(item['DANCE']) : '-'}</td>
+                <td style={{ color: item['공통'] ? 'var(--slate-700)' : 'var(--slate-300)' }}>{item['공통'] ? formatKRW(item['공통']) : '-'}</td>
+                <td style={{ fontWeight: 700, color: isIncome ? 'var(--emerald-600)' : 'var(--rose-600)' }}>{formatKRW(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   const INCOME_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
   const EXPENSE_COLORS = ['#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
@@ -331,54 +360,16 @@ export default function AnalyticsPage() {
 
       {/* 계정과목별 파트 비중 대시보드 */}
       <div className="card card-pad" style={{ marginTop: 24, marginBottom: 40 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12 }}>
-          <span className="card-title" style={{ margin: 0 }}>계정과목별 파트 비중</span>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 12, fontWeight: 600 }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6' }}/>VOIX·SESSION</div>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ec4899' }}/>DANCE</div>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }}/>공통</div>
-          </div>
+        <div style={{ marginBottom: 20 }}>
+          <span className="card-title" style={{ margin: 0, display: 'block', marginBottom: 4 }}>계정과목별 파트 상세 내역</span>
+          <span style={{ fontSize: 12, color: 'var(--slate-500)' }}>{period === 'all' ? '전체 기간' : `${period}년`} 파트별 수입/지출 세부 매트릭스</span>
         </div>
 
-        <div className="dash-grid-2">
-          {/* 수입 매트릭스 */}
-          <div>
-            <h4 style={{ margin: '0 0 16px 0', fontSize: 14, color: 'var(--slate-600)', borderBottom: '1px solid var(--slate-100)', paddingBottom: 8 }}>수입 부문</h4>
-            {partBreakdown.income.length === 0 ? <div style={{ fontSize: 13, color: 'var(--slate-400)', textAlign: 'center', padding: 20 }}>내역 없음</div> : null}
-            {partBreakdown.income.map(item => (
-              <div key={item.cat} style={{ marginBottom: 16 }}>
-                <div className="flex-between" style={{ fontSize: 13, marginBottom: 6 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</span>
-                  <span className="text-green" style={{ fontWeight: 800 }}>{formatKRW(item.total)}</span>
-                </div>
-                <div style={{ display: 'flex', height: 14, borderRadius: 99, overflow: 'hidden', background: 'var(--slate-100)' }}>
-                   <div style={{ width: `${Math.max(0, item['VOIX·SESSION']) / item.total * 100}%`, background: '#3b82f6', transition: 'width 0.5s ease' }} />
-                   <div style={{ width: `${Math.max(0, item['DANCE']) / item.total * 100}%`, background: '#ec4899', transition: 'width 0.5s ease' }} />
-                   <div style={{ width: `${Math.max(0, item['공통']) / item.total * 100}%`, background: '#10b981', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
-            ))}
-          </div>
+        <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--slate-600)' }}>수입 부문</h4>
+        {renderMatrixTable(partBreakdown.income, true)}
 
-          {/* 지출 매트릭스 */}
-          <div>
-            <h4 style={{ margin: '0 0 16px 0', fontSize: 14, color: 'var(--slate-600)', borderBottom: '1px solid var(--slate-100)', paddingBottom: 8 }}>지출 부문</h4>
-            {partBreakdown.expense.length === 0 ? <div style={{ fontSize: 13, color: 'var(--slate-400)', textAlign: 'center', padding: 20 }}>내역 없음</div> : null}
-            {partBreakdown.expense.map(item => (
-              <div key={item.cat} style={{ marginBottom: 16 }}>
-                <div className="flex-between" style={{ fontSize: 13, marginBottom: 6 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--slate-700)' }}>{item.cat}</span>
-                  <span className="text-red" style={{ fontWeight: 800 }}>{formatKRW(item.total)}</span>
-                </div>
-                <div style={{ display: 'flex', height: 14, borderRadius: 99, overflow: 'hidden', background: 'var(--slate-100)' }}>
-                   <div style={{ width: `${Math.max(0, item['VOIX·SESSION']) / item.total * 100}%`, background: '#3b82f6', transition: 'width 0.5s ease' }} />
-                   <div style={{ width: `${Math.max(0, item['DANCE']) / item.total * 100}%`, background: '#ec4899', transition: 'width 0.5s ease' }} />
-                   <div style={{ width: `${Math.max(0, item['공통']) / item.total * 100}%`, background: '#10b981', transition: 'width 0.5s ease' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--slate-600)' }}>지출 부문</h4>
+        {renderMatrixTable(partBreakdown.expense, false)}
       </div>
 
     </div>
