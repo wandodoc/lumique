@@ -136,6 +136,26 @@ export default function AnalyticsPage() {
   const INCOME_COLORS = ['#059669', '#2b74e2', '#f59e0b', '#7c3aed', '#e2596b'];
   const EXPENSE_COLORS = ['#e2596b', '#f97316', '#f59e0b', '#8b5cf6', '#6b7280'];
 
+  let incPct = 0;
+  const incGradArgs = incomeByCategory.map((item, i) => {
+    const pct = totalIncome > 0 ? (item.total / totalIncome) * 100 : 0;
+    const color = INCOME_COLORS[i % INCOME_COLORS.length];
+    const str = `${color} ${incPct}% ${incPct + pct}%`;
+    incPct += pct;
+    return str;
+  }).join(', ');
+  const incGradient = incGradArgs ? `conic-gradient(${incGradArgs})` : 'var(--slate-100)';
+
+  let expPct = 0;
+  const expGradArgs = expenseByCategory.map((item, i) => {
+    const pct = totalExpense > 0 ? (item.total / totalExpense) * 100 : 0;
+    const color = EXPENSE_COLORS[i % EXPENSE_COLORS.length];
+    const str = `${color} ${expPct}% ${expPct + pct}%`;
+    expPct += pct;
+    return str;
+  }).join(', ');
+  const expGradient = expGradArgs ? `conic-gradient(${expGradArgs})` : 'var(--slate-100)';
+
   return (
     <div className="page fade-in">
 
@@ -170,40 +190,66 @@ export default function AnalyticsPage() {
       {/* 지출 계정과목 + 수입 카테고리 나란히 */}
       <div className="dash-grid-2" style={{ gap: 16, marginBottom: 16 }}>
         <div className="card card-pad">
-          <span className="card-title">지출 구성</span>
-          {expenseByCategory.length === 0
-            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>지출 내역 없음</div>
-            : expenseByCategory.map(({ cat, total }, i) => (
-              <div key={cat} className="cat-row">
-                <div className="cat-row-top">
-                  <span className="cat-name" style={{ fontSize: 12 }}>{cat}</span>
-                  <span className="text-red" style={{ fontWeight: 600, fontSize: 12 }}>{formatKRW(total)}</span>
+          <span className="card-title" style={{ display: 'block', marginBottom: 16 }}>수입 구성</span>
+          {incomeByCategory.length === 0
+            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>수입 내역 없음</div>
+            : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', justifyContent: 'center' }}>
+                <div className="donut-chart" style={{ width: 100, height: 100, flexShrink: 0, background: incGradient }}>
+                  <div style={{ position: 'absolute', width: 70, height: 70, background: 'var(--c-white)', borderRadius: '50%' }} />
                 </div>
-                <div className="cat-bar-track">
-                  <div className="cat-bar-fill" style={{ width: `${(total / maxCat) * 100}%`, background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {incomeByCategory.map(({ cat, total }, i) => {
+                    const pct = totalIncome > 0 ? Math.round((total / totalIncome) * 100) : 0;
+                    const color = INCOME_COLORS[i % INCOME_COLORS.length];
+                    return (
+                      <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
+                          <span style={{ fontSize: 12, color: 'var(--slate-600)' }}>{cat}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>{pct}%</span>
+                          <span className="text-green" style={{ fontSize: 12, fontWeight: 700, width: 60, textAlign: 'right' }}>{formatKRW(total)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <span className="cat-pct">{totalExpense > 0 ? Math.round((total / totalExpense) * 100) : 0}%</span>
               </div>
-            ))
+            )
           }
         </div>
 
         <div className="card card-pad">
-          <span className="card-title">수입 구성</span>
-          {incomeByCategory.length === 0
-            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>수입 내역 없음</div>
-            : incomeByCategory.map(({ cat, total }, i) => (
-              <div key={cat} className="cat-row">
-                <div className="cat-row-top">
-                  <span className="cat-name" style={{ fontSize: 12 }}>{cat}</span>
-                  <span className="text-green" style={{ fontWeight: 600, fontSize: 12 }}>{formatKRW(total)}</span>
+          <span className="card-title" style={{ display: 'block', marginBottom: 16 }}>지출 구성</span>
+          {expenseByCategory.length === 0
+            ? <div style={{ textAlign: 'center', color: 'var(--slate-400)', padding: 16, fontSize: 13 }}>지출 내역 없음</div>
+            : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center', justifyContent: 'center' }}>
+                <div className="donut-chart" style={{ width: 100, height: 100, flexShrink: 0, background: expGradient }}>
+                  <div style={{ position: 'absolute', width: 70, height: 70, background: 'var(--c-white)', borderRadius: '50%' }} />
                 </div>
-                <div className="cat-bar-track">
-                  <div className="cat-bar-fill" style={{ width: `${(total / maxIncomeCat) * 100}%`, background: INCOME_COLORS[i % INCOME_COLORS.length] }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {expenseByCategory.map(({ cat, total }, i) => {
+                    const pct = totalExpense > 0 ? Math.round((total / totalExpense) * 100) : 0;
+                    const color = EXPENSE_COLORS[i % EXPENSE_COLORS.length];
+                    return (
+                      <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
+                          <span style={{ fontSize: 12, color: 'var(--slate-600)' }}>{cat}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>{pct}%</span>
+                          <span className="text-red" style={{ fontSize: 12, fontWeight: 700, width: 60, textAlign: 'right' }}>{formatKRW(total)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <span className="cat-pct">{totalIncome > 0 ? Math.round((total / totalIncome) * 100) : 0}%</span>
               </div>
-            ))
+            )
           }
         </div>
       </div>
