@@ -243,10 +243,12 @@ export default function MemberDuesPage() {
                 onClick={() => setPartFilter(p)}>{p}</button>
             ))}
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--slate-600)', cursor: 'pointer', fontWeight: 600 }}>
-            <input type="checkbox" checked={showInactive} onChange={() => setShowInactive(v => !v)} style={{ width: 16, height: 16, accentColor: 'var(--blue-500)', cursor: 'pointer' }} />
-            탈퇴 포함
-          </label>
+          <div className="toggle-switch-wrapper" onClick={() => setShowInactive(v => !v)}>
+            <span className="toggle-label">탈퇴 회원 포함</span>
+            <div className={`toggle-switch ${showInactive ? 'active' : ''}`}>
+              <div className="toggle-handle" />
+            </div>
+          </div>
         </div>
         
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

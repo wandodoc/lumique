@@ -9,6 +9,40 @@ const PART_COLORS = {
   VOIX: '#2b74e2', DANCE: '#e2596b', SESSION: '#7c3aed', 공통: '#059669',
 };
 
+const normalizeCategory = (category, type) => {
+  const cat = category ? category.trim() : '기타';
+  
+  if (type === 'income') {
+    if (cat === '회비' || cat.includes('회비') || cat.includes('가입비')) {
+      return '회비수익';
+    }
+    if (cat === '공연 수입' || cat === '공연 수익' || cat.includes('공연') || cat.includes('티켓') || cat.includes('행사') || cat.includes('찬조')) {
+      return '사업수익';
+    }
+    if (cat === '이자/기타' || cat.includes('이자') || cat.includes('기타') || cat === '') {
+      return '기타수익';
+    }
+    return '기타수익';
+  } else {
+    if (cat === '연습실 대여' || cat.includes('대여') || cat.includes('대관') || cat.includes('연습실') || cat.includes('임차')) {
+      return '임차료';
+    }
+    if (cat === '비품' || cat.includes('스피커') || cat.includes('마이크') || cat.includes('장비') || cat.includes('비품')) {
+      return '비품';
+    }
+    if (cat === '사례비' || cat === '주차비' || cat.includes('스태프') || cat.includes('사례비') || cat.includes('주차') || cat.includes('외주') || cat.includes('용역') || cat.includes('강사')) {
+      return '외주비';
+    }
+    if (cat === '소모품' || cat.includes('의상') || cat.includes('소품') || cat.includes('메이크업') || cat.includes('화장') || cat.includes('소모품')) {
+      return '소모품비';
+    }
+    if (cat === '식대' || cat.includes('식대') || cat.includes('밥') || cat.includes('엠티') || cat.includes('MT') || cat.includes('회식') || cat.includes('단합') || cat.includes('복리') || cat.includes('간식')) {
+      return '복리후생비';
+    }
+    return '소모품비';
+  }
+};
+
 export default function AnalyticsPage() {
   const { state } = useApp();
   const { transactions, members } = state;
@@ -110,11 +144,13 @@ export default function AnalyticsPage() {
 
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
-          const cat = item.category || '기타';
+          const rawCat = item.category || '기타';
+          const cat = normalizeCategory(rawCat, 'expense');
           map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
-        const cat = t.category || '기타';
+        const rawCat = t.category || '기타';
+        const cat = normalizeCategory(rawCat, 'expense');
         map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
@@ -137,11 +173,13 @@ export default function AnalyticsPage() {
 
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
-          const cat = item.category || '기타';
+          const rawCat = item.category || '기타';
+          const cat = normalizeCategory(rawCat, 'income');
           map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
-        const cat = t.category || '기타';
+        const rawCat = t.category || '기타';
+        const cat = normalizeCategory(rawCat, 'income');
         map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
@@ -178,14 +216,16 @@ export default function AnalyticsPage() {
       
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
-          const cat = item.category || '기타';
+          const rawCat = item.category || '기타';
+          const cat = normalizeCategory(rawCat, type);
           if (!map[type][cat]) map[type][cat] = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
           const amt = (Number(item.amount) || 0) * multiplier;
           map[type][cat][partKey] += amt;
           map[type][cat].total += amt;
         });
       } else {
-        const cat = t.category || '기타';
+        const rawCat = t.category || '기타';
+        const cat = normalizeCategory(rawCat, type);
         if (!map[type][cat]) map[type][cat] = { 'VOIX·SESSION': 0, 'DANCE': 0, '공통': 0, total: 0 };
         const amt = t.amount * multiplier;
         map[type][cat][partKey] += amt;
