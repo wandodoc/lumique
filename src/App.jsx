@@ -44,17 +44,92 @@ const PAGE_TITLES = {
   ledger: '입출금 내역', analytics: '요약', settings: '설정',
 };
 
+function GatePage() {
+  const { login } = useAuth();
+  const [passcode, setPasscode] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState('');
+  const [shakeTrigger, setShakeTrigger] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!passcode.trim()) return;
+    const success = login(passcode);
+    if (success) {
+      setError('');
+    } else {
+      setError('비밀번호가 일치하지 않습니다. 다시 입력해주세요.');
+      setShakeTrigger(true);
+      setTimeout(() => setShakeTrigger(false), 500);
+    }
+  };
+
+  return (
+    <div className="gate-page-wrapper">
+      <div className={`gate-card ${shakeTrigger ? 'gate-error' : ''}`}>
+        <div className="gate-logo">
+          <img src="/logo.png" alt="Lumique" />
+        </div>
+        <div className="gate-header">
+          <h2>L U M I Q U E</h2>
+          <p>동아리 운영 관리 시스템</p>
+        </div>
+        <form className="gate-form" onSubmit={handleSubmit}>
+          <div className="gate-input-wrapper">
+            <input
+              type={showPass ? 'text' : 'password'}
+              className="gate-input"
+              placeholder="공용 비밀번호 입력"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="gate-input-toggle"
+              onClick={() => setShowPass(!showPass)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {showPass ? (
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88L3 3m18 18l-6.88-6.88m-1.371-1.372A9.97 9.97 0 0021 12c-1.275 4.057-5.065 7-9.542 7-1.42 0-2.766-.296-3.987-.825" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          {error && <div className="gate-error">{error}</div>}
+          <button type="submit" className="gate-btn">진입하기</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ChangePwdModal({ onClose }) {
   const { changePassword } = useAuth();
   const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (newPwd.length < 4) return alert('새 비밀번호는 4자리 이상이어야 합니다.');
+    if (!oldPwd || !newPwd || !confirmPwd) {
+      return alert('모든 비밀번호 필드를 입력해주세요.');
+    }
+    if (newPwd !== confirmPwd) {
+      return alert('새 비밀번호와 새 비밀번호 확인이 일치하지 않습니다.');
+    }
+    if (newPwd.length < 4) {
+      return alert('새 비밀번호는 4자리 이상이어야 합니다.');
+    }
     const success = changePassword(oldPwd, newPwd);
     if (success) {
-      alert('비밀번호가 변경되었습니다.');
+      alert('비밀번호가 성공적으로 변경되었습니다.');
       onClose();
     } else {
       alert('기존 비밀번호가 일치하지 않습니다.');
@@ -64,10 +139,11 @@ function ChangePwdModal({ onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
-        <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>관리자 비밀번호 변경</h3>
+        <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>공용 비밀번호 변경</h3>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input type="password" value={oldPwd} onChange={e => setOldPwd(e.target.value)} placeholder="기존 비밀번호 입력" autoFocus style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 15 }} />
-          <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="새 비밀번호 입력" style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 15, marginBottom: 4 }} />
+          <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="새 비밀번호 입력" style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 15 }} />
+          <input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} placeholder="새 비밀번호 확인 입력" style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 15, marginBottom: 4 }} />
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose}>취소</button>
             <button type="submit" className="btn-primary" style={{ flex: 2 }}>변경하기</button>
@@ -79,17 +155,21 @@ function ChangePwdModal({ onClose }) {
 }
 
 function AppInner() {
+  const { isAdmin, requestLogin, logout, showLoginModal } = useAuth();
   const [tab, setTab] = useState('home');
   const [showAdd, setShowAdd] = useState(false);
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState(null); // 'dues_group' | 'activity_group' | null
   const [expandedGroups, setExpandedGroups] = useState({ dues: true, activity: true });
-  const { isAdmin, requestLogin, logout, showLoginModal } = useAuth();
 
   useEffect(() => {
     window.scrollTo(0, 0);
     setActiveSubmenu(null);
   }, [tab, showAdd]);
+
+  if (!isAdmin) {
+    return <GatePage />;
+  }
 
   const toggleGroup = (key) => {
     setExpandedGroups(prev => ({

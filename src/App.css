@@ -437,3 +437,153 @@
 .submenu-icon {
   font-size: 14px;
 }
+
+/* ===== Gate Page (Passcode Gate) ===== */
+.gate-page-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100vw;
+  background: radial-gradient(circle at center, #1e1e24 0%, #0e0e11 100%);
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  color: #f4f4f5;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 40px 32px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.gate-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.gate-logo img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.gate-header h2 {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0 0 6px 0;
+  color: #ffffff;
+}
+
+.gate-header p {
+  font-size: 13px;
+  color: #a1a1aa;
+  margin: 0 0 32px 0;
+}
+
+.gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gate-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.gate-input {
+  width: 100%;
+  height: 52px;
+  padding: 0 48px 0 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.gate-input:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05);
+}
+
+.gate-input-toggle {
+  position: absolute;
+  right: 14px;
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.gate-input-toggle:hover {
+  color: #a1a1aa;
+}
+
+.gate-btn {
+  width: 100%;
+  height: 52px;
+  background: #ffffff;
+  color: #09090b;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gate-btn:hover {
+  background: #f4f4f5;
+  transform: translateY(-1px);
+}
+
+.gate-btn:active {
+  transform: translateY(0);
+}
+
+.gate-error {
+  font-size: 13px;
+  color: #ef4444;
+  margin-top: 8px;
+  text-align: left;
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Shake Animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
