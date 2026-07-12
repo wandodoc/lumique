@@ -10,7 +10,7 @@ export default function AddTransactionPage({ onClose }) {
   const { members } = state;
   const [form, setForm] = useState({
     datetime: new Date().toISOString().slice(0, 16),
-    description: '', type: 'income', category: '회비',
+    description: '', type: 'income', category: '회비수익',
     amount: '', part: 'VOIX', memberId: '', note: '',
   });
   const [saved, setSaved] = useState(false);
@@ -20,7 +20,7 @@ export default function AddTransactionPage({ onClose }) {
 
   const set = (k, v) => setForm(p => {
     const n = { ...p, [k]: v };
-    if (k === 'type') n.category = v === 'income' ? '회비' : '연습실 대여';
+    if (k === 'type') n.category = v === 'income' ? '회비수익' : '임차료';
     if (k === 'memberId' && v) {
       const m = members.find(m => m.id === v);
       if (m) n.part = m.part;

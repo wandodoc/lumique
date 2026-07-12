@@ -32,23 +32,33 @@ export const CATEGORIES = {
 };
 
 export const INCOME_CATEGORIES = [
-  CATEGORIES.DUES,
-  CATEGORIES.PERFORMANCE,
-  CATEGORIES.INTEREST,
+  '회비수익',
+  '사업수익',
+  '기타수익',
 ];
 
 export const EXPENSE_CATEGORIES = [
-  CATEGORIES.PRACTICE_ROOM,
-  CATEGORIES.EQUIPMENT,
-  CATEGORIES.SUPPLIES,
-  CATEGORIES.MEAL,
-  CATEGORIES.HONORARIUM,
-  CATEGORIES.PARKING,
+  '임차료',
+  '비품',
+  '외주비',
+  '소모품비',
+  '복리후생비',
 ];
 
 export const CATEGORY_ICONS = {
+  // 새로운 표준 8개
+  '회비수익': '💰',
+  '사업수익': '🎭',
+  '기타수익': '📈',
+  '임차료': '🎵',
+  '비품': '🛒',
+  '외주비': '🤝',
+  '소모품비': '📦',
+  '복리후생비': '🍽️',
+  
+  // 구버전 호환용
   '회비': '💰', '공연 수입': '🎭', '이자/기타': '📈',
-  '연습실 대여': '🎵', '비품': '🛒', '소모품': '📦',
+  '연습실 대여': '🎵', '소모품': '📦',
   '식대': '🍽️', '사례비': '🤝', '주차비': '🚗',
   '기타지출': '💸', '기타수입': '💵'
 };

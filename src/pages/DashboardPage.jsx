@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { calcPartBalances, calcMonthlyStats, calcMemberDues, formatKRW, isRefundTx } from '../utils/calculations';
+import { calcPartBalances, calcMonthlyStats, calcMemberDues, formatKRW, isRefundTx, normalizeCategory } from '../utils/calculations';
 import ShareSummaryModal from '../components/ShareSummaryModal';
 import './Pages.css';
 
@@ -44,11 +44,13 @@ export default function DashboardPage({ onAddClick, setTab }) {
       
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
-          const cat = item.category || '기타';
+          const rawCat = item.category || '기타';
+          const cat = normalizeCategory(rawCat, 'income');
           map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
-        const cat = t.category || '기타';
+        const rawCat = t.category || '기타';
+        const cat = normalizeCategory(rawCat, 'income');
         map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
@@ -70,11 +72,13 @@ export default function DashboardPage({ onAddClick, setTab }) {
 
       if (t.splitItems && t.splitItems.length > 0) {
         t.splitItems.forEach(item => {
-          const cat = item.category || '기타';
+          const rawCat = item.category || '기타';
+          const cat = normalizeCategory(rawCat, 'expense');
           map[cat] = (map[cat] || 0) + (Number(item.amount) || 0) * multiplier;
         });
       } else {
-        const cat = t.category || '기타';
+        const rawCat = t.category || '기타';
+        const cat = normalizeCategory(rawCat, 'expense');
         map[cat] = (map[cat] || 0) + t.amount * multiplier;
       }
     });
@@ -267,18 +271,21 @@ export default function DashboardPage({ onAddClick, setTab }) {
             더 보기 <span style={{ fontSize: 10 }}>❯</span>
           </button>
         </div>
-        {recentTxs.map((tx, i) => (
-          <div key={tx.id} className="timeline-row">
-            <div className="timeline-icon">{CATEGORY_ICONS[tx.category] || '📌'}</div>
-            <div className="timeline-body">
-              <div className="timeline-desc">{tx.description}</div>
-              <div className="timeline-meta">{tx.datetime.slice(0, 10)} · {tx.category}</div>
+        {recentTxs.map((tx, i) => {
+          const normCat = normalizeCategory(tx.category, tx.type);
+          return (
+            <div key={tx.id} className="timeline-row">
+              <div className="timeline-icon">{CATEGORY_ICONS[normCat] || '📌'}</div>
+              <div className="timeline-body">
+                <div className="timeline-desc">{tx.description}</div>
+                <div className="timeline-meta">{tx.datetime.slice(0, 10)} · {normCat}</div>
+              </div>
+              <span className={`timeline-amount ${tx.type}`}>
+                {tx.type === 'income' ? '+' : '-'}{formatKRW(tx.amount)}
+              </span>
             </div>
-            <span className={`timeline-amount ${tx.type}`}>
-              {tx.type === 'income' ? '+' : '-'}{formatKRW(tx.amount)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {showShareModal && (

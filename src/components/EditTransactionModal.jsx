@@ -1,15 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatKRW } from '../utils/calculations';
+import { formatKRW, normalizeCategory } from '../utils/calculations';
 
-const INCOME_CATEGORIES = ['회비', '공연 수입', '이자/기타'];
-const EXPENSE_CATEGORIES = ['연습실 대여', '비품', '소모품', '식대', '사례비', '주차비', '기타지출'];
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../data/constants';
 const PARTS = ['VOIX', 'DANCE', 'SESSION', '공통'];
 
 const newSplitItem = (type) => ({
   desc: '',
   amount: '',
-  category: type === 'income' ? '회비' : '연습실 대여',
+  category: type === 'income' ? '회비수익' : '임차료',
   part: '공통',
   memberId: ''
 });
@@ -36,7 +35,7 @@ export default function EditTransactionModal({ tx, onClose }) {
   useEffect(() => {
     if (tx) {
       setFormData({
-        category: tx.category || (tx.type === 'income' ? '회비' : '연습실 대여'),
+        category: tx.category ? normalizeCategory(tx.category, tx.type) : (tx.type === 'income' ? '회비수익' : '임차료'),
         part: tx.part || '공통',
         datetime: tx.datetime ? tx.datetime.slice(0, 16) : '',
         description: tx.description || '',
@@ -46,7 +45,7 @@ export default function EditTransactionModal({ tx, onClose }) {
       });
       const sanitizedSplitItems = (tx.splitItems || []).map(item => ({
         ...item,
-        category: item.category || (tx.type === 'income' ? '회비' : '연습실 대여')
+        category: item.category ? normalizeCategory(item.category, tx.type) : (tx.type === 'income' ? '회비수익' : '임차료')
       }));
       setSplitItems(sanitizedSplitItems);
       setShowSplit(!!(tx.splitItems && tx.splitItems.length > 0));

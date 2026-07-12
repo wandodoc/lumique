@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { formatKRW, isRefundTx } from '../utils/calculations';
+import { formatKRW, isRefundTx, normalizeCategory } from '../utils/calculations';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, CATEGORY_ICONS } from '../data/constants';
 import ExcelImportModal from '../components/ExcelImportModal';
 import EditTransactionModal from '../components/EditTransactionModal';
@@ -51,7 +51,8 @@ export default function TransactionPage() {
     const set = new Set();
     transactions.forEach(tx => {
       if (typeFilter === '전체' || (typeFilter === '수입' ? tx.type === 'income' : tx.type === 'expense')) {
-        set.add(tx.category || '기타');
+        const normCat = normalizeCategory(tx.category || '기타', tx.type);
+        set.add(normCat);
       }
     });
     return ['전체', ...[...set].sort()];
@@ -65,7 +66,7 @@ export default function TransactionPage() {
   const filtered = useMemo(() => transactions
     .filter(tx => partFilter === '전체' || (partFilter === 'VOIX · SESSION' ? (tx.part === 'VOIX' || tx.part === 'SESSION') : tx.part === partFilter))
     .filter(tx => typeFilter === '전체' || (typeFilter === '수입' ? tx.type === 'income' : tx.type === 'expense'))
-    .filter(tx => categoryFilter === '전체' || tx.category === categoryFilter)
+    .filter(tx => categoryFilter === '전체' || normalizeCategory(tx.category, tx.type) === categoryFilter)
     .filter(tx => yearFilter === '전체' || tx.datetime.startsWith(yearFilter))
     .filter(tx => monthFilter === '전체' || tx.datetime.slice(5, 7) === monthFilter)
     .filter(tx => !unclassifiedOnly || tx.category === '기타' || tx.category === '기타지출')
@@ -74,7 +75,7 @@ export default function TransactionPage() {
       const q = searchQuery.toLowerCase().trim();
       const desc = (tx.description || '').toLowerCase();
       const note = (tx.note || '').toLowerCase();
-      const cat = (tx.category || '').toLowerCase();
+      const cat = (normalizeCategory(tx.category, tx.type) || '').toLowerCase();
       const part = (tx.part || '').toLowerCase();
       const m = members.find(x => x.id === tx.memberId);
       const mName = m ? m.name.toLowerCase() : '';
@@ -87,7 +88,7 @@ export default function TransactionPage() {
   const summaryFiltered = useMemo(() => transactions
     .filter(tx => partFilter === '전체' || (partFilter === 'VOIX · SESSION' ? (tx.part === 'VOIX' || tx.part === 'SESSION') : tx.part === partFilter))
     // 수입/지출 탭을 눌러도 요약 카드에서는 양쪽 다 보이게 하기 위해 typeFilter 제외
-    .filter(tx => categoryFilter === '전체' || tx.category === categoryFilter)
+    .filter(tx => categoryFilter === '전체' || normalizeCategory(tx.category, tx.type) === categoryFilter)
     .filter(tx => yearFilter === '전체' || tx.datetime.startsWith(yearFilter))
     .filter(tx => monthFilter === '전체' || tx.datetime.slice(5, 7) === monthFilter)
     .filter(tx => !unclassifiedOnly || tx.category === '기타' || tx.category === '기타지출')
@@ -96,7 +97,7 @@ export default function TransactionPage() {
       const q = searchQuery.toLowerCase().trim();
       const desc = (tx.description || '').toLowerCase();
       const note = (tx.note || '').toLowerCase();
-      const cat = (tx.category || '').toLowerCase();
+      const cat = (normalizeCategory(tx.category, tx.type) || '').toLowerCase();
       const part = (tx.part || '').toLowerCase();
       const m = members.find(x => x.id === tx.memberId);
       const mName = m ? m.name.toLowerCase() : '';
@@ -439,7 +440,7 @@ export default function TransactionPage() {
                     {tx.splitItems.map((item, idx) => (
                       <div key={idx} style={{ fontSize: 11, color: 'var(--slate-600)', display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3, alignItems: 'center' }}>
                         <span style={{ color: '#7c3aed', background: '#f5f3ff', padding: '1px 4px', borderRadius: 4, fontWeight: 700, fontSize: 9 }}>
-                          {item.category}/{item.part}
+                          {normalizeCategory(item.category, tx.type)}/{item.part}
                         </span>
                         <span style={{ fontWeight: 600 }}>{item.desc || '내용 없음'}</span>
                         <span className={item.linkedTxId ? 'diagonal-strike' : ''} style={{ 
@@ -492,8 +493,11 @@ export default function TransactionPage() {
               <div className="td-cat">
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {tx.splitItems && tx.splitItems.length > 0
-                    ? [...new Set(tx.splitItems.map(item => item.category).filter(Boolean))].join(', ') || '분할'
-                    : <><span style={{ fontSize: 13 }}>{CATEGORY_ICONS[tx.category] || '📌'}</span> {tx.category}</>}
+                    ? [...new Set(tx.splitItems.map(item => normalizeCategory(item.category, tx.type)).filter(Boolean))].join(', ') || '분할'
+                    : (() => {
+                        const normCat = normalizeCategory(tx.category, tx.type);
+                        return <><span style={{ fontSize: 13 }}>{CATEGORY_ICONS[normCat] || '📌'}</span> {normCat}</>;
+                      })()}
                 </span>
                 <span className="text-muted" style={{ fontSize: 11, display: 'block' }}>
                   {tx.splitItems && tx.splitItems.length > 0
