@@ -46,14 +46,25 @@ export default function TransactionPage({ openExcelImport }) {
   }, [transactions, yearFilter]);
 
   const categories = useMemo(() => {
-    const set = new Set();
+    const ORDER = [
+      '전체',
+      '회비수익',
+      '사업수익',
+      '기타수익',
+      '임차료',
+      '외주비',
+      '소모품비',
+      '비품',
+      '복리후생비'
+    ];
+    const presentCats = new Set();
     transactions.forEach(tx => {
       if (typeFilter === '전체' || (typeFilter === '수입' ? tx.type === 'income' : tx.type === 'expense')) {
         const normCat = normalizeCategory(tx.category || '기타', tx.type);
-        set.add(normCat);
+        presentCats.add(normCat);
       }
     });
-    return ['전체', ...[...set].sort()];
+    return ORDER.filter(cat => cat === '전체' || presentCats.has(cat));
   }, [transactions, typeFilter]);
 
   // 수입/지출 탭 변경시 계정과목 필터 초기화
