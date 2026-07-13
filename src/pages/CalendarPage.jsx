@@ -34,6 +34,7 @@ export default function CalendarPage() {
   const [selectedSongMembers, setSelectedSongMembers] = useState([]);
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
 
   const handleToggleMember = (memberName) => {
     setSelectedSongMembers(prev => 
@@ -409,7 +410,48 @@ export default function CalendarPage() {
               </div>
               
               <div>
-                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>참여 부원 선택</label>
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>참여 부원 선택 (활동 부원만 대상)</label>
+                
+                {/* 1. 선택된 부원 칩(Chip) 영역 */}
+                {selectedSongMembers.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    {selectedSongMembers.map(name => (
+                      <span key={name} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                        backgroundColor: 'var(--blue-50)',
+                        color: 'var(--blue-600)',
+                        fontSize: 11,
+                        fontWeight: 700
+                      }}>
+                        {name}
+                        <button type="button" onClick={() => handleToggleMember(name)} style={{ background: 'none', border: 'none', color: 'var(--blue-400)', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 'bold', lineHeight: 1 }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2. 이름 검색창 */}
+                <input
+                  type="text"
+                  value={memberSearchQuery}
+                  onChange={e => setMemberSearchQuery(e.target.value)}
+                  placeholder="🔍 이름으로 부원 검색..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    border: '1px solid var(--slate-200)',
+                    fontSize: 12,
+                    marginBottom: 6,
+                    outline: 'none'
+                  }}
+                />
+
+                {/* 3. 필터링된 체크박스 리스트 */}
                 <div style={{
                   maxHeight: '120px',
                   overflowY: 'auto',
@@ -421,20 +463,29 @@ export default function CalendarPage() {
                   gap: 6,
                   background: '#ffffff'
                 }}>
-                  {members && members.length > 0 ? (
-                    members.map(m => (
-                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedSongMembers.includes(m.name)}
-                          onChange={() => handleToggleMember(m.name)}
-                        />
-                        <span>{m.name} ({m.part})</span>
-                      </label>
-                    ))
-                  ) : (
-                    <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>등록된 회원이 없습니다. 회원 관리에서 먼저 추가해 주세요.</span>
-                  )}
+                  {(() => {
+                    // 탈퇴한 부원은 제외 (active 상태만 추출)
+                    const activeMembers = (members || []).filter(m => m.status === 'active');
+                    // 검색어 필터링
+                    const filtered = activeMembers.filter(m => 
+                      m.name.toLowerCase().includes(memberSearchQuery.toLowerCase())
+                    );
+
+                    if (filtered.length > 0) {
+                      return filtered.map(m => (
+                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSongMembers.includes(m.name)}
+                            onChange={() => handleToggleMember(m.name)}
+                          />
+                          <span>{m.name} ({m.part})</span>
+                        </label>
+                      ));
+                    } else {
+                      return <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없거나 회원이 없습니다.</span>;
+                    }
+                  })()}
                 </div>
               </div>
 
