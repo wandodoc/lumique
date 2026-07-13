@@ -198,27 +198,21 @@ export default function CalendarPage() {
   return (
     <div className="page fade-in">
       {/* 서브 탭 네비게이션 */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--slate-200)', paddingBottom: 8 }}>
+      <div className="calendar-tabs">
         {[
-          { id: 'calendar', label: '📅 연습/공연 캘린더' },
-          { id: 'songs', label: '🎼 곡 마스터 관리' },
-          { id: 'settlement', label: '💸 연습실 월말 정산 센터' }
+          { id: 'calendar', label: '📅 캘린더' },
+          { id: 'songs', label: '🎼 셋리스트' },
+          { id: 'settlement', label: '💸 월말 정산' }
         ].map(tab => (
           <button key={tab.id}
             onClick={() => {
               setActiveSubTab(tab.id);
               if (tab.id === 'calendar') setFilterSongId(''); // 캘린더 이동 시 필터 리셋
             }}
+            className="calendar-tab-btn"
             style={{
-              padding: '10px 16px',
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              border: 'none',
-              cursor: 'pointer',
               background: activeSubTab === tab.id ? 'var(--blue-500)' : 'transparent',
-              color: activeSubTab === tab.id ? '#ffffff' : 'var(--slate-500)',
-              transition: 'all 0.2s'
+              color: activeSubTab === tab.id ? '#ffffff' : 'var(--slate-500)'
             }}
           >
             {tab.label}
