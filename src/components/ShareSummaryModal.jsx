@@ -121,8 +121,8 @@ export default function ShareSummaryModal({ onClose }) {
     return { total, dance, voiceSession, common };
   }, [targetIncomes, state.members]);
 
-  // 기타 수입 그룹화
-  const otherIncomesSummary = useMemo(() => {
+  // 회비수익을 제외한 기타 입금 거래들 평탄화 (상계/반환 반영)
+  const otherIncomesList = useMemo(() => {
     const otherTxs = targetIncomes.filter(t => {
       const cat = normalizeCategory(t.category, t.type);
       if (cat === '회비수익') {
@@ -137,17 +137,50 @@ export default function ShareSummaryModal({ onClose }) {
       }
       return true;
     });
-    
-    const groups = {};
-    otherTxs.forEach(t => {
+
+    return otherTxs.flatMap(t => {
+      const isRefund = isRefundTx(t, txMap);
+      const multiplier = isRefund ? -1 : 1;
       let cat = normalizeCategory(t.category, t.type);
-      if (cat === '회비수익') cat = '기타수익'; // 잘못 분류된 회비나 가입 외 기간 회비는 기타수익으로
-      else if (t.description.includes('이자')) cat = '기타수익'; // 이자도 '기타수익'으로 표준화
-      
-      groups[cat] = (groups[cat] || 0) + getValidAmount(t);
-    });
-    return Object.entries(groups).map(([cat, amount]) => ({ cat, amount }));
-  }, [targetIncomes, state.members]);
+      if (cat === '회비수익') cat = '기타수익';
+      else if (t.description.includes('이자')) cat = '기타수익';
+
+      if (t.splitItems && t.splitItems.length > 0) {
+        return t.splitItems.map(it => ({
+          category: it.category || cat,
+          desc: it.desc || t.note || t.description,
+          amount: (Number(it.amount) || 0) * multiplier
+        }));
+      }
+      return [{
+        category: cat,
+        desc: t.note || t.description,
+        amount: (Number(t.amount) || 0) * multiplier
+      }];
+    }).filter(item => item.amount !== 0);
+  }, [targetIncomes, state.members, txMap]);
+
+  // 출금 거래들 평탄화 (상계/반환 반영)
+  const otherExpensesList = useMemo(() => {
+    return targetExpenses.flatMap(t => {
+      const isRefund = isRefundTx(t, txMap);
+      const multiplier = isRefund ? -1 : 1;
+      const cat = normalizeCategory(t.category, t.type);
+
+      if (t.splitItems && t.splitItems.length > 0) {
+        return t.splitItems.map(it => ({
+          category: it.category || cat || '소모품비',
+          desc: it.desc || t.note || t.description,
+          amount: (Number(it.amount) || 0) * multiplier
+        }));
+      }
+      return [{
+        category: cat || '소모품비',
+        desc: t.note || t.description,
+        amount: (Number(t.amount) || 0) * multiplier
+      }];
+    }).filter(item => item.amount !== 0);
+  }, [targetExpenses, txMap]);
 
   // 특정 달의 회비 기준액 계산
   const targetMonthlyBasis = useMemo(() => {
@@ -230,15 +263,15 @@ export default function ShareSummaryModal({ onClose }) {
         statusText = ` (기준 ${targetMonthlyBasis.toLocaleString()}원)`;
       }
 
-      txt += `${incIdx}. 회비 ${duesSummary.total.toLocaleString()}원${statusText}\n`;
+      txt += `${incIdx}. 회비수익 ${duesSummary.total.toLocaleString()}원${statusText}\n`;
       if (duesSummary.dance > 0) txt += `- 댄스 ${duesSummary.dance.toLocaleString()}원\n`;
       if (duesSummary.voiceSession > 0) txt += `- 보컬/세션 ${duesSummary.voiceSession.toLocaleString()}원\n`;
       if (duesSummary.common > 0) txt += `- 공통 ${duesSummary.common.toLocaleString()}원\n`;
       incIdx++;
     }
 
-    otherIncomesSummary.forEach(item => {
-      txt += `${incIdx}. ${item.cat} ${item.amount.toLocaleString()}원\n`;
+    otherIncomesList.forEach(item => {
+      txt += `${incIdx}. ${item.category} (${item.desc}) ${item.amount.toLocaleString()}원\n`;
       incIdx++;
     });
 
@@ -246,22 +279,18 @@ export default function ShareSummaryModal({ onClose }) {
 
     txt += `\n📍 ${targetMonthNum}월 출금 내역\n`;
     
-    if (expenseSummaryByCategory.length === 0) {
+    if (otherExpensesList.length === 0) {
       txt += `출금 내역 없음\n`;
     } else {
-      expenseSummaryByCategory.forEach((item, idx) => {
-        txt += `${idx + 1}. ${item.category}\n`;
-        item.list.forEach(t => {
-          txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
-        });
-        txt += `\n`;
+      otherExpensesList.forEach((item, idx) => {
+        txt += `${idx + 1}. ${item.category} (${item.desc}) ${item.amount.toLocaleString()}원\n`;
       });
     }
 
     txt += `\n🔗 https://lumique-beta.vercel.app/`;
 
     return txt.trim();
-  }, [dateStr, targetMonthNum, targetNet, duesSummary, otherIncomesSummary, expenseSummaryByCategory, targetIncomes, targetMonthlyBasis]);
+  }, [dateStr, targetMonthNum, duesSummary, otherIncomesList, otherExpensesList, targetIncomes, targetExpenses, targetMonthlyBasis]);
 
   // 텍스트 복사 핸들러
   const handleCopyText = async () => {
