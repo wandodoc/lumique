@@ -20,6 +20,29 @@ export default function ShareSummaryModal({ onClose }) {
 
   // 기본값으로 가장 최근 월 설정
   const [targetYm, setTargetYm] = useState(availableMonths[0] || '');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // targetYm 이 바뀔 때마다 시작일/종료일 동적 설정
+  useEffect(() => {
+    if (!targetYm) return;
+    const [y, m] = targetYm.split('-').map(Number);
+    const start = `${targetYm}-01`;
+    
+    const today = new Date();
+    let end = '';
+    if (today.getFullYear() === y && (today.getMonth() + 1) === m) {
+      const dayStr = String(today.getDate()).padStart(2, '0');
+      end = `${targetYm}-${dayStr}`;
+    } else {
+      const lastDay = new Date(y, m, 0).getDate();
+      const lastDayStr = String(lastDay).padStart(2, '0');
+      end = `${targetYm}-${lastDayStr}`;
+    }
+    
+    setStartDate(start);
+    setEndDate(end);
+  }, [targetYm]);
 
   const cardRef = useRef(null);
   const [copyStatus, setCopyStatus] = useState(''); // '', 'text', 'image', 'error'
@@ -64,22 +87,26 @@ export default function ShareSummaryModal({ onClose }) {
     return map;
   }, [transactions]);
 
-  // 수입/지출 합계 및 내역 집계
+  // 수입/지출 합계 및 내역 집계 (시작일~종료일 범위 기준)
   const targetIncomes = useMemo(() => {
+    if (!startDate || !endDate) return [];
     return transactions.filter(t => {
-      if (!t.datetime.startsWith(targetYm)) return false;
+      const txDate = t.datetime.slice(0, 10);
+      if (txDate < startDate || txDate > endDate) return false;
       const isRefund = isRefundTx(t, txMap);
       return (t.type === 'income' && !isRefund) || (t.type === 'expense' && isRefund);
     });
-  }, [transactions, targetYm, txMap]);
+  }, [transactions, startDate, endDate, txMap]);
 
   const targetExpenses = useMemo(() => {
+    if (!startDate || !endDate) return [];
     return transactions.filter(t => {
-      if (!t.datetime.startsWith(targetYm)) return false;
+      const txDate = t.datetime.slice(0, 10);
+      if (txDate < startDate || txDate > endDate) return false;
       const isRefund = isRefundTx(t, txMap);
       return (t.type === 'expense' && !isRefund) || (t.type === 'income' && isRefund);
     });
-  }, [transactions, targetYm, txMap]);
+  }, [transactions, startDate, endDate, txMap]);
 
   // 유효한 금액 계산 (상계/반환 항목은 음수로 처리)
   const getValidAmount = (tx) => {
@@ -304,24 +331,20 @@ export default function ShareSummaryModal({ onClose }) {
     }).filter(catData => catData.total > 0);
   }, [otherExpensesList]);
 
-  // 1. 텍스트 요약문 생성 (당월 데이터만 콤팩트하게 포함)
+  // 1. 텍스트 요약문 생성 (선택한 기간 데이터만 포함)
   const summaryText = useMemo(() => {
+    if (!startDate || !endDate) return '';
+    
     const incTotal = targetIncomes.reduce((s, t) => s + getValidAmount(t), 0);
     const expTotal = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     const netTotal = incTotal - expTotal;
 
-    // YYYY/MM/DD ~ YYYY/MM/DD 날짜 범위 구하기
-    const [year, month] = targetYm.split('-').map(Number);
-    const startStr = `${year}/${String(month).padStart(2, '0')}/01`;
-    
-    const today = new Date();
-    let endStr = '';
-    if (today.getFullYear() === year && (today.getMonth() + 1) === month) {
-      endStr = `${year}/${String(month).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
-    } else {
-      const lastDay = new Date(year, month, 0).getDate();
-      endStr = `${year}/${String(month).padStart(2, '0')}/${String(lastDay).padStart(2, '0')}`;
-    }
+    const startStr = startDate.replace(/-/g, '/');
+    const endStr = endDate.replace(/-/g, '/');
+
+    const startMonth = parseInt(startDate.split('-')[1], 10) || 0;
+    const endMonth = parseInt(endDate.split('-')[1], 10) || 0;
+    const periodMonthNumStr = startMonth === endMonth ? `${startMonth}월` : `${startMonth}~${endMonth}월`;
 
     let txt = `📊 루미크 재정 요약 (${startStr} ~ ${endStr} 기준)\n`;
     txt += `💰 총수입: +${incTotal.toLocaleString()}원\n`;
@@ -332,7 +355,7 @@ export default function ShareSummaryModal({ onClose }) {
       txt += `🪙 순지출: -${Math.abs(netTotal).toLocaleString()}원\n\n`;
     }
 
-    txt += `📍 ${targetMonthNum}월 입금 내역\n`;
+    txt += `📍 ${periodMonthNumStr} 입금 내역\n`;
     let incIdx = 1;
     let hasIncome = false;
 
@@ -375,7 +398,7 @@ export default function ShareSummaryModal({ onClose }) {
       txt += `입금 내역 없음\n`;
     }
 
-    txt += `\n📍 ${targetMonthNum}월 출금 내역\n`;
+    txt += `\n📍 ${periodMonthNumStr} 출금 내역\n`;
     
     if (expenseDetails.length === 0) {
       txt += `출금 내역 없음\n`;
@@ -391,7 +414,7 @@ export default function ShareSummaryModal({ onClose }) {
     txt += `\n🔗 https://lumique-beta.vercel.app/`;
 
     return txt.trim();
-  }, [targetYm, targetMonthNum, duesSummary, incomeDetails, expenseDetails, targetIncomes, targetExpenses, targetMonthlyBasis]);
+  }, [startDate, endDate, duesSummary, incomeDetails, expenseDetails, targetIncomes, targetExpenses, targetMonthlyBasis]);
 
   // 텍스트 복사 핸들러
   const handleCopyText = async () => {
@@ -600,16 +623,33 @@ export default function ShareSummaryModal({ onClose }) {
 
         {/* 헤더 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📊 월별 요약 공유</h3>
+          <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📊 기간별 요약 공유</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--slate-400)' }}>✕</button>
         </div>
 
         {/* 선택 옵션 */}
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 6 }}>공유 대상 월 선택</label>
-          <select value={targetYm} onChange={e => setTargetYm(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10 }}>
+          <select value={targetYm} onChange={e => setTargetYm(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10, marginBottom: 12 }}>
             {availableMonths.map(m => <option key={m} value={m}>{m.replace('-', '년 ')}월</option>)}
           </select>
+          
+          <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 6 }}>자유 기간 선택</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={e => setStartDate(e.target.value)} 
+              style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10, fontSize: 13, color: 'var(--slate-700)', backgroundColor: '#ffffff' }}
+            />
+            <span style={{ color: 'var(--slate-400)', fontWeight: 600 }}>~</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={e => setEndDate(e.target.value)} 
+              style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10, fontSize: 13, color: 'var(--slate-700)', backgroundColor: '#ffffff' }}
+            />
+          </div>
         </div>
 
         {/* 탭 / 컨트롤 버튼 */}
@@ -639,7 +679,7 @@ export default function ShareSummaryModal({ onClose }) {
             textAlign: 'center',
             marginBottom: 16
           }}>
-            {copyStatus === 'text' && '📋 텍스트 요약이 클립보드에 복사되었습니다!'}
+            {copyStatus === 'text' && '📋 지정된 기간의 공유 텍스트가 클립보드에 복사되었습니다!'}
             {copyStatus === 'image' && '🖼️ 요약 카드 이미지가 클립보드에 복사되었습니다!'}
             {copyStatus === 'fallback_download' && '⚠️ 브라우저 보안 정책(포커스 제한)으로 인해 이미지 파일이 다운로드되었습니다!'}
             {copyStatus === 'error' && '❌ 클립보드 복사에 실패했습니다. 브라우저 설정을 확인해주세요.'}
