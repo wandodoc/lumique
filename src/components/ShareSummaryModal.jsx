@@ -247,11 +247,10 @@ export default function ShareSummaryModal({ onClose }) {
     });
   }, [priorExpenses, targetExpenses]);
 
-  // 1. 텍스트 요약문 생성
+  // 1. 텍스트 요약문 생성 (당월 데이터만 콤팩트하게 포함)
   const summaryText = useMemo(() => {
-    let txt = `${dateStr} 기준\n`;
-    txt += `${priorMonthNum}월 ${priorNet >= 0 ? '+' : ''}${priorNet.toLocaleString()}원\n`;
-    txt += `${targetMonthNum}월 ${targetNet >= 0 ? '+' : ''}${targetNet.toLocaleString()}원\n\n`;
+    let txt = `${targetMonthNum}월 재정 요약 (${dateStr} 기준)\n`;
+    txt += `이번 달 순수입: ${targetNet >= 0 ? '+' : ''}${targetNet.toLocaleString()}원\n\n`;
 
     txt += `📍 ${targetMonthNum}월 입금 내역\n`;
     let incIdx = 1;
@@ -277,24 +276,19 @@ export default function ShareSummaryModal({ onClose }) {
 
     if (targetIncomes.length === 0) txt += `입금 내역 없음\n`;
 
-    txt += `\n📍 ${priorMonthNum}~${targetMonthNum}월 출금 내역\n`;
-    if (expenseSummaryByCategory.length === 0) {
+    txt += `\n📍 ${targetMonthNum}월 출금 내역\n`;
+    
+    // 당월 리스트가 있는 카테고리만 필터링
+    const targetExpensesOnly = expenseSummaryByCategory.filter(item => item.targetList.length > 0);
+    
+    if (targetExpensesOnly.length === 0) {
       txt += `출금 내역 없음\n`;
     } else {
-      expenseSummaryByCategory.forEach((item, idx) => {
+      targetExpensesOnly.forEach((item, idx) => {
         txt += `${idx + 1}. ${item.category}\n`;
-        if (item.priorList.length > 0) {
-          txt += `[${priorMonthNum}월]\n`;
-          item.priorList.forEach(t => {
-            txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
-          });
-        }
-        if (item.targetList.length > 0) {
-          txt += `[${targetMonthNum}월]\n`;
-          item.targetList.forEach(t => {
-            txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
-          });
-        }
+        item.targetList.forEach(t => {
+          txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
+        });
         txt += `\n`;
       });
     }
@@ -302,7 +296,7 @@ export default function ShareSummaryModal({ onClose }) {
     txt += `\n🔗 https://lumique-beta.vercel.app/`;
 
     return txt.trim();
-  }, [dateStr, priorMonthNum, targetMonthNum, priorNet, targetNet, duesSummary, otherIncomesSummary, expenseSummaryByCategory, targetIncomes]);
+  }, [dateStr, targetMonthNum, targetNet, duesSummary, otherIncomesSummary, expenseSummaryByCategory, targetIncomes]);
 
   // 텍스트 복사 핸들러
   const handleCopyText = async () => {
