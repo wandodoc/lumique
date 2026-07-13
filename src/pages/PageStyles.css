@@ -382,19 +382,42 @@
   }
 }
 
-.calendar-header-controls {
+/* 캘린더 최상위 헤더 컨테이너 */
+.calendar-main-header {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (min-width: 640px) {
+  .calendar-main-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
 }
 
+.calendar-header-controls {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+}
 @media (min-width: 640px) {
   .calendar-header-controls {
-    flex-direction: row;
+    width: auto;
     justify-content: flex-end;
     align-items: center;
     gap: 12px;
+  }
+}
+
+@media (max-width: 639px) {
+  .calendar-select, .calendar-btn {
+    flex: 1;
+    width: 50%;
+    min-width: 0 !important;
   }
 }
 

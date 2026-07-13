@@ -223,7 +223,7 @@ export default function CalendarPage() {
       {/* --- 1. 연습/공연 캘린더 탭 --- */}
       {activeSubTab === 'calendar' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div className="calendar-main-header">
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>📅 연습 & 공연 캘린더</h2>
             
             <div className="calendar-header-controls">
