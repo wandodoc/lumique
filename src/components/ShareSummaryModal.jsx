@@ -212,31 +212,59 @@ export default function ShareSummaryModal({ onClose }) {
     return basis;
   }, [state.members, targetYm]);
 
-  // 출금 내역 평탄화 및 그룹화 (상계/반환 반영)
-  const expenseSummaryByCategory = useMemo(() => {
-    const flatTarget = targetExpenses.flatMap(tx => {
-      const isRefund = isRefundTx(tx, txMap);
-      const multiplier = isRefund ? -1 : 1;
-      if (tx.splitItems && tx.splitItems.length > 0) {
-        return tx.splitItems.map(it => ({
-          category: it.category || tx.category || '소모품',
-          desc: it.desc || tx.note || tx.description,
-          amount: (Number(it.amount) || 0) * multiplier
-        }));
+  // 회비수익 외 기타 수입 카테고리별 그룹화 요약
+  const groupedIncomes = useMemo(() => {
+    const groups = {};
+    otherIncomesList.forEach(item => {
+      if (!groups[item.category]) {
+        groups[item.category] = { category: item.category, amount: 0, descs: [] };
       }
-      return [{
-        category: tx.category || '소모품',
-        desc: tx.note || tx.description,
-        amount: (Number(tx.amount) || 0) * multiplier
-      }];
-    }).filter(t => t.amount !== 0);
-
-    const categories = Array.from(new Set(flatTarget.map(t => t.category)));
-    return categories.map(cat => {
-      const list = flatTarget.filter(t => t.category === cat);
-      return { category: cat, list };
+      groups[item.category].amount += item.amount;
+      if (item.desc) groups[item.category].descs.push(item.desc);
     });
-  }, [targetExpenses, txMap]);
+
+    return Object.values(groups).map(g => {
+      const uniqueDescs = Array.from(new Set(g.descs)).filter(Boolean);
+      let descStr = '';
+      if (uniqueDescs.length > 3) {
+        descStr = uniqueDescs.slice(0, 3).join(', ') + ` 등 ${uniqueDescs.length}건`;
+      } else {
+        descStr = uniqueDescs.join(', ');
+      }
+      return {
+        category: g.category,
+        amount: g.amount,
+        descStr
+      };
+    });
+  }, [otherIncomesList]);
+
+  // 출금 카테고리별 그룹화 요약
+  const groupedExpenses = useMemo(() => {
+    const groups = {};
+    otherExpensesList.forEach(item => {
+      if (!groups[item.category]) {
+        groups[item.category] = { category: item.category, amount: 0, descs: [] };
+      }
+      groups[item.category].amount += item.amount;
+      if (item.desc) groups[item.category].descs.push(item.desc);
+    });
+
+    return Object.values(groups).map(g => {
+      const uniqueDescs = Array.from(new Set(g.descs)).filter(Boolean);
+      let descStr = '';
+      if (uniqueDescs.length > 3) {
+        descStr = uniqueDescs.slice(0, 3).join(', ') + ` 등 ${uniqueDescs.length}건`;
+      } else {
+        descStr = uniqueDescs.join(', ');
+      }
+      return {
+        category: g.category,
+        amount: g.amount,
+        descStr
+      };
+    });
+  }, [otherExpensesList]);
 
   // 1. 텍스트 요약문 생성 (당월 데이터만 콤팩트하게 포함)
   const summaryText = useMemo(() => {
@@ -270,8 +298,9 @@ export default function ShareSummaryModal({ onClose }) {
       incIdx++;
     }
 
-    otherIncomesList.forEach(item => {
-      txt += `${incIdx}. ${item.category} (${item.desc}) ${item.amount.toLocaleString()}원\n`;
+    groupedIncomes.forEach(item => {
+      const descPart = item.descStr ? ` (${item.descStr})` : '';
+      txt += `${incIdx}. ${item.category}${descPart} ${item.amount.toLocaleString()}원\n`;
       incIdx++;
     });
 
@@ -279,18 +308,19 @@ export default function ShareSummaryModal({ onClose }) {
 
     txt += `\n📍 ${targetMonthNum}월 출금 내역\n`;
     
-    if (otherExpensesList.length === 0) {
+    if (groupedExpenses.length === 0) {
       txt += `출금 내역 없음\n`;
     } else {
-      otherExpensesList.forEach((item, idx) => {
-        txt += `${idx + 1}. ${item.category} (${item.desc}) ${item.amount.toLocaleString()}원\n`;
+      groupedExpenses.forEach((item, idx) => {
+        const descPart = item.descStr ? ` (${item.descStr})` : '';
+        txt += `${idx + 1}. ${item.category}${descPart} ${item.amount.toLocaleString()}원\n`;
       });
     }
 
     txt += `\n🔗 https://lumique-beta.vercel.app/`;
 
     return txt.trim();
-  }, [dateStr, targetMonthNum, duesSummary, otherIncomesList, otherExpensesList, targetIncomes, targetExpenses, targetMonthlyBasis]);
+  }, [dateStr, targetMonthNum, duesSummary, groupedIncomes, groupedExpenses, targetIncomes, targetExpenses, targetMonthlyBasis]);
 
   // 텍스트 복사 핸들러
   const handleCopyText = async () => {
@@ -378,13 +408,12 @@ export default function ShareSummaryModal({ onClose }) {
     });
     topIncomes.sort((a, b) => b.amount - a.amount);
     
-    const topExpenses = expenseSummaryByCategory.map(item => {
-      const sum = item.list.reduce((s, t) => s + t.amount, 0);
-      return { cat: item.category, amount: sum };
+    const topExpenses = groupedExpenses.map(item => {
+      return { cat: item.category, amount: item.amount };
     }).filter(i => i.amount > 0).sort((a, b) => b.amount - a.amount);
 
     return { realTotalBalance, realPartBalances, targetIncomeTotal, targetExpenseTotal, topIncomes, topExpenses };
-  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesList, expenseSummaryByCategory]);
+  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesList, groupedExpenses]);
 
   const renderCardContent = (refToUse = null) => (
     <div ref={refToUse} style={{
