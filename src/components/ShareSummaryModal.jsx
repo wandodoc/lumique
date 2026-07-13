@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatKRW, getDuesStartMonth, calcPartBalances, isRefundTx } from '../utils/calculations';
+import { formatKRW, getDuesStartMonth, calcPartBalances, isRefundTx, normalizeCategory } from '../utils/calculations';
 import { toPng } from 'html-to-image';
 
 export default function ShareSummaryModal({ onClose }) {
