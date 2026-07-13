@@ -203,6 +203,15 @@ export function formatDiff(diff) {
 export function normalizeCategory(category, type) {
   const cat = category ? category.trim() : '기타';
   
+  // 이미 8대 표준 계정과목인 경우, 그대로 즉시 반환하여 값의 유실을 방지합니다.
+  const STANDARD_CATEGORIES = [
+    '회비수익', '사업수익', '기타수익',
+    '임차료', '비품', '외주비', '소모품비', '복리후생비'
+  ];
+  if (STANDARD_CATEGORIES.includes(cat)) {
+    return cat;
+  }
+  
   if (type === 'income') {
     if (cat === '회비' || cat.includes('회비') || cat.includes('가입비')) {
       return '회비수익';
