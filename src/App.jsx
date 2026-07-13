@@ -341,9 +341,6 @@ function AppInner() {
           );
         })}
       </nav>
-
-      {!showExcelModal && <button className="fab fab-pc-only" onClick={handleAddClick} title="새 거래 추가">＋</button>}
-
       {showPwdModal && <ChangePwdModal onClose={() => setShowPwdModal(false)} />}
       {showLoginModal && <LoginModal />}
       {showExcelModal && <ExcelImportModal onClose={() => setShowExcelModal(false)} />}
