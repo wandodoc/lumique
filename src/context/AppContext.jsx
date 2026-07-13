@@ -49,7 +49,19 @@ function reducer(state, action) {
     case 'BATCH_UPDATE_TRANSACTIONS': {
       const updatesMap = new Map(action.updates.map(u => [u.id, u]));
       const txs = state.transactions.map(t => {
-        if (updatesMap.has(t.id)) return { ...t, ...updatesMap.get(t.id) };
+        if (updatesMap.has(t.id)) {
+          const update = updatesMap.get(t.id);
+          const updatedTx = { ...t, ...update };
+          if (updatedTx.splitItems && updatedTx.splitItems.length > 0) {
+            updatedTx.splitItems = updatedTx.splitItems.map(item => {
+              const newItem = { ...item };
+              if (update.category) newItem.category = update.category;
+              if (update.part) newItem.part = update.part;
+              return newItem;
+            });
+          }
+          return updatedTx;
+        }
         return t;
       });
       return { ...state, transactions: txs, lastUpdated: new Date().toISOString() };
