@@ -207,8 +207,18 @@ export default function ShareSummaryModal({ onClose }) {
 
   // 1. 텍스트 요약문 생성 (당월 데이터만 콤팩트하게 포함)
   const summaryText = useMemo(() => {
-    let txt = `${targetMonthNum}월 재정 요약 (${dateStr} 기준)\n`;
-    txt += `이번 달 순수입: ${targetNet >= 0 ? '+' : ''}${targetNet.toLocaleString()}원\n\n`;
+    const incTotal = targetIncomes.reduce((s, t) => s + getValidAmount(t), 0);
+    const expTotal = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
+    const netTotal = incTotal - expTotal;
+
+    let txt = `📊 ${targetMonthNum}월 재정 요약 (${dateStr} 기준)\n`;
+    txt += `💰 총수입: +${incTotal.toLocaleString()}원\n`;
+    txt += `💸 총지출: -${expTotal.toLocaleString()}원\n`;
+    if (netTotal >= 0) {
+      txt += `🪙 순수입: +${netTotal.toLocaleString()}원\n\n`;
+    } else {
+      txt += `🪙 순지출: -${Math.abs(netTotal).toLocaleString()}원\n\n`;
+    }
 
     txt += `📍 ${targetMonthNum}월 입금 내역\n`;
     let incIdx = 1;
