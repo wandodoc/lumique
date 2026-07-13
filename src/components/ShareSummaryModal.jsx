@@ -365,8 +365,17 @@ export default function ShareSummaryModal({ onClose }) {
     const targetExpenseTotal = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     
     const topIncomes = [];
-    if (duesSummary.total > 0) topIncomes.push({ cat: '회비', amount: duesSummary.total });
-    otherIncomesSummary.forEach(i => { if (i.amount > 0) topIncomes.push({ cat: i.cat, amount: i.amount }) });
+    if (duesSummary.total > 0) topIncomes.push({ cat: '회비수익', amount: duesSummary.total });
+    
+    const otherIncomesGrouped = {};
+    otherIncomesList.forEach(item => {
+      otherIncomesGrouped[item.category] = (otherIncomesGrouped[item.category] || 0) + item.amount;
+    });
+    Object.entries(otherIncomesGrouped).forEach(([cat, amount]) => {
+      if (amount > 0) {
+        topIncomes.push({ cat, amount });
+      }
+    });
     topIncomes.sort((a, b) => b.amount - a.amount);
     
     const topExpenses = expenseSummaryByCategory.map(item => {
@@ -375,7 +384,7 @@ export default function ShareSummaryModal({ onClose }) {
     }).filter(i => i.amount > 0).sort((a, b) => b.amount - a.amount);
 
     return { realTotalBalance, realPartBalances, targetIncomeTotal, targetExpenseTotal, topIncomes, topExpenses };
-  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesSummary, expenseSummaryByCategory]);
+  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesList, expenseSummaryByCategory]);
 
   const renderCardContent = (refToUse = null) => (
     <div ref={refToUse} style={{
