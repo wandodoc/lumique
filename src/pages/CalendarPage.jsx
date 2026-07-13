@@ -301,11 +301,15 @@ export default function CalendarPage() {
                     return matchDate && matchSong;
                   });
 
+                  const todayObj = new Date();
+                  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+                  const isToday = dateStr === todayStr;
+
                   return (
                     <div key={`day-${day}`} style={{
                       aspectRatio: '1',
-                      background: '#ffffff',
-                      border: '1px solid var(--slate-100)',
+                      background: isToday ? 'var(--blue-50)' : '#ffffff',
+                      border: isToday ? '2px solid var(--blue-500)' : '1px solid var(--slate-100)',
                       borderRadius: 8,
                       padding: 4,
                       display: 'flex',
