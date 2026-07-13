@@ -232,20 +232,21 @@ export default function CalendarPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>📅 연습 & 공연 캘린더</h2>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div className="calendar-header-controls">
               {/* 곡별 필터 드롭다운 */}
               <select
                 value={filterSongId}
                 onChange={e => setFilterSongId(e.target.value)}
                 style={{
-                  padding: '8px 12px',
+                  padding: '10px 14px',
                   border: '1px solid var(--slate-200)',
                   borderRadius: 8,
                   fontSize: 13,
                   fontWeight: 600,
                   color: 'var(--slate-700)',
                   background: '#ffffff',
-                  outline: 'none'
+                  outline: 'none',
+                  minWidth: '150px'
                 }}
               >
                 <option value="">🚫 전체 곡 보기</option>
@@ -254,15 +255,15 @@ export default function CalendarPage() {
                 ))}
               </select>
 
-              <button className="btn-primary" onClick={() => setShowAddActModal(true)}>
+              <button className="btn-primary" onClick={() => setShowAddActModal(true)} style={{ padding: '10px 18px' }}>
                 + 일정 등록
               </button>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+          <div className="calendar-grid-container">
             {/* 달력 판넬 */}
-            <div className="card card-pad">
+            <div className="card card-pad calendar-left-card">
               <div className="flex-between" style={{ marginBottom: 16 }}>
                 <span className="card-title" style={{ fontSize: 16, margin: 0 }}>
                   {calYear}년 {calMonth}월
@@ -310,8 +311,8 @@ export default function CalendarPage() {
                   return (
                     <div key={`day-${day}`} style={{
                       aspectRatio: '1',
-                      background: isToday ? 'var(--blue-50)' : '#ffffff',
-                      border: isToday ? '2px solid var(--blue-500)' : '1px solid var(--slate-100)',
+                      background: isToday ? '#eff6ff' : '#ffffff',
+                      border: isToday ? '2px solid #3b82f6' : '1px solid var(--slate-100)',
                       borderRadius: 8,
                       padding: 4,
                       display: 'flex',
@@ -319,7 +320,7 @@ export default function CalendarPage() {
                       justifyContent: 'space-between',
                       position: 'relative'
                     }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--slate-600)' }}>{day}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? '#1d4ed8' : 'var(--slate-600)' }}>{day}</span>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                         {dayActs.map(act => (
                           <span key={act.id} style={{
@@ -337,14 +338,16 @@ export default function CalendarPage() {
             </div>
 
             {/* 일정 리스트 */}
-            <div className="card card-pad">
+            <div className="card card-pad calendar-right-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title" style={{ fontSize: 16 }}>일정 리스트 ({calYear}년 {calMonth}월)</span>
               {activities.filter(a => {
                 const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
                 const matchSong = filterSongId ? a.songId === filterSongId : true;
                 return matchMonth && matchSong;
               }).length === 0 ? (
-                <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 일정이 없습니다.</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: '300px', color: '#9ca3af', fontSize: '14px', fontWeight: '500', textAlign: 'center' }}>
+                  등록된 일정이 없습니다.
+                </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {activities

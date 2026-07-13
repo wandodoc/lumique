@@ -354,3 +354,47 @@
     margin: 20px;
   }
 }
+
+/* ===== 캘린더 반응형 레이아웃 추가 ===== */
+.calendar-grid-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.calendar-left-card {
+  grid-column: span 1 / span 1;
+}
+
+.calendar-right-card {
+  grid-column: span 1 / span 1;
+}
+
+@media (min-width: 1024px) {
+  .calendar-grid-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .calendar-left-card {
+    grid-column: span 2 / span 2;
+  }
+  .calendar-right-card {
+    grid-column: span 1 / span 1;
+  }
+}
+
+.calendar-header-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .calendar-header-controls {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
