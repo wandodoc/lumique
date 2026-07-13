@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
 import './PageStyles.css';
 
 export default function CalendarPage() {
+  const { members } = useApp();
   const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'settlement'
 
   // 1. 곡 마스터 데이터 (Clean State)
@@ -28,9 +30,17 @@ export default function CalendarPage() {
 
   // --- 곡 마스터 관련 상태 및 핸들러 ---
   const [songTitle, setSongTitle] = useState('');
-  const [songMembers, setSongMembers] = useState('');
+  const [selectedSongMembers, setSelectedSongMembers] = useState([]);
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
+
+  const handleToggleMember = (memberName) => {
+    setSelectedSongMembers(prev => 
+      prev.includes(memberName) 
+        ? prev.filter(m => m !== memberName) 
+        : [...prev, memberName]
+    );
+  };
 
   const handleAddSong = (e) => {
     e.preventDefault();
@@ -39,15 +49,15 @@ export default function CalendarPage() {
     const newSong = {
       id: `song-${Date.now()}`,
       title: songTitle.trim(),
-      members: songMembers.split(',').map(m => m.trim()).filter(Boolean),
-      memberCount: songMembers.split(',').map(m => m.trim()).filter(Boolean).length,
+      members: selectedSongMembers,
+      memberCount: selectedSongMembers.length,
       regularDay: songRegularDay,
       musicStatus: songStatus
     };
 
     saveSongs([...songs, newSong]);
     setSongTitle('');
-    setSongMembers('');
+    setSelectedSongMembers([]);
     setSongRegularDay('월요일');
     setSongStatus('시작전');
   };
@@ -68,6 +78,9 @@ export default function CalendarPage() {
   const [actBooker, setActBooker] = useState('');
   const [actStatus, setActStatus] = useState('해당없음');
   const [showAddActModal, setShowAddActModal] = useState(false);
+  
+  // 곡 필터 상태
+  const [filterSongId, setFilterSongId] = useState('');
 
   // 네오관 5회 대관 초과 검증 로직
   const checkNeoLimit = (dateStr, locationStr, currentActId = null) => {
@@ -189,7 +202,10 @@ export default function CalendarPage() {
           { id: 'settlement', label: '💸 연습실 월말 정산 센터' }
         ].map(tab => (
           <button key={tab.id}
-            onClick={() => setActiveSubTab(tab.id)}
+            onClick={() => {
+              setActiveSubTab(tab.id);
+              if (tab.id === 'calendar') setFilterSongId(''); // 캘린더 이동 시 필터 리셋
+            }}
             style={{
               padding: '10px 16px',
               borderRadius: 10,
@@ -212,9 +228,33 @@ export default function CalendarPage() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>📅 연습 & 공연 캘린더</h2>
-            <button className="btn-primary" onClick={() => setShowAddActModal(true)}>
-              + 일정 등록
-            </button>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {/* 곡별 필터 드롭다운 */}
+              <select
+                value={filterSongId}
+                onChange={e => setFilterSongId(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid var(--slate-200)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--slate-700)',
+                  background: '#ffffff',
+                  outline: 'none'
+                }}
+              >
+                <option value="">🚫 전체 곡 보기</option>
+                {songs.map(s => (
+                  <option key={s.id} value={s.id}>🎼 {s.title}</option>
+                ))}
+              </select>
+
+              <button className="btn-primary" onClick={() => setShowAddActModal(true)}>
+                + 일정 등록
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
@@ -225,6 +265,11 @@ export default function CalendarPage() {
                   {calYear}년 {calMonth}월
                 </span>
                 <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn-sm" onClick={() => {
+                    const today = new Date();
+                    setCalYear(today.getFullYear());
+                    setCalMonth(today.getMonth() + 1);
+                  }} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>오늘</button>
                   <button className="btn-sm" onClick={() => {
                     if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
                     else { setCalMonth(m => m - 1); }
@@ -249,7 +294,11 @@ export default function CalendarPage() {
                   }
 
                   const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  const dayActs = activities.filter(a => a.date === dateStr);
+                  const dayActs = activities.filter(a => {
+                    const matchDate = a.date === dateStr;
+                    const matchSong = filterSongId ? a.songId === filterSongId : true;
+                    return matchDate && matchSong;
+                  });
 
                   return (
                     <div key={`day-${day}`} style={{
@@ -283,12 +332,20 @@ export default function CalendarPage() {
             {/* 일정 리스트 */}
             <div className="card card-pad">
               <span className="card-title" style={{ fontSize: 16 }}>일정 리스트 ({calYear}년 {calMonth}월)</span>
-              {activities.filter(a => a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`).length === 0 ? (
+              {activities.filter(a => {
+                const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
+                const matchSong = filterSongId ? a.songId === filterSongId : true;
+                return matchMonth && matchSong;
+              }).length === 0 ? (
                 <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 일정이 없습니다.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {activities
-                    .filter(a => a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`)
+                    .filter(a => {
+                      const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
+                      const matchSong = filterSongId ? a.songId === filterSongId : true;
+                      return matchMonth && matchSong;
+                    })
                     .map(act => {
                       const linkedSong = songs.find(s => s.id === act.songId);
                       return (
@@ -345,10 +402,37 @@ export default function CalendarPage() {
                 <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>곡명 (Title)</label>
                 <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="예: Hype Boy - NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
               </div>
+              
               <div>
-                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>참여 부원 (쉼표로 구분)</label>
-                <input type="text" value={songMembers} onChange={e => setSongMembers(e.target.value)} placeholder="예: 조에스더, 김윤서, 홍석주" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>참여 부원 선택</label>
+                <div style={{
+                  maxHeight: '120px',
+                  overflowY: 'auto',
+                  border: '1px solid var(--slate-200)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  background: '#ffffff'
+                }}>
+                  {members && members.length > 0 ? (
+                    members.map(m => (
+                      <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSongMembers.includes(m.name)}
+                          onChange={() => handleToggleMember(m.name)}
+                        />
+                        <span>{m.name} ({m.part})</span>
+                      </label>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>등록된 회원이 없습니다. 회원 관리에서 먼저 추가해 주세요.</span>
+                  )}
+                </div>
               </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>정기 연습 요일</label>
