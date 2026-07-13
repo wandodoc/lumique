@@ -212,58 +212,96 @@ export default function ShareSummaryModal({ onClose }) {
     return basis;
   }, [state.members, targetYm]);
 
-  // 회비수익 외 기타 수입 카테고리별 그룹화 요약
-  const groupedIncomes = useMemo(() => {
-    const groups = {};
-    otherIncomesList.forEach(item => {
-      if (!groups[item.category]) {
-        groups[item.category] = { category: item.category, amount: 0, descs: [] };
-      }
-      groups[item.category].amount += item.amount;
-      if (item.desc) groups[item.category].descs.push(item.desc);
-    });
+  // 수입 카테고리별 상세 정보 빌드
+  const incomeDetails = useMemo(() => {
+    // 1. 회비수익
+    const duesTotal = duesSummary.total;
+    const duesParts = [];
+    if (duesSummary.dance > 0) duesParts.push({ name: '댄스', amount: duesSummary.dance });
+    if (duesSummary.voiceSession > 0) duesParts.push({ name: '보컬/세션', amount: duesSummary.voiceSession });
+    if (duesSummary.common > 0) duesParts.push({ name: '공통', amount: duesSummary.common });
 
-    return Object.values(groups).map(g => {
-      const uniqueDescs = Array.from(new Set(g.descs)).filter(Boolean);
-      let descStr = '';
-      if (uniqueDescs.length > 3) {
-        descStr = uniqueDescs.slice(0, 3).join(', ') + ` 등 ${uniqueDescs.length}건`;
+    // 2. 사업수익
+    const businessTxs = targetIncomes.filter(t => normalizeCategory(t.category, t.type) === '사업수익');
+    let businessTotal = 0;
+    let businessCount = 0;
+    businessTxs.forEach(t => {
+      const isRefund = isRefundTx(t, txMap);
+      const multiplier = isRefund ? -1 : 1;
+      if (t.splitItems && t.splitItems.length > 0) {
+        t.splitItems.forEach(it => {
+          if ((it.category || t.category) === '사업수익') {
+            businessTotal += (Number(it.amount) || 0) * multiplier;
+            businessCount += 1;
+          }
+        });
       } else {
-        descStr = uniqueDescs.join(', ');
+        businessTotal += (Number(t.amount) || 0) * multiplier;
+        businessCount += 1;
       }
-      return {
-        category: g.category,
-        amount: g.amount,
-        descStr
-      };
-    });
-  }, [otherIncomesList]);
-
-  // 출금 카테고리별 그룹화 요약
-  const groupedExpenses = useMemo(() => {
-    const groups = {};
-    otherExpensesList.forEach(item => {
-      if (!groups[item.category]) {
-        groups[item.category] = { category: item.category, amount: 0, descs: [] };
-      }
-      groups[item.category].amount += item.amount;
-      if (item.desc) groups[item.category].descs.push(item.desc);
     });
 
-    return Object.values(groups).map(g => {
-      const uniqueDescs = Array.from(new Set(g.descs)).filter(Boolean);
-      let descStr = '';
-      if (uniqueDescs.length > 3) {
-        descStr = uniqueDescs.slice(0, 3).join(', ') + ` 등 ${uniqueDescs.length}건`;
+    // 3. 기타수익
+    const otherIncomes = [];
+    let otherIncomesTotal = 0;
+    targetIncomes.forEach(t => {
+      let cat = normalizeCategory(t.category, t.type);
+      if (t.description.includes('이자')) cat = '기타수익';
+      if (cat === '회비수익' && t.memberId) {
+        const m = state.members.find(x => x.id === t.memberId);
+        if (m) {
+          const txDate = t.datetime.slice(0, 10);
+          if (txDate < m.joinDate || (m.leaveDate && txDate > m.leaveDate)) {
+            cat = '기타수익';
+          }
+        }
+      }
+      
+      if (cat !== '기타수익') return;
+
+      const isRefund = isRefundTx(t, txMap);
+      const multiplier = isRefund ? -1 : 1;
+      
+      if (t.splitItems && t.splitItems.length > 0) {
+        t.splitItems.forEach(it => {
+          const amt = (Number(it.amount) || 0) * multiplier;
+          otherIncomesTotal += amt;
+          otherIncomes.push({
+            desc: it.desc || t.note || t.description,
+            amount: amt
+          });
+        });
       } else {
-        descStr = uniqueDescs.join(', ');
+        const amt = (Number(t.amount) || 0) * multiplier;
+        otherIncomesTotal += amt;
+        otherIncomes.push({
+          desc: t.note || t.description,
+          amount: amt
+        });
       }
-      return {
-        category: g.category,
-        amount: g.amount,
-        descStr
-      };
     });
+
+    return {
+      dues: { total: duesTotal, parts: duesParts },
+      business: { total: businessTotal, count: businessCount },
+      other: { total: otherIncomesTotal, list: otherIncomes }
+    };
+  }, [targetIncomes, duesSummary, state.members, txMap]);
+
+  // 지출 카테고리별 상세 정보 빌드 (순서 고정 및 0원 제외)
+  const expenseDetails = useMemo(() => {
+    const categoriesOrder = ['임차료', '외주비', '복리후생비', '비품', '소모품비'];
+    
+    return categoriesOrder.map(cat => {
+      const items = otherExpensesList.filter(it => it.category === cat);
+      const total = items.reduce((s, it) => s + it.amount, 0);
+
+      return {
+        category: cat,
+        total,
+        list: items
+      };
+    }).filter(catData => catData.total > 0);
   }, [otherExpensesList]);
 
   // 1. 텍스트 요약문 생성 (당월 데이터만 콤팩트하게 포함)
@@ -272,7 +310,20 @@ export default function ShareSummaryModal({ onClose }) {
     const expTotal = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     const netTotal = incTotal - expTotal;
 
-    let txt = `📊 ${targetMonthNum}월 재정 요약 (${dateStr} 기준)\n`;
+    // YYYY/MM/DD ~ YYYY/MM/DD 날짜 범위 구하기
+    const [year, month] = targetYm.split('-').map(Number);
+    const startStr = `${year}/${String(month).padStart(2, '0')}/01`;
+    
+    const today = new Date();
+    let endStr = '';
+    if (today.getFullYear() === year && (today.getMonth() + 1) === month) {
+      endStr = `${year}/${String(month).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+    } else {
+      const lastDay = new Date(year, month, 0).getDate();
+      endStr = `${year}/${String(month).padStart(2, '0')}/${String(lastDay).padStart(2, '0')}`;
+    }
+
+    let txt = `📊 루미크 재정 요약 (${startStr} ~ ${endStr} 기준)\n`;
     txt += `💰 총수입: +${incTotal.toLocaleString()}원\n`;
     txt += `💸 총지출: -${expTotal.toLocaleString()}원\n`;
     if (netTotal >= 0) {
@@ -283,44 +334,64 @@ export default function ShareSummaryModal({ onClose }) {
 
     txt += `📍 ${targetMonthNum}월 입금 내역\n`;
     let incIdx = 1;
-    if (duesSummary.total > 0) {
+    let hasIncome = false;
+
+    // 1. 회비수익
+    if (incomeDetails.dues.total > 0) {
+      hasIncome = true;
       let statusText = '';
-      if (duesSummary.total >= targetMonthlyBasis && targetMonthlyBasis > 0) {
-        statusText = duesSummary.total === targetMonthlyBasis ? ' (완납)' : ' (초과 납부)';
+      if (incomeDetails.dues.total >= targetMonthlyBasis && targetMonthlyBasis > 0) {
+        statusText = incomeDetails.dues.total === targetMonthlyBasis ? ' (완납)' : ' (초과 납부)';
       } else if (targetMonthlyBasis > 0) {
         statusText = ` (기준 ${targetMonthlyBasis.toLocaleString()}원)`;
       }
 
-      txt += `${incIdx}. 회비수익 ${duesSummary.total.toLocaleString()}원${statusText}\n`;
-      if (duesSummary.dance > 0) txt += `- 댄스 ${duesSummary.dance.toLocaleString()}원\n`;
-      if (duesSummary.voiceSession > 0) txt += `- 보컬/세션 ${duesSummary.voiceSession.toLocaleString()}원\n`;
-      if (duesSummary.common > 0) txt += `- 공통 ${duesSummary.common.toLocaleString()}원\n`;
+      txt += `${incIdx}. 회비수익 ${incomeDetails.dues.total.toLocaleString()}원${statusText}\n`;
+      incomeDetails.dues.parts.forEach(p => {
+        txt += `- ${p.name} ${p.amount.toLocaleString()}원\n`;
+      });
       incIdx++;
     }
 
-    groupedIncomes.forEach(item => {
-      const descPart = item.descStr ? ` (${item.descStr})` : '';
-      txt += `${incIdx}. ${item.category}${descPart} ${item.amount.toLocaleString()}원\n`;
+    // 2. 사업수익
+    if (incomeDetails.business.total > 0) {
+      hasIncome = true;
+      txt += `${incIdx}. 사업수익 ${incomeDetails.business.total.toLocaleString()}원\n`;
+      txt += `- 티켓 판매 수익 (${incomeDetails.business.count}건)\n`;
       incIdx++;
-    });
+    }
 
-    if (targetIncomes.length === 0) txt += `입금 내역 없음\n`;
+    // 3. 기타수익
+    if (incomeDetails.other.total > 0) {
+      hasIncome = true;
+      txt += `${incIdx}. 기타수익 ${incomeDetails.other.total.toLocaleString()}원\n`;
+      incomeDetails.other.list.forEach(item => {
+        txt += `- ${item.desc} (${item.amount.toLocaleString()}원)\n`;
+      });
+      incIdx++;
+    }
+
+    if (!hasIncome) {
+      txt += `입금 내역 없음\n`;
+    }
 
     txt += `\n📍 ${targetMonthNum}월 출금 내역\n`;
     
-    if (groupedExpenses.length === 0) {
+    if (expenseDetails.length === 0) {
       txt += `출금 내역 없음\n`;
     } else {
-      groupedExpenses.forEach((item, idx) => {
-        const descPart = item.descStr ? ` (${item.descStr})` : '';
-        txt += `${idx + 1}. ${item.category}${descPart} ${item.amount.toLocaleString()}원\n`;
+      expenseDetails.forEach((item, idx) => {
+        txt += `${idx + 1}. ${item.category} ${item.total.toLocaleString()}원\n`;
+        item.list.forEach(t => {
+          txt += `- ${t.desc} (${t.amount.toLocaleString()}원)\n`;
+        });
       });
     }
 
     txt += `\n🔗 https://lumique-beta.vercel.app/`;
 
     return txt.trim();
-  }, [dateStr, targetMonthNum, duesSummary, groupedIncomes, groupedExpenses, targetIncomes, targetExpenses, targetMonthlyBasis]);
+  }, [targetYm, targetMonthNum, duesSummary, incomeDetails, expenseDetails, targetIncomes, targetExpenses, targetMonthlyBasis]);
 
   // 텍스트 복사 핸들러
   const handleCopyText = async () => {
@@ -414,12 +485,12 @@ export default function ShareSummaryModal({ onClose }) {
     });
     topIncomes.sort((a, b) => b.amount - a.amount);
     
-    const topExpenses = groupedExpenses.map(item => {
-      return { cat: item.category, amount: item.amount };
-    }).filter(i => i.amount > 0).sort((a, b) => b.amount - a.amount);
+    const topExpenses = expenseDetails.map(item => {
+      return { cat: item.category, amount: item.total };
+    }).sort((a, b) => b.amount - a.amount);
 
     return { realTotalBalance, realPartBalances, targetIncomeTotal, targetExpenseTotal, topIncomes, topExpenses };
-  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesList, groupedExpenses]);
+  }, [transactions, targetIncomes, targetExpenses, duesSummary, otherIncomesList, expenseDetails]);
 
   const renderCardContent = (refToUse = null) => (
     <div ref={refToUse} style={{
