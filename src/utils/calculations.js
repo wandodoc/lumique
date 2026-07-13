@@ -117,16 +117,16 @@ export function calcMemberDues(member, transactions) {
 
     if (tx.splitItems && tx.splitItems.length > 0) {
       tx.splitItems.forEach(item => {
-        if (!item.linkedTxId && item.memberId === member.id && item.category === '회비') {
+        const itemCat = normalizeCategory(item.category, 'income');
+        if (!item.linkedTxId && item.memberId === member.id && itemCat === '회비수익') {
           const amt = (Number(item.amount) || 0) * multiplier;
           paid += amt;
           history.push({ ...tx, amount: amt, isSplit: true, splitDesc: item.desc });
         }
       });
     } else {
-      // isIncome이면 !isRefund, isRecovery이면 isRefund를 가짐. 원래 로직에서 !tx.linkedTxId만 회비로 인정했지만,
-      // 이제는 회수(isRecovery)도 반영해야 하므로 조건 수정
-      if (tx.memberId === member.id && tx.category === '회비') {
+      const txCat = normalizeCategory(tx.category, tx.type);
+      if (tx.memberId === member.id && txCat === '회비수익') {
         const amt = tx.amount * multiplier;
         paid += amt;
         history.push({ ...tx, amount: amt });

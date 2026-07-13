@@ -101,8 +101,12 @@ export default function ExcelImportModal({ onClose }) {
       let part = '공통';
       let memberId = null;
 
-      // 자동 분류 1: 회원 이름 매칭 (회비 납부 등)
-      const member = state.members.find(m => m.name === descTrimmed);
+      // 자동 분류 1: 회원 이름 매칭 (회비 납부 등) - 공백 및 대소문자 미매칭 방지
+      const cleanDesc = descTrimmed.replace(/\s+/g, '').toLowerCase();
+      const member = state.members.find(m => {
+        const cleanName = (m.name || '').trim().replace(/\s+/g, '').toLowerCase();
+        return cleanName === cleanDesc;
+      });
       if (member && type === 'income') {
         const txDate = datetime.slice(0, 10);
         const isBeforeJoin = txDate < member.joinDate;
