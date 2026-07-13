@@ -192,12 +192,12 @@ export function calcMonthlyStats(transactions) {
 }
 
 export function formatKRW(amount) {
-  return Math.abs(amount).toLocaleString('ko-KR') + '원';
+  return Math.abs(amount || 0).toLocaleString('ko-KR') + '원';
 }
 
 export function formatDiff(diff) {
-  if (diff > 0) return `+${diff.toLocaleString()}원`;
-  return `${diff.toLocaleString()}원`;
+  if (diff > 0) return `+${(diff || 0).toLocaleString()}원`;
+  return `${(diff || 0).toLocaleString()}원`;
 }
 
 export function normalizeCategory(category, type) {

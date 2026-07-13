@@ -192,13 +192,13 @@ export default function SettingsPage() {
             </div>
             <div className="equip-right">
               <span className={`badge badge-${e.part === '공통' ? 'common' : e.part.toLowerCase()}`} style={{ fontSize: 12 }}>{e.part}</span>
-              <strong style={{ fontSize: 16 }}>{e.price.toLocaleString()}원</strong>
+              <strong style={{ fontSize: 16 }}>{(e.price || 0).toLocaleString()}원</strong>
             </div>
           </div>
         ))}
         <div className="equip-total">
           <span>합계</span>
-          <strong style={{ fontSize: 17 }}>{equipmentList.reduce((s, e) => s + e.price, 0).toLocaleString()}원</strong>
+          <strong style={{ fontSize: 17 }}>{(equipmentList.reduce((s, e) => s + (e.price || 0), 0)).toLocaleString()}원</strong>
         </div>
       </div>
 

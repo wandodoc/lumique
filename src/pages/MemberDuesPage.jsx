@@ -314,13 +314,13 @@ export default function MemberDuesPage() {
                     <td style={{ padding: '10px', color: 'var(--slate-500)', whiteSpace: 'nowrap' }}>{m.joinDate.slice(0, 10)}</td>
                     {monthly.map((amt, i) => (
                       <td key={i} style={{ padding: '10px', color: amt === 'X' ? 'var(--slate-300)' : amt > 0 ? 'var(--emerald-600)' : 'var(--slate-400)', whiteSpace: 'nowrap' }}>
-                        {amt === 'X' ? 'X' : amt === 0 ? '0' : amt.toLocaleString()}
+                        {amt === 'X' ? 'X' : amt === 0 ? '0' : (amt || 0).toLocaleString()}
                       </td>
                     ))}
-                    <td style={{ padding: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>{dues.basis.toLocaleString()}</td>
-                    <td style={{ padding: '10px', fontWeight: 600, color: 'var(--emerald-600)', whiteSpace: 'nowrap' }}>{dues.paid.toLocaleString()}</td>
-                    <td style={{ padding: '10px', fontWeight: 700, color: dues.diff < 0 ? 'var(--rose-500)' : dues.diff > 0 ? 'var(--blue-500)' : 'var(--slate-400)', whiteSpace: 'nowrap' }}>
-                      {dues.diff === 0 ? '0' : dues.diff.toLocaleString()}
+                    <td style={{ padding: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>{(dues?.basis || 0).toLocaleString()}</td>
+                    <td style={{ padding: '10px', fontWeight: 600, color: 'var(--emerald-600)', whiteSpace: 'nowrap' }}>{(dues?.paid || 0).toLocaleString()}</td>
+                    <td style={{ padding: '10px', fontWeight: 700, color: dues?.diff < 0 ? 'var(--rose-500)' : dues?.diff > 0 ? 'var(--blue-500)' : 'var(--slate-400)', whiteSpace: 'nowrap' }}>
+                      {dues?.diff === 0 ? '0' : (dues?.diff || 0).toLocaleString()}
                     </td>
                   </tr>
                 );

@@ -385,7 +385,7 @@ export default function CalendarPage() {
                               <span>📍 <strong>장소:</strong> {act.location}</span>
                               {linkedSong && <span>🎼 <strong>관련 곡:</strong> {linkedSong.title}</span>}
                               {act.plan && <span>📝 <strong>계획:</strong> {act.plan}</span>}
-                              {act.cost > 0 && <span>🪙 <strong>대여비:</strong> {act.cost.toLocaleString()}원 ({act.booker} 예약 / 정산: {act.status})</span>}
+                              {act.cost > 0 && <span>🪙 <strong>대여비:</strong> {(act.cost || 0).toLocaleString()}원 ({act.booker} 예약 / 정산: {act.status})</span>}
                             </div>
                           </div>
                           <button onClick={() => handleDeleteActivity(act.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
@@ -604,7 +604,7 @@ export default function CalendarPage() {
                     <div>
                       <strong style={{ fontSize: 16, color: 'var(--slate-800)' }}>👤 {booker}</strong>
                       <span style={{ fontSize: 14, color: 'var(--slate-500)', marginLeft: 12 }}>
-                        대관 {data.count}건 / <strong>{data.totalCost.toLocaleString()}원</strong> 정산 필요
+                        대관 {data.count}건 / <strong>{(data.totalCost || 0).toLocaleString()}원</strong> 정산 필요
                       </span>
                     </div>
                     <button className="btn-primary"

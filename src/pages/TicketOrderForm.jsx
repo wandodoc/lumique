@@ -93,7 +93,7 @@ export default function TicketOrderForm({ showId }) {
             <div style={{ marginBottom: 8 }}>🎭 <strong>공연:</strong> {showInfo.title}</div>
             <div style={{ marginBottom: 8 }}>👤 <strong>신청자:</strong> {name}</div>
             <div style={{ marginBottom: 8 }}>🎟️ <strong>수량:</strong> {quantity}매</div>
-            <div>🪙 <strong>총 금액:</strong> {(quantity * showInfo.ticketPrice).toLocaleString()}원</div>
+            <div>🪙 <strong>총 금액:</strong> {(quantity * (showInfo?.ticketPrice || 0)).toLocaleString()}원</div>
           </div>
           <p style={{ fontSize: 12, color: 'var(--slate-400)' }}>문의사항은 동아리 루미크 운영진에게 연락 바랍니다.</p>
         </div>
@@ -128,7 +128,7 @@ export default function TicketOrderForm({ showId }) {
           <div style={{ fontSize: 13, color: '#0369a1', display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span>📅 <strong>일시:</strong> {showInfo.date}</span>
             <span>📍 <strong>장소:</strong> {showInfo.venue}</span>
-            <span>🪙 <strong>티켓가:</strong> {showInfo.ticketPrice.toLocaleString()}원 / 1매</span>
+            <span>🪙 <strong>티켓가:</strong> {(showInfo?.ticketPrice || 0).toLocaleString()}원 / 1매</span>
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export default function TicketOrderForm({ showId }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 14, color: 'var(--slate-500)', fontWeight: 600 }}>총 결제 예정 금액</span>
               <strong style={{ fontSize: 20, fontWeight: 900, color: 'var(--slate-800)' }}>
-                {(quantity * showInfo.ticketPrice).toLocaleString()}원
+                {(quantity * (showInfo?.ticketPrice || 0)).toLocaleString()}원
               </strong>
             </div>
 

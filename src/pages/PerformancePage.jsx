@@ -138,7 +138,7 @@ export default function PerformancePage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--slate-600)' }}>
                 <span>📅 <strong>일시:</strong> {selectedShow.date}</span>
                 <span>📍 <strong>장소:</strong> {selectedShow.venue}</span>
-                <span>🪙 <strong>티켓가:</strong> {selectedShow.ticketPrice.toLocaleString()}원</span>
+                <span>🪙 <strong>티켓가:</strong> {(selectedShow?.ticketPrice || 0).toLocaleString()}원</span>
               </div>
             </div>
 
@@ -187,7 +187,7 @@ export default function PerformancePage() {
                       <td style={{ padding: 12, fontWeight: 700, color: 'var(--slate-800)' }}>{o.name}</td>
                       <td style={{ padding: 12, color: 'var(--slate-600)' }}>{o.phone}</td>
                       <td style={{ padding: 12, fontWeight: 700 }}>{o.quantity}매</td>
-                      <td style={{ padding: 12, color: 'var(--slate-700)' }}>{(o.quantity * selectedShow.ticketPrice).toLocaleString()}원</td>
+                      <td style={{ padding: 12, color: 'var(--slate-700)' }}>{(o.quantity * (selectedShow?.ticketPrice || 0)).toLocaleString()}원</td>
                       <td style={{ padding: 12, fontSize: 12, color: 'var(--slate-400)' }}>{o.timestamp}</td>
                       <td style={{ padding: 12 }}>
                         <span style={{
