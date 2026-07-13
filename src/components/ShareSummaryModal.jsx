@@ -355,7 +355,7 @@ export default function ShareSummaryModal({ onClose }) {
       txt += `🔸 순지출: -${Math.abs(netTotal).toLocaleString()}원\n\n`;
     }
 
-    txt += `📍 ${periodMonthNumStr} 입금 내역\n`;
+    txt += `📍 입금 내역\n`;
     let incIdx = 1;
     let hasIncome = false;
 
@@ -398,7 +398,7 @@ export default function ShareSummaryModal({ onClose }) {
       txt += `입금 내역 없음\n`;
     }
 
-    txt += `\n📍 ${periodMonthNumStr} 출금 내역\n`;
+    txt += `\n📍 출금 내역\n`;
     
     if (expenseDetails.length === 0) {
       txt += `출금 내역 없음\n`;
@@ -534,7 +534,7 @@ export default function ShareSummaryModal({ onClose }) {
           <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: 17, fontWeight: 800, color: '#334155', letterSpacing: '-0.5px' }}>Lumique</div>
         </div>
         <div style={{ background: '#eff6ff', color: '#1d4ed8', padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 700 }}>
-          {targetMonthNum}월 재무 현황
+          재무 현황 요약
         </div>
       </div>
 
@@ -544,8 +544,8 @@ export default function ShareSummaryModal({ onClose }) {
         <div style={{ fontSize: 36, fontWeight: 900, color: '#0f172a', letterSpacing: '-1px' }}>
           {imageStats.realTotalBalance < 0 ? '-' : ''}{Math.abs(imageStats.realTotalBalance).toLocaleString()}원
         </div>
-        <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 8 }}>
-          업데이트: {new Date().getFullYear()}.{String(new Date().getMonth() + 1).padStart(2, '0')}.{String(new Date().getDate()).padStart(2, '0')}
+        <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 8, fontWeight: 500 }}>
+          기간: {startDate ? startDate.replace(/-/g, '/') : ''} ~ {endDate ? endDate.replace(/-/g, '/') : ''}
         </div>
 
         {/* 파트별 잔고 현황 */}
@@ -569,11 +569,11 @@ export default function ShareSummaryModal({ onClose }) {
       <div style={{ background: 'var(--slate-50)', padding: 16, borderRadius: 16, marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 수입</div>
+            <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>수입</div>
             <div style={{ fontSize: 16, color: '#16a34a', fontWeight: 800 }}>+{imageStats.targetIncomeTotal.toLocaleString()}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>{targetMonthNum}월 지출</div>
+            <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>지출</div>
             <div style={{ fontSize: 16, color: '#e11d48', fontWeight: 800 }}>-{imageStats.targetExpenseTotal.toLocaleString()}</div>
           </div>
         </div>
