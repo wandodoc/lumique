@@ -53,9 +53,9 @@ export default function TransactionPage({ openExcelImport }) {
       '기타수익',
       '임차료',
       '외주비',
-      '소모품비',
+      '복리후생비',
       '비품',
-      '복리후생비'
+      '소모품비'
     ];
     const presentCats = new Set();
     transactions.forEach(tx => {
