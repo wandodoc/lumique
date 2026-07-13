@@ -18,19 +18,8 @@ export default function ShareSummaryModal({ onClose }) {
     return Array.from(months).sort((a, b) => b.localeCompare(a));
   }, [transactions]);
 
-  // 기본값으로 가장 최근 월과 그 이전 월 설정
+  // 기본값으로 가장 최근 월 설정
   const [targetYm, setTargetYm] = useState(availableMonths[0] || '');
-  const [priorYm, setPriorYm] = useState(() => {
-    if (availableMonths.length > 1) return availableMonths[1];
-    if (availableMonths[0]) {
-      // YYYY-MM 파싱하여 이전달 계산
-      const [y, m] = availableMonths[0].split('-').map(Number);
-      const prevM = m === 1 ? 12 : m - 1;
-      const prevY = m === 1 ? y - 1 : y;
-      return `${prevY}-${String(prevM).padStart(2, '0')}`;
-    }
-    return '';
-  });
 
   const cardRef = useRef(null);
   const [copyStatus, setCopyStatus] = useState(''); // '', 'text', 'image', 'error'
@@ -61,10 +50,9 @@ export default function ShareSummaryModal({ onClose }) {
       window.removeEventListener('resize', handleResize);
       clearTimeout(timer);
     };
-  }, [targetYm, priorYm]);
+  }, [targetYm]);
 
   const targetMonthNum = parseInt(targetYm.split('-')[1], 10) || 0;
-  const priorMonthNum = parseInt(priorYm.split('-')[1], 10) || 0;
 
   // 현재 기준일 생성
   const now = new Date();
@@ -93,22 +81,6 @@ export default function ShareSummaryModal({ onClose }) {
     });
   }, [transactions, targetYm, txMap]);
 
-  const priorIncomes = useMemo(() => {
-    return transactions.filter(t => {
-      if (!t.datetime.startsWith(priorYm)) return false;
-      const isRefund = isRefundTx(t, txMap);
-      return (t.type === 'income' && !isRefund) || (t.type === 'expense' && isRefund);
-    });
-  }, [transactions, priorYm, txMap]);
-
-  const priorExpenses = useMemo(() => {
-    return transactions.filter(t => {
-      if (!t.datetime.startsWith(priorYm)) return false;
-      const isRefund = isRefundTx(t, txMap);
-      return (t.type === 'expense' && !isRefund) || (t.type === 'income' && isRefund);
-    });
-  }, [transactions, priorYm, txMap]);
-
   // 유효한 금액 계산 (상계/반환 항목은 음수로 처리)
   const getValidAmount = (tx) => {
     const isRefund = isRefundTx(tx, txMap);
@@ -125,12 +97,6 @@ export default function ShareSummaryModal({ onClose }) {
     const exp = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     return inc - exp;
   }, [targetIncomes, targetExpenses]);
-
-  const priorNet = useMemo(() => {
-    const inc = priorIncomes.reduce((s, t) => s + getValidAmount(t), 0);
-    const exp = priorExpenses.reduce((s, t) => s + getValidAmount(t), 0);
-    return inc - exp;
-  }, [priorIncomes, priorExpenses]);
 
   // 회비 파트별 소계
   const duesSummary = useMemo(() => {
@@ -213,9 +179,9 @@ export default function ShareSummaryModal({ onClose }) {
     return basis;
   }, [state.members, targetYm]);
 
-  // 출금 내역 그룹화 (상계/반환 반영)
-  const flattenExpenses = (expenses) => {
-    return expenses.flatMap(tx => {
+  // 출금 내역 평탄화 및 그룹화 (상계/반환 반영)
+  const expenseSummaryByCategory = useMemo(() => {
+    const flatTarget = targetExpenses.flatMap(tx => {
       const isRefund = isRefundTx(tx, txMap);
       const multiplier = isRefund ? -1 : 1;
       if (tx.splitItems && tx.splitItems.length > 0) {
@@ -231,21 +197,13 @@ export default function ShareSummaryModal({ onClose }) {
         amount: (Number(tx.amount) || 0) * multiplier
       }];
     }).filter(t => t.amount !== 0);
-  };
 
-  const expenseSummaryByCategory = useMemo(() => {
-    const flatPrior = flattenExpenses(priorExpenses);
-    const flatTarget = flattenExpenses(targetExpenses);
-    const allExps = [...flatPrior, ...flatTarget];
-    
-    const categories = Array.from(new Set(allExps.map(t => t.category)));
-    
+    const categories = Array.from(new Set(flatTarget.map(t => t.category)));
     return categories.map(cat => {
-      const priorList = flatPrior.filter(t => t.category === cat);
-      const targetList = flatTarget.filter(t => t.category === cat);
-      return { category: cat, priorList, targetList };
+      const list = flatTarget.filter(t => t.category === cat);
+      return { category: cat, list };
     });
-  }, [priorExpenses, targetExpenses]);
+  }, [targetExpenses, txMap]);
 
   // 1. 텍스트 요약문 생성 (당월 데이터만 콤팩트하게 포함)
   const summaryText = useMemo(() => {
@@ -278,15 +236,12 @@ export default function ShareSummaryModal({ onClose }) {
 
     txt += `\n📍 ${targetMonthNum}월 출금 내역\n`;
     
-    // 당월 리스트가 있는 카테고리만 필터링
-    const targetExpensesOnly = expenseSummaryByCategory.filter(item => item.targetList.length > 0);
-    
-    if (targetExpensesOnly.length === 0) {
+    if (expenseSummaryByCategory.length === 0) {
       txt += `출금 내역 없음\n`;
     } else {
-      targetExpensesOnly.forEach((item, idx) => {
+      expenseSummaryByCategory.forEach((item, idx) => {
         txt += `${idx + 1}. ${item.category}\n`;
-        item.targetList.forEach(t => {
+        item.list.forEach(t => {
           txt += `- ${t.desc} ${t.amount.toLocaleString()}원\n`;
         });
         txt += `\n`;
@@ -296,7 +251,7 @@ export default function ShareSummaryModal({ onClose }) {
     txt += `\n🔗 https://lumique-beta.vercel.app/`;
 
     return txt.trim();
-  }, [dateStr, targetMonthNum, targetNet, duesSummary, otherIncomesSummary, expenseSummaryByCategory, targetIncomes]);
+  }, [dateStr, targetMonthNum, targetNet, duesSummary, otherIncomesSummary, expenseSummaryByCategory, targetIncomes, targetMonthlyBasis]);
 
   // 텍스트 복사 핸들러
   const handleCopyText = async () => {
@@ -376,7 +331,7 @@ export default function ShareSummaryModal({ onClose }) {
     topIncomes.sort((a, b) => b.amount - a.amount);
     
     const topExpenses = expenseSummaryByCategory.map(item => {
-      const sum = item.targetList.reduce((s, t) => s + t.amount, 0);
+      const sum = item.list.reduce((s, t) => s + t.amount, 0);
       return { cat: item.category, amount: sum };
     }).filter(i => i.amount > 0).sort((a, b) => b.amount - a.amount);
 
@@ -496,19 +451,11 @@ export default function ShareSummaryModal({ onClose }) {
         </div>
 
         {/* 선택 옵션 */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 6 }}>대상 월</label>
-            <select value={targetYm} onChange={e => setTargetYm(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10 }}>
-              {availableMonths.map(m => <option key={m} value={m}>{m.replace('-', '년 ')}월</option>)}
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 6 }}>이전 월 (비교군)</label>
-            <select value={priorYm} onChange={e => setPriorYm(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10 }}>
-              {availableMonths.map(m => <option key={m} value={m}>{m.replace('-', '년 ')}월</option>)}
-            </select>
-          </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 6 }}>공유 대상 월 선택</label>
+          <select value={targetYm} onChange={e => setTargetYm(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--slate-200)', borderRadius: 10 }}>
+            {availableMonths.map(m => <option key={m} value={m}>{m.replace('-', '년 ')}월</option>)}
+          </select>
         </div>
 
         {/* 탭 / 컨트롤 버튼 */}
