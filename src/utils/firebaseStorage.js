@@ -18,8 +18,9 @@ export const firebaseStorage = {
   },
   saveData: async (state) => {
     try {
-      // state should contain members, transactions, performances, lastUpdated
-      await setDoc(DOC_REF, state, { merge: true });
+      // JSON 직렬화를 통해 undefined 필드를 제거하여 Firestore의 직렬화 오류를 완벽 방지합니다.
+      const sanitized = JSON.parse(JSON.stringify(state));
+      await setDoc(DOC_REF, sanitized);
     } catch (e) {
       console.error("Firebase Save Error:", e);
     }
