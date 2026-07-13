@@ -35,6 +35,7 @@ export default function CalendarPage() {
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const handleToggleMember = (memberName) => {
     setSelectedSongMembers(prev => 
@@ -405,93 +406,105 @@ export default function CalendarPage() {
             <span className="card-title" style={{ fontSize: 16 }}>🎼 신규 곡 마스터 등록</span>
             <form onSubmit={handleAddSong} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>곡명 (Title)</label>
-                <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="예: Hype Boy - NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>곡명 (Title)</label>
+                <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="예: Hype Boy - NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', outline: 'none' }} />
               </div>
               
               <div>
-                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>참여 부원 선택 (활동 부원만 대상)</label>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>참여 부원 선택 (활동 부원만 대상)</label>
                 
                 {/* 1. 선택된 부원 칩(Chip) 영역 */}
                 {selectedSongMembers.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                     {selectedSongMembers.map(name => (
                       <span key={name} style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 4,
-                        padding: '2px 8px',
-                        borderRadius: 12,
-                        backgroundColor: 'var(--blue-50)',
-                        color: 'var(--blue-600)',
-                        fontSize: 11,
-                        fontWeight: 700
+                        gap: 6,
+                        padding: '4px 10px',
+                        borderRadius: '9999px',
+                        backgroundColor: '#f3f4f6',
+                        color: '#1f2937',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        border: '1px solid #e5e7eb'
                       }}>
                         {name}
-                        <button type="button" onClick={() => handleToggleMember(name)} style={{ background: 'none', border: 'none', color: 'var(--blue-400)', cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 'bold', lineHeight: 1 }}>×</button>
+                        <button type="button" onClick={() => handleToggleMember(name)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0 0 0 6px', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>×</button>
                       </span>
                     ))}
                   </div>
                 )}
 
-                {/* 2. 이름 검색창 */}
-                <input
-                  type="text"
-                  value={memberSearchQuery}
-                  onChange={e => setMemberSearchQuery(e.target.value)}
-                  placeholder="🔍 이름으로 부원 검색..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    border: '1px solid var(--slate-200)',
-                    fontSize: 12,
-                    marginBottom: 6,
-                    outline: 'none'
-                  }}
-                />
+                {/* Autocomplete 컨테이너 */}
+                <div style={{ position: 'relative' }}>
+                  {/* 2. 이름 검색창 */}
+                  <input
+                    type="text"
+                    value={memberSearchQuery}
+                    onChange={e => setMemberSearchQuery(e.target.value)}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                    placeholder="🔍 이름으로 부원 검색..."
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid var(--slate-200)',
+                      fontSize: 12,
+                      outline: 'none'
+                    }}
+                  />
 
-                {/* 3. 필터링된 체크박스 리스트 */}
-                <div style={{
-                  maxHeight: '120px',
-                  overflowY: 'auto',
-                  border: '1px solid var(--slate-200)',
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                  background: '#ffffff'
-                }}>
-                  {(() => {
-                    // 탈퇴한 부원은 제외 (active 상태만 추출)
-                    const activeMembers = (members || []).filter(m => m.status === 'active');
-                    // 검색어 필터링
-                    const filtered = activeMembers.filter(m => 
-                      m.name.toLowerCase().includes(memberSearchQuery.toLowerCase())
-                    );
+                  {/* 3. 검색 추천 absolute 드롭다운 */}
+                  {(isSearchFocused || memberSearchQuery.trim() !== '') && (
+                    <div style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: '100%',
+                      marginTop: '4px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      zIndex: 50,
+                      maxHeight: '192px',
+                      overflowY: 'auto',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      {(() => {
+                        const activeMembers = (members || []).filter(m => m.status === 'active');
+                        const filtered = activeMembers.filter(m => 
+                          m.name.toLowerCase().includes(memberSearchQuery.toLowerCase())
+                        );
 
-                    if (filtered.length > 0) {
-                      return filtered.map(m => (
-                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                          <input
-                            type="checkbox"
-                            checked={selectedSongMembers.includes(m.name)}
-                            onChange={() => handleToggleMember(m.name)}
-                          />
-                          <span>{m.name} ({m.part})</span>
-                        </label>
-                      ));
-                    } else {
-                      return <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없거나 회원이 없습니다.</span>;
-                    }
-                  })()}
+                        if (filtered.length > 0) {
+                          return filtered.map(m => (
+                            <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }} onMouseDown={e => e.preventDefault()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSongMembers.includes(m.name)}
+                                onChange={() => handleToggleMember(m.name)}
+                              />
+                              <span>{m.name} ({m.part})</span>
+                            </label>
+                          ));
+                        } else {
+                          return <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없습니다.</span>;
+                        }
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>정기 연습 요일</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>정기 연습 요일</label>
                   <select value={songRegularDay} onChange={e => setSongRegularDay(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
                     {['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'].map(day => (
                       <option key={day} value={day}>{day}</option>
@@ -499,7 +512,7 @@ export default function CalendarPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>진행 상태</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>진행 상태</label>
                   <select value={songStatus} onChange={e => setSongStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
                     <option value="시작전">시작전</option>
                     <option value="진행중">진행중</option>
