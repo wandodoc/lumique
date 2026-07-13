@@ -1,13 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { formatKRW, normalizeCategory } from '../utils/calculations';
 
 export default function ExcelImportModal({ onClose }) {
   const { state, dispatch } = useApp();
+  const { isAdmin, runWithAdmin } = useAuth();
   const [pasteData, setPasteData] = useState('');
   const [parsedTxs, setParsedTxs] = useState([]);
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [step, setStep] = useState(1);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      alert('관리자 권한이 필요합니다.');
+      onClose();
+    }
+  }, [isAdmin, onClose]);
+
+  if (!isAdmin) return null;
 
   // 텍스트 파싱 로직 (TSV 형식)
   const handleParse = () => {
@@ -154,8 +165,10 @@ export default function ExcelImportModal({ onClose }) {
   };
 
   const handleSave = () => {
-    parsedTxs.forEach(tx => dispatch({ type: 'ADD_TRANSACTION', tx }));
-    onClose();
+    runWithAdmin(() => {
+      parsedTxs.forEach(tx => dispatch({ type: 'ADD_TRANSACTION', tx }));
+      onClose();
+    });
   };
 
   return (

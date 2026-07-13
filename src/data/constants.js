@@ -39,10 +39,10 @@ export const INCOME_CATEGORIES = [
 
 export const EXPENSE_CATEGORIES = [
   '임차료',
-  '비품',
   '외주비',
-  '소모품비',
   '복리후생비',
+  '비품',
+  '소모품비',
 ];
 
 export const CATEGORY_ICONS = {
