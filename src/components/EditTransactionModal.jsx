@@ -266,12 +266,15 @@ export default function EditTransactionModal({ tx, onClose }) {
             <div style={{ flex: 1 }}>
               <label>분류</label>
               <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-                <optgroup label="수입 분류">
-                  {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </optgroup>
-                <optgroup label="지출 분류">
-                  {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </optgroup>
+                {tx.type === 'income' ? (
+                  <optgroup label="수입 분류">
+                    {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </optgroup>
+                ) : (
+                  <optgroup label="지출 분류">
+                    {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
             <div style={{ flex: 1 }}>
@@ -356,12 +359,15 @@ export default function EditTransactionModal({ tx, onClose }) {
                     <div className="split-item-selects">
                       <select value={item.category}
                         onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], category: e.target.value }; setSplitItems(arr); }}>
-                        <optgroup label="수입 분류">
-                          {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </optgroup>
-                        <optgroup label="지출 분류">
-                          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </optgroup>
+                        {tx.type === 'income' ? (
+                          <optgroup label="수입 분류">
+                            {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </optgroup>
+                        ) : (
+                          <optgroup label="지출 분류">
+                            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </optgroup>
+                        )}
                       </select>
                       <select value={item.part}
                         onChange={e => { const arr = [...splitItems]; arr[idx] = { ...arr[idx], part: e.target.value }; setSplitItems(arr); }}>
