@@ -398,3 +398,84 @@
   }
 }
 
+/* 캘린더 컨트롤 및 헤더 버튼들의 통일 스타일 */
+.calendar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+/* 1) 주 버튼 (+ 일정 등록) */
+.calendar-btn-primary {
+  background: var(--c-black);
+  color: var(--c-white);
+  border: none;
+}
+.calendar-btn-primary:hover {
+  background: var(--c-dark);
+}
+.calendar-btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* 2) 보조 버튼 (이전, 다음) */
+.calendar-btn-secondary {
+  background: #ffffff;
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
+}
+.calendar-btn-secondary:hover {
+  background: var(--slate-50);
+  border-color: var(--slate-300);
+  color: var(--slate-900);
+}
+.calendar-btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* 3) 오늘 버튼 */
+.calendar-btn-today {
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid transparent;
+}
+.calendar-btn-today:hover {
+  background: var(--slate-200);
+  color: var(--slate-800);
+}
+.calendar-btn-today:active {
+  transform: scale(0.98);
+}
+
+/* 4) 드롭다운 필터 */
+.calendar-select {
+  height: 40px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate-700);
+  background: #ffffff;
+  outline: none;
+  min-width: 150px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+.calendar-select:hover {
+  border-color: var(--slate-300);
+}
+.calendar-select:focus {
+  border-color: var(--blue-500);
+}
+

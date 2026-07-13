@@ -237,17 +237,7 @@ export default function CalendarPage() {
               <select
                 value={filterSongId}
                 onChange={e => setFilterSongId(e.target.value)}
-                style={{
-                  padding: '10px 14px',
-                  border: '1px solid var(--slate-200)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--slate-700)',
-                  background: '#ffffff',
-                  outline: 'none',
-                  minWidth: '150px'
-                }}
+                className="calendar-select"
               >
                 <option value="">🚫 전체 곡 보기</option>
                 {songs.map(s => (
@@ -255,7 +245,7 @@ export default function CalendarPage() {
                 ))}
               </select>
 
-              <button className="btn-primary" onClick={() => setShowAddActModal(true)} style={{ padding: '10px 18px' }}>
+              <button className="calendar-btn calendar-btn-primary" onClick={() => setShowAddActModal(true)}>
                 + 일정 등록
               </button>
             </div>
@@ -264,21 +254,21 @@ export default function CalendarPage() {
           <div className="calendar-grid-container">
             {/* 달력 판넬 */}
             <div className="card card-pad calendar-left-card">
-              <div className="flex-between" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <span className="card-title" style={{ fontSize: 16, margin: 0 }}>
                   {calYear}년 {calMonth}월
                 </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn-sm" onClick={() => {
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button className="calendar-btn calendar-btn-today" onClick={() => {
                     const today = new Date();
                     setCalYear(today.getFullYear());
                     setCalMonth(today.getMonth() + 1);
-                  }} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>오늘</button>
-                  <button className="btn-sm" onClick={() => {
+                  }}>오늘</button>
+                  <button className="calendar-btn calendar-btn-secondary" onClick={() => {
                     if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
                     else { setCalMonth(m => m - 1); }
                   }}>이전</button>
-                  <button className="btn-sm" onClick={() => {
+                  <button className="calendar-btn calendar-btn-secondary" onClick={() => {
                     if (calMonth === 12) { setCalYear(y => y + 1); setCalMonth(1); }
                     else { setCalMonth(m => m + 1); }
                   }}>다음</button>
