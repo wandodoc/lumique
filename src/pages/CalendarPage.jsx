@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext';
 import './PageStyles.css';
 
 export default function CalendarPage() {
-  const { members } = useApp();
+  const { state } = useApp();
+  const members = state?.members || [];
   const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'settlement'
 
   // 1. 곡 마스터 데이터 (Clean State)
