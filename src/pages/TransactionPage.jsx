@@ -12,7 +12,7 @@ const TYPES_FILTER = ['전체', '수입', '지출'];
 
 export default function TransactionPage({ openExcelImport }) {
   const { state, dispatch } = useApp();
-  const { isAdmin, requestLogin } = useAuth();
+  const { isAdmin, runWithAdmin } = useAuth();
   const { transactions, members } = state;
 
   const [partFilter, setPartFilter] = useState('전체');
@@ -150,28 +150,33 @@ export default function TransactionPage({ openExcelImport }) {
   };
 
   const handleBatchUpdate = () => {
-    if (selectedTxIds.size === 0) return alert('선택된 항목이 없습니다.');
-    if (!batchCategory && !batchPart) return alert('변경할 분류나 파트를 선택해주세요.');
-    
-    let msg = `선택한 ${selectedTxIds.size}개 항목을 일괄 변경하시겠습니까?\n`;
-    if (batchCategory) msg += `- 분류: ${batchCategory}\n`;
-    if (batchPart) msg += `- 파트: ${batchPart}\n`;
-    
-    if (!window.confirm(msg)) return;
-    
-    const updates = Array.from(selectedTxIds).map(id => {
-      const update = { id };
-      if (batchCategory) update.category = batchCategory;
-      if (batchPart) update.part = batchPart;
-      return update;
+    runWithAdmin(() => {
+      if (selectedTxIds.size === 0) return alert('선택된 항목이 없습니다.');
+      if (!batchCategory && !batchPart) return alert('변경할 분류나 파트를 선택해주세요.');
+      
+      let msg = `선택한 ${selectedTxIds.size}개 항목을 일괄 변경하시겠습니까?\n`;
+      if (batchCategory) msg += `- 분류: ${batchCategory}\n`;
+      if (batchPart) msg += `- 파트: ${batchPart}\n`;
+      
+      if (!window.confirm(msg)) return;
+      
+      const updates = Array.from(selectedTxIds).map(id => {
+        const tx = transactions.find(t => t.id === id);
+        const update = { id };
+        if (batchCategory) {
+          update.category = normalizeCategory(batchCategory, tx ? tx.type : 'income');
+        }
+        if (batchPart) update.part = batchPart;
+        return update;
+      });
+      
+      dispatch({ type: 'BATCH_UPDATE_TRANSACTIONS', updates });
+      alert('선택한 항목들의 속성이 일괄 변경되었습니다.');
+      setSelectedTxIds(new Set());
+      setIsBatchMode(false);
+      setBatchCategory('');
+      setBatchPart('');
     });
-    
-    dispatch({ type: 'BATCH_UPDATE_TRANSACTIONS', updates });
-    alert('일괄 수정이 완료되었습니다.');
-    setSelectedTxIds(new Set());
-    setIsBatchMode(false);
-    setBatchCategory('');
-    setBatchPart('');
   };
 
   return (
