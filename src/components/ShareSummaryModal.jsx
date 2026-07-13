@@ -135,7 +135,8 @@ export default function ShareSummaryModal({ onClose }) {
   // 회비 파트별 소계
   const duesSummary = useMemo(() => {
     const duesTxs = targetIncomes.filter(t => {
-      if (t.category !== '회비') return false;
+      const cat = normalizeCategory(t.category, t.type);
+      if (cat !== '회비수익') return false;
       if (t.memberId) {
         const m = state.members.find(x => x.id === t.memberId);
         if (m) {
@@ -157,22 +158,25 @@ export default function ShareSummaryModal({ onClose }) {
   // 기타 수입 그룹화
   const otherIncomesSummary = useMemo(() => {
     const otherTxs = targetIncomes.filter(t => {
-      if (t.category !== '회비') return true;
-      if (t.memberId) {
-        const m = state.members.find(x => x.id === t.memberId);
-        if (m) {
-          const txDate = t.datetime.slice(0, 10);
-          if (txDate < m.joinDate || (m.leaveDate && txDate > m.leaveDate)) return true; // 가입 전/탈퇴 후면 기타 수입으로 취급
+      const cat = normalizeCategory(t.category, t.type);
+      if (cat === '회비수익') {
+        if (t.memberId) {
+          const m = state.members.find(x => x.id === t.memberId);
+          if (m) {
+            const txDate = t.datetime.slice(0, 10);
+            if (txDate < m.joinDate || (m.leaveDate && txDate > m.leaveDate)) return true; // 가입 전/탈퇴 후면 기타 수입으로 취급
+          }
         }
+        return false;
       }
-      return false;
+      return true;
     });
     
     const groups = {};
     otherTxs.forEach(t => {
-      let cat = t.category || '이자/기타';
-      if (t.category === '회비') cat = '기타수입'; // 잘못 분류된 회비는 기타수입으로
-      else if (t.description.includes('이자')) cat = '이자';
+      let cat = normalizeCategory(t.category, t.type);
+      if (cat === '회비수익') cat = '기타수익'; // 잘못 분류된 회비나 가입 외 기간 회비는 기타수익으로
+      else if (t.description.includes('이자')) cat = '기타수익'; // 이자도 '기타수익'으로 표준화
       
       groups[cat] = (groups[cat] || 0) + getValidAmount(t);
     });
@@ -488,7 +492,7 @@ export default function ShareSummaryModal({ onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: isMobile ? '460px' : '900px', width: '100%', transition: 'all 0.3s ease' }}>
         <div className="modal-handle" />
 
         {/* 헤더 */}
@@ -546,29 +550,84 @@ export default function ShareSummaryModal({ onClose }) {
           </div>
         )}
 
-        {/* 텍스트 미리보기 및 이미지 카드 렌더링 */}
-        <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 12, background: 'var(--slate-50)' }}>
-          
-          <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 12, textAlign: 'center' }}>
-            공유 카드 이미지 미리보기 {scale < 1 && <span style={{ color: 'var(--blue-500)', textTransform: 'none' }}>(터치하여 크게 보기)</span>}
-          </div>
-          
-          {/* 실제로 이미지로 변환될 DOM 영역 */}
+        {/* 텍스트 미리보기 및 이미지 카드 렌더링 (반응형 2열 레이아웃) */}
+        <div style={{
+          maxHeight: 'calc(100vh - 280px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          border: '1px solid var(--slate-200)',
+          borderRadius: 12,
+          padding: 16,
+          background: 'var(--slate-50)',
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: '20px'
+        }}>
+          {/* 1. 텍스트 미리보기 */}
           <div style={{
-            width: '100%',
-            overflow: 'hidden',
+            flex: 1,
             display: 'flex',
-            justifyContent: 'center'
+            flexDirection: 'column',
+            minWidth: isMobile ? '100%' : '300px'
           }}>
+            <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' }}>
+              📋 텍스트 복사 내용 미리보기
+            </div>
+            <textarea
+              readOnly
+              value={summaryText}
+              style={{
+                width: '100%',
+                height: isMobile ? '240px' : '100%',
+                minHeight: '280px',
+                padding: '12px',
+                borderRadius: '12px',
+                border: '1px solid var(--slate-200)',
+                background: '#ffffff',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                resize: 'none',
+                outline: 'none',
+                color: 'var(--slate-700)',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          {/* 구분선 (PC 전용) */}
+          {!isMobile && <div style={{ width: '1px', background: 'var(--slate-200)', alignSelf: 'stretch' }} />}
+
+          {/* 2. 이미지 카드 미리보기 */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            minWidth: isMobile ? '100%' : '420px'
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' }}>
+              📷 공유 카드 이미지 미리보기 {scale < 1 && <span style={{ color: 'var(--blue-500)', textTransform: 'none' }}>(터치하여 크게 보기)</span>}
+            </div>
+            
+            {/* 실제로 이미지로 변환될 DOM 영역 */}
             <div style={{
-              width: 420,
-              height: cardHeight * scale,
-              transform: `scale(${scale})`,
-              transformOrigin: 'top center',
-              cursor: 'pointer',
-              marginBottom: cardHeight * (scale - 1)
-            }} onClick={() => setIsFullscreen(true)}>
-              {renderCardContent(cardRef)}
+              width: '100%',
+              overflow: 'hidden',
+              display: 'flex',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                width: 420,
+                height: cardHeight * scale,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top center',
+                cursor: 'pointer',
+                marginBottom: cardHeight * (scale - 1)
+              }} onClick={() => setIsFullscreen(true)}>
+                {renderCardContent(cardRef)}
+              </div>
             </div>
           </div>
 
