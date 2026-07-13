@@ -151,56 +151,56 @@ export default function SettingsPage() {
 
       {/* 수입 계정과목 */}
       <div className="card card-pad">
-        <span className="card-title">💰 수입 계정과목</span>
+        <span className="card-title" style={{ fontSize: 17 }}>💰 수입 계정과목</span>
         {INCOME_CATS.map(c => (
           <div key={c.cat} className="reg-row">
             <div>
-              <strong style={{ fontSize: 14 }}>{c.cat}</strong>
-              <span className="badge badge-gray" style={{ marginLeft: 8 }}>{c.part}</span>
+              <strong style={{ fontSize: 16 }}>{c.cat}</strong>
+              <span className="badge badge-gray" style={{ marginLeft: 8, fontSize: 12 }}>{c.part}</span>
             </div>
-            <span className="reg-value" style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.desc}</span>
+            <span className="reg-value" style={{ fontSize: 14, color: 'var(--gray-500)' }}>{c.desc}</span>
           </div>
         ))}
       </div>
 
       {/* 지출 계정과목 */}
       <div className="card card-pad">
-        <span className="card-title">💸 지출 계정과목</span>
+        <span className="card-title" style={{ fontSize: 17 }}>💸 지출 계정과목</span>
         {EXPENSE_CATS.map(c => (
           <div key={c.cat} className="reg-row">
             <div>
-              <strong style={{ fontSize: 14 }}>{c.cat}</strong>
-              <span className="badge badge-gray" style={{ marginLeft: 8 }}>{c.part}</span>
+              <strong style={{ fontSize: 16 }}>{c.cat}</strong>
+              <span className="badge badge-gray" style={{ marginLeft: 8, fontSize: 12 }}>{c.part}</span>
             </div>
-            <span className="reg-value" style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.desc}</span>
+            <span className="reg-value" style={{ fontSize: 14, color: 'var(--gray-500)' }}>{c.desc}</span>
           </div>
         ))}
       </div>
 
       {/* 공용 비품 */}
       <div className="card card-pad">
-        <span className="card-title">🛒 공용 비품 목록</span>
+        <span className="card-title" style={{ fontSize: 17 }}>🛒 공용 비품 목록</span>
         {equipmentList.length === 0 && (
-          <p className="text-muted" style={{ textAlign: 'center', padding: '16px 0' }}>등록된 비품 내역이 없습니다.</p>
+          <p className="text-muted" style={{ textAlign: 'center', padding: '16px 0', fontSize: 14 }}>등록된 비품 내역이 없습니다.</p>
         )}
         {equipmentList.map((e, i) => (
           <div key={i} className="equip-row">
             <div className="equip-info">
-              <strong style={{ fontSize: 14 }}>{e.name}</strong>
+              <strong style={{ fontSize: 16 }}>{e.name}</strong>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
-                <span style={{ fontSize: 11, color: 'var(--slate-400)' }}>{e.date}</span>
-                {e.note && <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>| {e.note}</span>}
+                <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>{e.date}</span>
+                {e.note && <span style={{ fontSize: 13, color: 'var(--gray-500)' }}>| {e.note}</span>}
               </div>
             </div>
             <div className="equip-right">
-              <span className={`badge badge-${e.part === '공통' ? 'common' : e.part.toLowerCase()}`}>{e.part}</span>
-              <strong style={{ fontSize: 14 }}>{e.price.toLocaleString()}원</strong>
+              <span className={`badge badge-${e.part === '공통' ? 'common' : e.part.toLowerCase()}`} style={{ fontSize: 12 }}>{e.part}</span>
+              <strong style={{ fontSize: 16 }}>{e.price.toLocaleString()}원</strong>
             </div>
           </div>
         ))}
         <div className="equip-total">
           <span>합계</span>
-          <strong>{equipmentList.reduce((s, e) => s + e.price, 0).toLocaleString()}원</strong>
+          <strong style={{ fontSize: 17 }}>{equipmentList.reduce((s, e) => s + e.price, 0).toLocaleString()}원</strong>
         </div>
       </div>
 
