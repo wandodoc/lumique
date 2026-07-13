@@ -396,8 +396,9 @@ export default function CalendarPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {/* 곡 신규 등록 */}
           <div className="card card-pad">
-            <span className="card-title" style={{ fontSize: 16 }}>🎼 신규 곡 마스터 등록</span>
-            <form onSubmit={handleAddSong} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <span className="card-title" style={{ fontSize: 16, marginBottom: 0 }}>🎼 신규 곡 마스터 등록</span>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 20px 0' }} />
+            <form onSubmit={handleAddSong} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>곡명 (Title)</label>
                 <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="예: Hype Boy - NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', outline: 'none' }} />
@@ -616,8 +617,9 @@ export default function CalendarPage() {
         <div className="modal-overlay" onClick={() => setShowAddActModal(false)}>
           <div className="modal-sheet" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div className="modal-handle" />
-            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>🗓️ 신규 연습/공연 일정 등록</h3>
-            <form onSubmit={handleAddActivity} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 0 }}>🗓️ 신규 연습/공연 일정 등록</h3>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 16px 0' }} />
+            <form onSubmit={handleAddActivity} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>일정명 *</label>
                 <input type="text" value={actTitle} onChange={e => setActTitle(e.target.value)} placeholder="예: 댄스 파트 보강 연습" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
