@@ -780,6 +780,19 @@
 .filter-bar-top-row {
   width: 100%;
 }
+.part-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 767px) {
+  .filter-bar-top-row {
+    margin-bottom: 16px;
+  }
+  .part-filters {
+    margin-bottom: 16px;
+  }
+}
 
 .filter-bar-bottom-row {
   display: flex;
@@ -1210,6 +1223,10 @@
 
 /* 모바일 아코디언 상세 */
 .member-mobile-card .accordion-inner {
+  padding: 0;
+  border-top: none;
+}
+.member-mobile-card .accordion-details.expanded .accordion-inner {
   padding: 12px 14px;
   border-top: 1px dashed var(--slate-200);
 }
