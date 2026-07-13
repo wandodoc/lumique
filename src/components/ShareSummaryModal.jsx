@@ -339,20 +339,20 @@ export default function ShareSummaryModal({ onClose }) {
     const expTotal = targetExpenses.reduce((s, t) => s + getValidAmount(t), 0);
     const netTotal = incTotal - expTotal;
 
-    const startStr = startDate.replace(/-/g, '/');
-    const endStr = endDate.replace(/-/g, '/');
+    const startStr = startDate.split('-').slice(1).join('/');
+    const endStr = endDate.split('-').slice(1).join('/');
 
     const startMonth = parseInt(startDate.split('-')[1], 10) || 0;
     const endMonth = parseInt(endDate.split('-')[1], 10) || 0;
     const periodMonthNumStr = startMonth === endMonth ? `${startMonth}월` : `${startMonth}~${endMonth}월`;
 
-    let txt = `📊 루미크 재정 요약 (${startStr} ~ ${endStr} 기준)\n`;
-    txt += `💰 총수입: +${incTotal.toLocaleString()}원\n`;
-    txt += `💸 총지출: -${expTotal.toLocaleString()}원\n`;
+    let txt = `📊 루미크 재정 요약 (${startStr} ~ ${endStr})\n`;
+    txt += `🟢 총수입: +${incTotal.toLocaleString()}원\n`;
+    txt += `🔴 총지출: -${expTotal.toLocaleString()}원\n`;
     if (netTotal >= 0) {
-      txt += `🪙 순수입: +${netTotal.toLocaleString()}원\n\n`;
+      txt += `🔹 순수입: +${netTotal.toLocaleString()}원\n\n`;
     } else {
-      txt += `🪙 순지출: -${Math.abs(netTotal).toLocaleString()}원\n\n`;
+      txt += `🔸 순지출: -${Math.abs(netTotal).toLocaleString()}원\n\n`;
     }
 
     txt += `📍 ${periodMonthNumStr} 입금 내역\n`;
