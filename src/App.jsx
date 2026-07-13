@@ -9,6 +9,9 @@ import ExcelImportModal from './components/ExcelImportModal';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginModal from './components/LoginModal';
+import CalendarPage from './pages/CalendarPage';
+import PerformancePage from './pages/PerformancePage';
+import TicketOrderForm from './pages/TicketOrderForm';
 import './App.css';
 
 const MOBILE_TABS = [
@@ -16,7 +19,7 @@ const MOBILE_TABS = [
     icon: <svg viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> },
   { id: 'dues_group', short: '회비',
     icon: <svg viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
-  { id: 'activity_group', short: '활동',
+  { id: 'activity_group', short: '활동/일정',
     icon: <svg viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg> },
   { id: 'settings', short: '설정',
     icon: <svg viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
@@ -33,15 +36,17 @@ const TABS = [
     icon: <svg viewBox="0 0 24 24"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg> },
   { id: 'members', label: '회원 관리', short: '회원',
     icon: <svg viewBox="0 0 24 24"><path d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg> },
-  { id: 'perf', label: '공연 현황', short: '공연',
+  { id: 'perf', label: '공연 관리', short: '공연',
     icon: <svg viewBox="0 0 24 24"><path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg> },
+  { id: 'calendar', label: '연습 일정', short: '일정',
+    icon: <svg viewBox="0 0 24 24"><path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> },
   { id: 'settings', label: '설정', short: '설정',
     icon: <svg viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
 ];
 
 const PAGE_TITLES = {
-  home: '대시보드', members: '회원 관리', perf: '공연 현황', dues: '납부 현황',
-  ledger: '입출금 내역', analytics: '요약', settings: '설정',
+  home: '대시보드', members: '회원 관리', perf: '공연 관리', dues: '납부 현황',
+  ledger: '입출금 내역', analytics: '요약', settings: '설정', calendar: '연습 일정'
 };
 
 
@@ -121,7 +126,8 @@ function AppInner() {
     switch (tab) {
       case 'home':      return <DashboardPage setTab={setTab} />;
       case 'members':   return <MembersPage initialView="회원 목록" />;
-      case 'perf':      return <MembersPage initialView="공연별 현황" />;
+      case 'perf':      return <PerformancePage />;
+      case 'calendar':  return <CalendarPage />;
       case 'dues':      return <MemberDuesPage />;
       case 'ledger':    return <TransactionPage openExcelImport={() => runWithAdmin(() => setShowExcelModal(true))} />;
       case 'analytics': return <AnalyticsPage />;
@@ -165,8 +171,8 @@ function AppInner() {
             },
             { 
               key: 'activity', 
-              title: '활동 관리', 
-              ids: ['members', 'perf'],
+              title: '활동/일정 관리', 
+              ids: ['members', 'perf', 'calendar'],
               icon: <svg viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
             }
           ].map((g) => {
@@ -300,7 +306,8 @@ function AppInner() {
 
         {activeSubmenu === 'activity_group' && [
           { id: 'members', label: '회원 관리', icon: '👥' },
-          { id: 'perf', label: '공연 현황', icon: '📅' },
+          { id: 'perf', label: '공연 관리', icon: '🎭' },
+          { id: 'calendar', label: '연습 일정', icon: '📅' },
         ].map(item => (
           <button key={item.id} 
             className={`submenu-item ${tab === item.id ? 'active' : ''}`}
@@ -320,7 +327,7 @@ function AppInner() {
           const isActive = (() => {
             if (t.id === 'home') return tab === 'home';
             if (t.id === 'dues_group') return tab === 'ledger' || tab === 'dues' || tab === 'analytics';
-            if (t.id === 'activity_group') return tab === 'members' || tab === 'perf';
+            if (t.id === 'activity_group') return tab === 'members' || tab === 'perf' || tab === 'calendar';
             if (t.id === 'settings') return tab === 'settings';
             return tab === t.id;
           })();
@@ -350,6 +357,14 @@ function AppInner() {
 
 
 export default function App() {
+  const path = window.location.pathname;
+  const formMatch = path.match(/^\/form\/([^/]+)$/);
+  
+  if (formMatch) {
+    const showId = formMatch[1];
+    return <TicketOrderForm showId={showId} />;
+  }
+
   return (
     <AuthProvider>
       <AppProvider>
