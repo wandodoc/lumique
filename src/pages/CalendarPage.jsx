@@ -210,8 +210,8 @@ export default function CalendarPage() {
       {/* --- 1. 연습/공연 캘린더 탭 --- */}
       {activeSubTab === 'calendar' && (
         <div>
-          <div className="flex-between" style={{ marginBottom: 16 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📅 연습 & 공연 캘린더</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>📅 연습 & 공연 캘린더</h2>
             <button className="btn-primary" onClick={() => setShowAddActModal(true)}>
               + 일정 등록
             </button>
