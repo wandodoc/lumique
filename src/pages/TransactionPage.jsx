@@ -12,8 +12,7 @@ const TYPES_FILTER = ['전체', '수입', '지출'];
 
 export default function TransactionPage({ openExcelImport }) {
   const { state, dispatch } = useApp();
-  const { isAdmin: rawIsAdmin, requestLogin } = useAuth();
-  const isAdmin = rawIsAdmin && window.innerWidth >= 768;
+  const { isAdmin, requestLogin } = useAuth();
   const { transactions, members } = state;
 
   const [partFilter, setPartFilter] = useState('전체');
