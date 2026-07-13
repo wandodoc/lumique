@@ -252,17 +252,17 @@ export default function CalendarPage() {
                 <span className="card-title" style={{ fontSize: 16, margin: 0 }}>
                   {calYear}년 {calMonth}월
                 </span>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button className="calendar-btn calendar-btn-today" onClick={() => {
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn-sm" onClick={() => {
                     const today = new Date();
                     setCalYear(today.getFullYear());
                     setCalMonth(today.getMonth() + 1);
-                  }}>오늘</button>
-                  <button className="calendar-btn calendar-btn-secondary" onClick={() => {
+                  }} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>오늘</button>
+                  <button className="btn-sm" onClick={() => {
                     if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
                     else { setCalMonth(m => m - 1); }
                   }}>이전</button>
-                  <button className="calendar-btn calendar-btn-secondary" onClick={() => {
+                  <button className="btn-sm" onClick={() => {
                     if (calMonth === 12) { setCalYear(y => y + 1); setCalMonth(1); }
                     else { setCalMonth(m => m + 1); }
                   }}>다음</button>
