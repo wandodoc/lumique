@@ -142,15 +142,21 @@ export default function EditTransactionModal({ tx, onClose }) {
       return alert(`분할 항목 합계(${formatKRW(splitTotal)})가 총 금액(${formatKRW(tx.amount)})을 초과합니다.`);
     }
 
+    const normalizedCategory = normalizeCategory(formData.category, tx.type);
     const updated = {
       ...tx,
       ...formData,
+      category: normalizedCategory,
       amount: tx.amount, // 금액은 원본 유지
-      splitItems: showSplit ? splitItems.filter(it => it.desc || it.amount) : []
+      splitItems: showSplit 
+        ? splitItems.filter(it => it.desc || it.amount).map(it => ({
+            ...it,
+            category: normalizeCategory(it.category, tx.type)
+          }))
+        : []
     };
-    dispatch({ type: 'UPDATE_TRANSACTION', tx: updated });
 
-    // 연결 상대에도 역방향 링크 처리
+    // 연결 상대에도 역방향 링크 처리 준비
     const newLinkedIds = new Set(updated.splitItems.map(it => it.linkedTxId).filter(Boolean));
     const oldLinkedIds = new Set((tx.splitItems || []).map(it => it.linkedTxId).filter(Boolean));
 
@@ -174,17 +180,64 @@ export default function EditTransactionModal({ tx, onClose }) {
       }
     });
 
+    // 1. 불변성을 완벽히 준수하며 상태를 반영한 새로운 트랜잭션 배열을 생성합니다.
+    const updatedTransactions = transactions.map(t => {
+      if (t.id === tx.id) return updated;
+      
+      if (newLinkedIds.has(t.id)) {
+        const matchingSplit = updated.splitItems.find(it => it.linkedTxId === t.id);
+        const newCategory = normalizeCategory(
+          matchingSplit ? matchingSplit.category : (formData.linkedTxId === t.id ? updated.category : t.category),
+          t.type
+        );
+        const linkMemo = updated.note ? updated.note : updated.description;
+        return {
+          ...t,
+          linkedTxId: tx.id,
+          category: newCategory,
+          note: linkMemo
+        };
+      } else if (oldLinkedIds.has(t.id)) {
+        if (t.linkedTxId === tx.id) {
+          return { ...t, linkedTxId: '' };
+        }
+      }
+      return t;
+    });
+
+    // 2. 스토어 상태 변경 디스패치
+    dispatch({ type: 'UPDATE_TRANSACTION', tx: updated });
     if (batchUpdates.length > 0) {
       dispatch({ type: 'BATCH_UPDATE_TRANSACTIONS', updates: batchUpdates });
     }
 
+    // 3. 로컬 스토리지 즉시 동기화 실행
+    try {
+      const serialized = JSON.stringify(updatedTransactions);
+      localStorage.setItem('transactions', serialized);
+      localStorage.setItem('lumique_transactions', serialized);
+      localStorage.setItem('lumique_last_updated', new Date().toISOString());
+    } catch (e) {
+      console.error("Local Storage Sync Error:", e);
+    }
 
     onClose();
   };
 
   const handleDelete = () => {
     if (window.confirm('정말 이 내역을 삭제하시겠습니까?')) {
+      const updatedTransactions = transactions.filter(t => t.id !== tx.id);
       dispatch({ type: 'DELETE_TRANSACTION', id: tx.id });
+      
+      try {
+        const serialized = JSON.stringify(updatedTransactions);
+        localStorage.setItem('transactions', serialized);
+        localStorage.setItem('lumique_transactions', serialized);
+        localStorage.setItem('lumique_last_updated', new Date().toISOString());
+      } catch (e) {
+        console.error("Local Storage Sync Error:", e);
+      }
+      
       onClose();
     }
   };
