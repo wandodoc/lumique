@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { formatKRW } from '../utils/calculations';
+import { formatKRW, normalizeCategory } from '../utils/calculations';
 
 export default function ExcelImportModal({ onClose }) {
   const { state, dispatch } = useApp();
@@ -77,8 +77,10 @@ export default function ExcelImportModal({ onClose }) {
         const typeStrClean = typeStr.trim();
         if (typeStrClean.includes('입금') || typeStrClean.includes('수입') || typeStrClean.includes('이자')) {
           type = 'income';
+          amount = depositVal;
         } else if (typeStrClean.includes('출금') || typeStrClean.includes('지출')) {
           type = 'expense';
+          amount = withdrawVal;
         } else if (descTrimmed.includes('이자') && !descTrimmed.includes('세') && !descTrimmed.includes('세금')) {
           type = 'income';
         }
@@ -95,7 +97,7 @@ export default function ExcelImportModal({ onClose }) {
       
       if (isDuplicate) { dupCount++; continue; }
 
-      let category = type === 'income' ? '이자/기타' : '소모품';
+      let category = type === 'income' ? '기타수익' : '소모품비';
       let part = '공통';
       let memberId = null;
 
@@ -107,25 +109,27 @@ export default function ExcelImportModal({ onClose }) {
         const isAfterLeave = member.leaveDate && txDate > member.leaveDate;
 
         if (isBeforeJoin || isAfterLeave) {
-          // 가입 전이거나 탈퇴 후 입금은 회비가 아님
-          category = '기타수입';
+          category = '기타수익';
           part = '공통';
           memberId = member.id;
         } else {
-          category = '회비';
+          category = '회비수익';
           part = member.part;
           memberId = member.id;
         }
       }
       
       // 자동 분류 2: 키워드 매칭
-      else if (desc.includes('연습실')) category = '연습실 대여';
-      else if (desc.includes('이자')) category = '이자/기타';
-      else if (desc.includes('식당') || desc.includes('식대') || desc.includes('식사') || desc.includes('회식')) category = '식대';
+      else if (desc.includes('연습실')) category = '임차료';
+      else if (desc.includes('이자')) category = '기타수익';
+      else if (desc.includes('식당') || desc.includes('식대') || desc.includes('식사') || desc.includes('회식')) category = '복리후생비';
       else if (desc.includes('비품')) category = '비품';
-      else if (desc.includes('소모품')) category = '소모품';
-      else if (desc.includes('주차')) category = '주차비';
-      else if (desc.includes('사례')) category = '사례비';
+      else if (desc.includes('소모품')) category = '소모품비';
+      else if (desc.includes('주차')) category = '소모품비';
+      else if (desc.includes('사례') || desc.includes('강사') || desc.includes('수고비')) category = '외주비';
+
+      // 8대 계정과목으로 최종 변환 보장
+      category = normalizeCategory(category, type);
 
       newTxs.push({
         id: 'tx_' + Date.now() + Math.random().toString(36).substr(2, 5),

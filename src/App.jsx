@@ -5,7 +5,7 @@ import DashboardPage from './pages/DashboardPage';
 import MemberDuesPage from './pages/MemberDuesPage';
 import MembersPage from './pages/MembersPage';
 import TransactionPage from './pages/TransactionPage';
-import AddTransactionPage from './pages/AddTransactionPage';
+import ExcelImportModal from './components/ExcelImportModal';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginModal from './components/LoginModal';
@@ -44,71 +44,7 @@ const PAGE_TITLES = {
   ledger: '입출금 내역', analytics: '요약', settings: '설정',
 };
 
-function GatePage() {
-  const { login } = useAuth();
-  const [passcode, setPasscode] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState('');
-  const [shakeTrigger, setShakeTrigger] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!passcode.trim()) return;
-    const success = login(passcode);
-    if (success) {
-      setError('');
-    } else {
-      setError('비밀번호가 일치하지 않습니다. 다시 입력해주세요.');
-      setShakeTrigger(true);
-      setTimeout(() => setShakeTrigger(false), 500);
-    }
-  };
-
-  return (
-    <div className="gate-page-wrapper">
-      <div className={`gate-card ${shakeTrigger ? 'gate-error' : ''}`}>
-        <div className="gate-logo">
-          <img src="/logo.png" alt="Lumique" />
-        </div>
-        <div className="gate-header">
-          <h2>L U M I Q U E</h2>
-          <p>동아리 운영 관리 시스템</p>
-        </div>
-        <form className="gate-form" onSubmit={handleSubmit}>
-          <div className="gate-input-wrapper">
-            <input
-              type={showPass ? 'text' : 'password'}
-              className="gate-input"
-              placeholder="공용 비밀번호 입력"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              autoFocus
-            />
-            <button
-              type="button"
-              className="gate-input-toggle"
-              onClick={() => setShowPass(!showPass)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              {showPass ? (
-                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88L3 3m18 18l-6.88-6.88m-1.371-1.372A9.97 9.97 0 0021 12c-1.275 4.057-5.065 7-9.542 7-1.42 0-2.766-.296-3.987-.825" />
-                </svg>
-              ) : (
-                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
-            </button>
-          </div>
-          {error && <div className="gate-error">{error}</div>}
-          <button type="submit" className="gate-btn">진입하기</button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function ChangePwdModal({ onClose }) {
   const { changePassword } = useAuth();
@@ -155,9 +91,9 @@ function ChangePwdModal({ onClose }) {
 }
 
 function AppInner() {
-  const { isAdmin, requestLogin, logout, showLoginModal } = useAuth();
+  const { isAdmin, runWithAdmin, logout, showLoginModal } = useAuth();
   const [tab, setTab] = useState('home');
-  const [showAdd, setShowAdd] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState(null); // 'dues_group' | 'activity_group' | null
   const [expandedGroups, setExpandedGroups] = useState({ dues: true, activity: true });
@@ -165,11 +101,7 @@ function AppInner() {
   useEffect(() => {
     window.scrollTo(0, 0);
     setActiveSubmenu(null);
-  }, [tab, showAdd]);
-
-  if (!isAdmin) {
-    return <GatePage />;
-  }
+  }, [tab]);
 
   const toggleGroup = (key) => {
     setExpandedGroups(prev => ({
@@ -179,18 +111,19 @@ function AppInner() {
   };
 
   const handleAddClick = () => {
-    if (isAdmin) setShowAdd(true);
-    else requestLogin();
+    runWithAdmin(() => {
+      setTab('ledger');
+      setShowExcelModal(true);
+    });
   };
 
   const renderPage = () => {
-    if (showAdd) return <AddTransactionPage onClose={() => setShowAdd(false)} />;
     switch (tab) {
       case 'home':      return <DashboardPage setTab={setTab} />;
       case 'members':   return <MembersPage initialView="회원 목록" />;
       case 'perf':      return <MembersPage initialView="공연별 현황" />;
       case 'dues':      return <MemberDuesPage />;
-      case 'ledger':    return <TransactionPage />;
+      case 'ledger':    return <TransactionPage openExcelImport={() => runWithAdmin(() => setShowExcelModal(true))} />;
       case 'analytics': return <AnalyticsPage />;
       case 'settings':  return <SettingsPage />;
       default:          return <DashboardPage setTab={setTab} />;
@@ -214,8 +147,8 @@ function AppInner() {
               const t = TABS.find(x => x.id === 'home');
               return (
                 <button key={t.id}
-                  className={`sidebar-nav-item ${tab === t.id && !showAdd ? 'active' : ''}`}
-                  onClick={() => { setTab(t.id); setShowAdd(false); }}>
+                  className={`sidebar-nav-item ${tab === t.id ? 'active' : ''}`}
+                  onClick={() => { setTab(t.id); }}>
                   {t.icon}<span>{t.label}</span>
                 </button>
               );
@@ -264,8 +197,8 @@ function AppInner() {
                       const t = TABS.find(x => x.id === id);
                       return (
                         <button key={t.id}
-                          className={`sidebar-nav-item sub-item ${tab === t.id && !showAdd ? 'active' : ''}`}
-                          onClick={() => { setTab(t.id); setShowAdd(false); }}>
+                          className={`sidebar-nav-item sub-item ${tab === t.id ? 'active' : ''}`}
+                          onClick={() => { setTab(t.id); }}>
                           <span className="dot" />
                           <span>{t.label}</span>
                         </button>
@@ -283,8 +216,8 @@ function AppInner() {
               const t = TABS.find(x => x.id === 'settings');
               return (
                 <button key={t.id}
-                  className={`sidebar-nav-item ${tab === t.id && !showAdd ? 'active' : ''}`}
-                  onClick={() => { setTab(t.id); setShowAdd(false); }}>
+                  className={`sidebar-nav-item ${tab === t.id ? 'active' : ''}`}
+                  onClick={() => { setTab(t.id); }}>
                   {t.icon}<span>{t.label}</span>
                 </button>
               );
@@ -311,7 +244,7 @@ function AppInner() {
               </button>
             </div>
           ) : (
-            <button className="sidebar-login-btn" onClick={requestLogin}>
+            <button className="sidebar-login-btn" onClick={() => runWithAdmin(() => {})}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
               관리자 로그인
             </button>
@@ -321,7 +254,7 @@ function AppInner() {
 
       <div className="pc-main">
         <header className="pc-header">
-          <span className="pc-header-title">{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</span>
+          <span className="pc-header-title">{PAGE_TITLES[tab]}</span>
           <span className="pc-header-sub">Lumique · 토스뱅크 1001-7629-3105</span>
         </header>
 
@@ -333,7 +266,7 @@ function AppInner() {
             <h1>
               <span style={{ color: '#fff', fontWeight: 800 }}>Lumique</span>
               <span style={{ margin: '0 8px', color: '#555', fontWeight: 300 }}>|</span>
-              <span style={{ color: '#bbb', fontWeight: 500 }}>{showAdd ? '거래 추가' : PAGE_TITLES[tab]}</span>
+              <span style={{ color: '#bbb', fontWeight: 500 }}>{PAGE_TITLES[tab]}</span>
             </h1>
           </div>
         </header>
@@ -357,7 +290,6 @@ function AppInner() {
             className={`submenu-item ${tab === item.id ? 'active' : ''}`}
             onClick={() => {
               setTab(item.id);
-              setShowAdd(false);
               setActiveSubmenu(null);
             }}
           >
@@ -374,7 +306,6 @@ function AppInner() {
             className={`submenu-item ${tab === item.id ? 'active' : ''}`}
             onClick={() => {
               setTab(item.id);
-              setShowAdd(false);
               setActiveSubmenu(null);
             }}
           >
@@ -387,7 +318,6 @@ function AppInner() {
       <nav className="bottom-nav">
         {MOBILE_TABS.map(t => {
           const isActive = (() => {
-            if (showAdd) return false;
             if (t.id === 'home') return tab === 'home';
             if (t.id === 'dues_group') return tab === 'ledger' || tab === 'dues' || tab === 'analytics';
             if (t.id === 'activity_group') return tab === 'members' || tab === 'perf';
@@ -403,7 +333,6 @@ function AppInner() {
                   setActiveSubmenu(prev => prev === t.id ? null : t.id);
                 } else {
                   setTab(t.id);
-                  setShowAdd(false);
                   setActiveSubmenu(null);
                 }
               }}>
@@ -413,10 +342,11 @@ function AppInner() {
         })}
       </nav>
 
-      {!showAdd && <button className="fab fab-pc-only" onClick={handleAddClick} title="거래 추가">＋</button>}
+      {!showExcelModal && <button className="fab fab-pc-only" onClick={handleAddClick} title="새 거래 추가">＋</button>}
 
       {showPwdModal && <ChangePwdModal onClose={() => setShowPwdModal(false)} />}
       {showLoginModal && <LoginModal />}
+      {showExcelModal && <ExcelImportModal onClose={() => setShowExcelModal(false)} />}
     </div>
   );
 }
