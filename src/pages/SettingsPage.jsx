@@ -156,7 +156,6 @@ export default function SettingsPage() {
           <div key={c.cat} className="reg-row">
             <div>
               <strong style={{ fontSize: 16 }}>{c.cat}</strong>
-              <span className="badge badge-gray" style={{ marginLeft: 8, fontSize: 12 }}>{c.part}</span>
             </div>
             <span className="reg-value" style={{ fontSize: 14, color: 'var(--gray-500)' }}>{c.desc}</span>
           </div>
@@ -170,7 +169,6 @@ export default function SettingsPage() {
           <div key={c.cat} className="reg-row">
             <div>
               <strong style={{ fontSize: 16 }}>{c.cat}</strong>
-              <span className="badge badge-gray" style={{ marginLeft: 8, fontSize: 12 }}>{c.part}</span>
             </div>
             <span className="reg-value" style={{ fontSize: 14, color: 'var(--gray-500)' }}>{c.desc}</span>
           </div>
