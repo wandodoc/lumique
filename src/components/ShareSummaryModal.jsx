@@ -335,6 +335,7 @@ export default function ShareSummaryModal({ onClose }) {
   // 이미지 복사 핸들러 (Clipboard API)
   const handleCopyImage = async () => {
     if (!cardRef.current) return;
+    window.focus(); // 포커스 강제 획득
     try {
       // toPng를 사용하여 안정적으로 생성 후 Blob 변환
       const dataUrl = await toPng(cardRef.current, {
@@ -357,8 +358,13 @@ export default function ShareSummaryModal({ onClose }) {
       ]);
       showStatus('image');
     } catch (err) {
-      console.error(err);
-      showStatus('error');
+      console.warn('클립보드 복사 제한으로 인해 파일 다운로드로 전환합니다.', err);
+      try {
+        await handleDownloadImage();
+        showStatus('fallback_download');
+      } catch (dlErr) {
+        showStatus('error');
+      }
     }
   };
 
@@ -555,8 +561,8 @@ export default function ShareSummaryModal({ onClose }) {
           <div style={{
             padding: '10px',
             borderRadius: 8,
-            backgroundColor: copyStatus === 'error' ? '#fef2f2' : '#f0fdf4',
-            color: copyStatus === 'error' ? 'var(--red-500)' : '#16a34a',
+            backgroundColor: copyStatus === 'error' ? '#fef2f2' : (copyStatus === 'fallback_download' ? '#fffbeb' : '#f0fdf4'),
+            color: copyStatus === 'error' ? 'var(--red-500)' : (copyStatus === 'fallback_download' ? '#b45309' : '#16a34a'),
             fontSize: 13,
             fontWeight: 600,
             textAlign: 'center',
@@ -564,6 +570,7 @@ export default function ShareSummaryModal({ onClose }) {
           }}>
             {copyStatus === 'text' && '📋 텍스트 요약이 클립보드에 복사되었습니다!'}
             {copyStatus === 'image' && '🖼️ 요약 카드 이미지가 클립보드에 복사되었습니다!'}
+            {copyStatus === 'fallback_download' && '⚠️ 브라우저 보안 정책(포커스 제한)으로 인해 이미지 파일이 다운로드되었습니다!'}
             {copyStatus === 'error' && '❌ 클립보드 복사에 실패했습니다. 브라우저 설정을 확인해주세요.'}
           </div>
         )}
