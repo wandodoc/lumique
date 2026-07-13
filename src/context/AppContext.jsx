@@ -208,7 +208,7 @@ export function AppProvider({ children }) {
     loadInitialData();
   }, []);
 
-  // 상태가 바뀔 때마다 Firebase에 동기화 (단, 로딩이 끝난 후부터)
+  // 상태가 바뀔 때마다 Firebase 및 LocalStorage에 동기화 (단, 로딩이 끝난 후부터)
   useEffect(() => {
     if (!state.loading) {
       const syncState = {
@@ -217,7 +217,27 @@ export function AppProvider({ children }) {
         performances: state.performances,
         lastUpdated: state.lastUpdated
       };
-      firebaseStorage.saveData(syncState);
+      
+      // 1. Firebase 동기화 (안전하게 직렬화하여 undefined 필드 제거)
+      try {
+        const sanitized = JSON.parse(JSON.stringify(syncState));
+        firebaseStorage.saveData(sanitized);
+      } catch (e) {
+        console.error("Firebase Sync Error:", e);
+      }
+
+      // 2. LocalStorage 동기화 (항상 최신 로컬 백업 상태 유지)
+      try {
+        storage.setTransactions(state.transactions);
+        storage.setMembers(state.members);
+        storage.setPerformances(state.performances);
+        storage.setLastUpdated(state.lastUpdated);
+        
+        // 사용자가 명시한 키 'transactions'도 추가 동기화 보장
+        localStorage.setItem('transactions', JSON.stringify(state.transactions));
+      } catch (e) {
+        console.error("LocalStorage Sync Error:", e);
+      }
     }
   }, [state.members, state.transactions, state.performances, state.lastUpdated, state.loading]);
 
