@@ -216,7 +216,7 @@
 .modal-sheet {
   background: white;
   border-radius: 24px 24px 0 0;
-  padding: 24px 24px 32px;
+  padding: 20px 18px 28px;
   width: 100%;
   max-width: 900px;
   max-height: 85vh;
@@ -226,7 +226,7 @@
 
 @media (min-width: 768px) {
   .modal-overlay { align-items: center; padding: 20px; }
-  .modal-sheet { border-radius: 24px; max-height: 90vh; }
+  .modal-sheet { border-radius: 24px; max-height: 90vh; padding: 24px 24px 32px; }
   .modal-handle { display: none; }
 }
 
@@ -561,13 +561,14 @@
 .perf-list-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
 }
 
 .perf-show-item {
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  min-width: 0;
 }
 
 .perf-show-item:hover {
@@ -578,6 +579,7 @@
 @media (min-width: 1024px) {
   .perf-list-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 14px;
+    padding: 16px;
   }
 }

@@ -61,6 +61,10 @@ export default function TicketOrderForm({ showId }) {
   const [qty, setQty] = useState(1);
 
   useEffect(() => {
+    document.title = 'Lumique 공연 신청 폼';
+  }, []);
+
+  useEffect(() => {
     const primary = loadLS(LS_SHOWS);
     const shows = primary.length > 0 ? primary : migrateShows(loadLS(LS_SHOWS_LEGACY));
     setShowInfo(shows.find((show) => show.id === showId) || null);
