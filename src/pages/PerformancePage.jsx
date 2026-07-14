@@ -240,11 +240,52 @@ function ShowFormModal({ show, onClose, onSave }) {
           </div>
 
           <div>
-            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>포스터 이미지 URL</label>
-            <input style={fieldStyle} value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} placeholder="https://example.com/poster.jpg (선택)" />
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>포스터 이미지 (직접 삽입)</label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.readAsDataURL(file);
+                  reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const MAX_WIDTH = 600;
+                      let width = img.width;
+                      let height = img.height;
+                      if (width > MAX_WIDTH) {
+                        height = Math.round((height * MAX_WIDTH) / width);
+                        width = MAX_WIDTH;
+                      }
+                      canvas.width = width;
+                      canvas.height = height;
+                      const ctx = canvas.getContext('2d');
+                      ctx.drawImage(img, 0, 0, width, height);
+                      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                      set('imageUrl', dataUrl);
+                    };
+                  };
+                }}
+                style={{ ...fieldStyle, padding: '8px 12px' }}
+              />
+              {form.imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => set('imageUrl', '')}
+                  style={{ padding: '8px 12px', background: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  지우기
+                </button>
+              )}
+            </div>
             {form.imageUrl && (
               <div style={{ marginTop: 8, width: '100%', maxHeight: 120, overflow: 'hidden', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                <img src={form.imageUrl} alt="포스터 미리보기" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                <img src={form.imageUrl} alt="포스터 미리보기" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             )}
           </div>
