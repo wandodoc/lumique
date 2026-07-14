@@ -6,8 +6,27 @@ const LS_ORDERS = 'lumique_ticket_orders';
 const TICKET_PRICE   = 5000;
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 
-const loadLS = (key) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : []; } catch { return []; } };
-const saveLS = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+const loadLS = (key) => {
+  try {
+    const v = localStorage.getItem(key);
+    if (!v) return [];
+    const parsed = JSON.parse(v);
+    if (!Array.isArray(parsed)) return [];
+    // 구버전 목업 데이터(더미 아이디 show-1, show-2, show-3 또는 객체가 아닌 값)가 잔존할 경우 영구 차단
+    return parsed.filter(item => item && item.id && !String(item.id).startsWith('show-dummy') && item.id !== 'show-1' && item.id !== 'show-2' && item.id !== 'show-3');
+  } catch {
+    return [];
+  }
+};
+const saveLS = (key, val) => {
+  try {
+    if (!val || (Array.isArray(val) && val.length === 0)) {
+      localStorage.setItem(key, JSON.stringify([]));
+    } else {
+      localStorage.setItem(key, JSON.stringify(val));
+    }
+  } catch {}
+};
 
 // 날짜+시간 요일 포함 포맷터
 const formatDateTime = (dateStr, timeStr) => {
