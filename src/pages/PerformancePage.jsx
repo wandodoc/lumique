@@ -18,8 +18,39 @@ const loadLS = (key) => {
     return [];
   }
 };
+const sanitizeShow = (show) => {
+  if (!show || typeof show !== 'object') return null;
+  const title = String(show.title || '').trim();
+  const date = String(show.date || '').trim();
+  const location = String(show.location || '').trim();
+  const id = String(show.id || '').trim();
+  if (!title || !date || !location) return null;
+  return {
+    ...show,
+    id: id || `show-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title,
+    date,
+    location,
+    time: String(show.time || '19:00').trim() || '19:00',
+  };
+};
+const normalizeShows = (value) => {
+  const list = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const normalized = [];
+  list.forEach((show) => {
+    const cleanShow = sanitizeShow(show);
+    if (!cleanShow) return;
+    const signature = cleanShow.id || `${cleanShow.title}|${cleanShow.date}|${cleanShow.time}|${cleanShow.location}`;
+    if (!signature) return false;
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    normalized.push(cleanShow);
+  });
+  return normalized;
+};
 const migrateShows = (value) => {
-  const next = Array.isArray(value) ? value : [];
+  const next = normalizeShows(value);
   try {
     localStorage.setItem(LS_SHOWS, JSON.stringify(next));
     localStorage.removeItem(LS_SHOWS_LEGACY);
@@ -28,7 +59,7 @@ const migrateShows = (value) => {
 };
 const saveLS = (key, val) => {
   try {
-    localStorage.setItem(key, JSON.stringify(Array.isArray(val) ? val : []));
+    localStorage.setItem(key, JSON.stringify(normalizeShows(val)));
   } catch {}
 };
 
@@ -323,9 +354,9 @@ function ShowFormModal({ show, onClose, onSave }) {
 /* ────── 메인 페이지 ────── */
 export default function PerformancePage() {
   const [shows,      setShows]      = useState(() => {
-    const primary = loadLS(LS_SHOWS);
+    const primary = normalizeShows(loadLS(LS_SHOWS));
     if (primary.length > 0) return primary;
-    const legacy = loadLS(LS_SHOWS_LEGACY);
+    const legacy = normalizeShows(loadLS(LS_SHOWS_LEGACY));
     if (legacy.length > 0) {
       return migrateShows(legacy);
     }
@@ -337,24 +368,39 @@ export default function PerformancePage() {
   const [copyDone,   setCopyDone]   = useState(false);
 
   useEffect(() => {
-    saveLS(LS_SHOWS, shows);
+    const cleanedShows = normalizeShows(shows);
+    if (cleanedShows.length !== shows.length) {
+      setShows(cleanedShows);
+      return;
+    }
+    saveLS(LS_SHOWS, cleanedShows);
   }, [shows]);
 
   useEffect(() => {
-    if (!selectedId && shows.length > 0) setSelectedId(shows[0].id);
+    if (shows.length === 0) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    const nextSelected = shows.some(s => s.id === selectedId) ? selectedId : shows[0].id;
+    if (nextSelected !== selectedId) setSelectedId(nextSelected);
   }, [shows, selectedId]);
 
   const saveShow = useCallback(showData => {
-    const isEdit = shows.some(s => s.id === showData.id);
+    const nextShow = sanitizeShow(showData);
+    if (!nextShow) {
+      alert('공연명, 날짜, 장소는 반드시 입력해야 합니다.');
+      return;
+    }
+    const isEdit = shows.some(s => s.id === nextShow.id);
     let next;
     if (isEdit) {
-      next = shows.map(s => s.id === showData.id ? showData : s);
+      next = shows.map(s => s.id === nextShow.id ? nextShow : s);
     } else {
-      next = [...shows, showData];
+      next = [...shows, nextShow];
     }
     next.sort((a,b) => a.date.localeCompare(b.date));
-    setShows(next);
-    setSelectedId(showData.id);
+    setShows(normalizeShows(next));
+    setSelectedId(nextShow.id);
   }, [shows]);
 
   const deleteShow = useCallback(id => {
