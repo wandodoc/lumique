@@ -63,8 +63,8 @@ export default function TicketOrderForm({ showId }) {
   const ticketPrice = showInfo?.price ?? TICKET_PRICE;
   const total = qty * ticketPrice;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = (event) => {
+    event.preventDefault();
     if (!name.trim()) return alert('성함을 입력해 주세요.');
     if (!phone.trim()) return alert('연락처를 입력해 주세요.');
     if (qty < 1) return alert('최소 1매 이상 신청해 주세요.');
@@ -102,8 +102,13 @@ export default function TicketOrderForm({ showId }) {
     transition: 'border-color 0.15s',
   };
 
-  const focusHandler = (e) => { e.target.style.borderColor = '#111827'; };
-  const blurHandler = (e) => { e.target.style.borderColor = '#e2e8f0'; };
+  const focusHandler = (event) => {
+    event.target.style.borderColor = '#111827';
+  };
+
+  const blurHandler = (event) => {
+    event.target.style.borderColor = '#e2e8f0';
+  };
 
   if (loading) {
     return (
@@ -148,10 +153,10 @@ export default function TicketOrderForm({ showId }) {
               ['신청자', name],
               ['매수', `${qty}매`],
               ['총 금액', `${total.toLocaleString()}원`],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}>
-                <span style={{ color: '#64748b' }}>{k}</span>
-                <span style={{ fontWeight: 700, color: '#111827' }}>{v}</span>
+            ].map(([key, value]) => (
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ color: '#64748b' }}>{key}</span>
+                <span style={{ fontWeight: 700, color: '#111827' }}>{value}</span>
               </div>
             ))}
           </div>
@@ -163,11 +168,11 @@ export default function TicketOrderForm({ showId }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '100dvh', background: '#f8fafc', padding: '36px 16px 80px' }}>
       <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, overflow: 'hidden', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
-        {showInfo.imageUrl && (
+        {showInfo.imageUrl ? (
           <div style={{ width: '100%', borderBottom: '1px solid #e2e8f0', background: '#fff', padding: 16 }}>
             <img src={showInfo.imageUrl} alt={showInfo.title} style={{ width: '100%', height: 'auto', objectFit: 'contain', display: 'block' }} />
           </div>
-        )}
+        ) : null}
 
         <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid #f1f5f9' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -190,12 +195,12 @@ export default function TicketOrderForm({ showId }) {
             </div>
           </div>
 
-          {showInfo.description && (
+          {showInfo.description ? (
             <div style={{ marginTop: 20 }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>공연 소개 / 안내</h3>
               <p style={{ fontSize: 14, color: '#4b5563', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{showInfo.description}</p>
             </div>
-          )}
+          ) : null}
 
           <SectionList sections={showInfo.customSections} />
 
@@ -207,20 +212,32 @@ export default function TicketOrderForm({ showId }) {
         <form onSubmit={handleSubmit} style={{ padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>성함 *</label>
-            <input type="text" required placeholder="예) 홍길동" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} onFocus={focusHandler} onBlur={blurHandler} />
+            <input type="text" required placeholder="예) 홍길동" value={name} onChange={(event) => setName(event.target.value)} style={inputStyle} onFocus={focusHandler} onBlur={blurHandler} />
           </div>
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>연락처 *</label>
-            <input type="tel" required placeholder="예) 010-1234-5678" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} onFocus={focusHandler} onBlur={blurHandler} />
+            <input type="tel" required placeholder="예) 010-1234-5678" value={phone} onChange={(event) => setPhone(event.target.value)} style={inputStyle} onFocus={focusHandler} onBlur={blurHandler} />
           </div>
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>신청 매수</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button type="button" onClick={() => setQty((value) => Math.max(1, value - 1))} style={{ width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0 }}>−</button>
+              <button
+                type="button"
+                onClick={() => setQty((value) => Math.max(1, value - 1))}
+                style={{ width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0 }}
+              >
+                −
+              </button>
               <span style={{ fontSize: 16, fontWeight: 500, minWidth: 52, textAlign: 'center', color: '#111827' }}>{qty}매</span>
-              <button type="button" onClick={() => setQty((value) => value + 1)} style={{ width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0 }}>+</button>
+              <button
+                type="button"
+                onClick={() => setQty((value) => value + 1)}
+                style={{ width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0 }}
+              >
+                +
+              </button>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>× {ticketPrice.toLocaleString()}원</span>
             </div>
           </div>
