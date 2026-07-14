@@ -57,6 +57,7 @@ const formatDateTime = (dateStr, timeStr) => {
 
 const formatDeposit = (status) => (status === '입금완료' ? '입금 완료' : '입금 대기');
 const formatAttendance = (status) => (status === '입장완료' ? '입장 완료' : '미입장');
+const formatShowStatus = (status) => (status === '종료' ? '종료' : '예매 중');
 
 function Badge({ label, tone = 'slate' }) {
   const palette = {
@@ -619,7 +620,7 @@ function ShowDetailModal({
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ marginBottom: 8 }}>
-              <Badge label={show.status === '종료' ? '종료' : '진행중'} tone={show.status === '종료' ? 'slate' : 'green'} />
+              <Badge label={formatShowStatus(show.status)} tone={show.status === '종료' ? 'slate' : 'green'} />
             </div>
             <h3 style={{ fontSize: 28, lineHeight: 1.2, fontWeight: 950, margin: '0 0 10px', color: 'var(--slate-900)' }}>{show.title}</h3>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
@@ -851,7 +852,7 @@ export default function PerformancePage() {
           type="button"
           className="btn-primary"
           onClick={() => setFormState({ open: true, show: null })}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 14px', fontSize: 14, whiteSpace: 'nowrap' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 24px', fontSize: 14, width: 'auto', whiteSpace: 'nowrap' }}
         >
           <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> 공연 추가
         </button>
@@ -901,7 +902,7 @@ export default function PerformancePage() {
                         <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--slate-900)', lineHeight: 1.35 }}>{show.title}</div>
                         <div style={{ marginTop: 6, fontSize: 13, color: 'var(--text-muted)' }}>📅 {formatDateTime(show.date, show.time)}</div>
                       </div>
-                      <Badge label={show.status === '종료' ? '종료' : '진행중'} tone={show.status === '종료' ? 'slate' : 'green'} />
+                      <Badge label={formatShowStatus(show.status)} tone={show.status === '종료' ? 'slate' : 'green'} />
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

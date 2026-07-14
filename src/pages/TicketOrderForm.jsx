@@ -17,6 +17,13 @@ const loadLS = (key) => {
   }
 };
 
+const formatPhoneNumber = (value) => {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+};
+
 const migrateShows = (value) => {
   const next = Array.isArray(value) ? value : [];
   try {
@@ -178,7 +185,7 @@ export default function TicketOrderForm({ showId }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: '#111827', letterSpacing: 1.5, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4 }}>LUMIQUE TICKET</span>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 950, color: '#111827', margin: '0 0 12px', lineHeight: 1.3 }}>{showInfo.title}</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 950, color: '#111827', margin: '0 0 12px', lineHeight: 1.3 }}>Lumique 공연 신청 폼</h1>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px' }}>
             <div style={{ display: 'flex', gap: 8, fontSize: 14 }}>
@@ -214,7 +221,18 @@ export default function TicketOrderForm({ showId }) {
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>연락처 *</label>
-            <input type="tel" required placeholder="예) 010-1234-5678" value={phone} onChange={(event) => setPhone(event.target.value)} style={inputStyle} onFocus={focusHandler} onBlur={blurHandler} />
+            <input
+              type="tel"
+              required
+              placeholder="예) 010-1234-5678"
+              value={phone}
+              onChange={(event) => setPhone(formatPhoneNumber(event.target.value))}
+              inputMode="numeric"
+              autoComplete="tel"
+              style={inputStyle}
+              onFocus={focusHandler}
+              onBlur={blurHandler}
+            />
           </div>
 
           <div>
