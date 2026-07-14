@@ -177,19 +177,41 @@ function OrderList({ orders, onUpdate, onDelete }) {
                   <td style={{ padding:'12px' }}><Badge label={o.attendanceStatus} color={o.attendanceStatus==='입장완료'?'blue':'slate'} /></td>
                   <td style={{ padding:'12px', textAlign:'right' }}>
                     <div style={{ display:'flex', gap:6, justifyContent:'flex-end', flexWrap:'nowrap' }}>
-                      {o.depositStatus !== '입금완료' && (
-                        <button onClick={() => onUpdate(o.id, { depositStatus:'입금완료' })}
-                          style={{ padding:'6px 12px', borderRadius:8, border:'1px solid #bbf7d0', background:'#f0fdf4', color:'#15803d', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                          입금확인
-                        </button>
-                      )}
-                      {o.attendanceStatus !== '입장완료' && (
-                        <button onClick={() => onUpdate(o.id, { attendanceStatus:'입장완료' })}
-                          style={{ padding:'6px 12px', borderRadius:8, border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                          입장체크
-                        </button>
-                      )}
-                      <button onClick={() => onDelete(o.id)}
+                                            <button
+                        onClick={() => onUpdate(o.id, {
+                          depositStatus: o.depositStatus === '????' ? '????' : '????'
+                        })}
+                        style={{
+                          padding:'6px 12px',
+                          borderRadius:8,
+                          border:'1px solid #bbf7d0',
+                          background:o.depositStatus === '????' ? '#ecfdf5' : '#f0fdf4',
+                          color:'#15803d',
+                          fontSize:12,
+                          fontWeight:700,
+                          cursor:'pointer',
+                          whiteSpace:'nowrap'
+                        }}>
+                        {o.depositStatus === '????' ? '????? ????' : '????'}
+                      </button>
+                      <button
+                        onClick={() => onUpdate(o.id, {
+                          attendanceStatus: o.attendanceStatus === '????' ? '???' : '????'
+                        })}
+                        style={{
+                          padding:'6px 12px',
+                          borderRadius:8,
+                          border:'1px solid #bfdbfe',
+                          background:o.attendanceStatus === '????' ? '#dbeafe' : '#eff6ff',
+                          color:'#1d4ed8',
+                          fontSize:12,
+                          fontWeight:700,
+                          cursor:'pointer',
+                          whiteSpace:'nowrap'
+                        }}>
+                        {o.attendanceStatus === '????' ? '????? ????' : '????'}
+                      </button>
+<button onClick={() => onDelete(o.id)}
                         style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:12, cursor:'pointer' }}>🗑</button>
                     </div>
                   </td>
