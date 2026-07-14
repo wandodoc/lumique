@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 
-const LS_SHOWS = 'lumique_performances';
+const LS_SHOWS = 'lumique_concerts';
+const LS_SHOWS_LEGACY = 'lumique_performances';
 const LS_ORDERS = 'lumique_ticket_orders';
 const TICKET_PRICE = 5000;
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
@@ -11,18 +12,22 @@ const loadLS = (key) => {
     if (!v) return [];
     const parsed = JSON.parse(v);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(item => item && item.id && !String(item.id).startsWith('show-dummy') && item.id !== 'show-1' && item.id !== 'show-2' && item.id !== 'show-3');
+    return parsed;
   } catch {
     return [];
   }
 };
+const migrateShows = (value) => {
+  const next = Array.isArray(value) ? value : [];
+  try {
+    localStorage.setItem(LS_SHOWS, JSON.stringify(next));
+    localStorage.removeItem(LS_SHOWS_LEGACY);
+  } catch {}
+  return next;
+};
 const saveLS = (key, val) => {
   try {
-    if (!val || (Array.isArray(val) && val.length === 0)) {
-      localStorage.setItem(key, JSON.stringify([]));
-    } else {
-      localStorage.setItem(key, JSON.stringify(val));
-    }
+    localStorage.setItem(key, JSON.stringify(Array.isArray(val) ? val : []));
   } catch {}
 };
 
@@ -51,7 +56,8 @@ export default function TicketOrderForm({ showId }) {
   const [support, setSupport] = useState('');
 
   useEffect(() => {
-    const shows = loadLS(LS_SHOWS);
+    const primary = loadLS(LS_SHOWS);
+    const shows = primary.length > 0 ? primary : migrateShows(loadLS(LS_SHOWS_LEGACY));
     const found = shows.find(s => s.id === showId);
     setShowInfo(found || null);
     setLoading(false);

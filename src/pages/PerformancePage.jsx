@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import './PageStyles.css';
 
-const LS_SHOWS  = 'lumique_performances';
+const LS_SHOWS  = 'lumique_concerts';
+const LS_SHOWS_LEGACY = 'lumique_performances';
 const LS_ORDERS = 'lumique_ticket_orders';
 const TICKET_PRICE   = 5000;
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
@@ -12,19 +13,22 @@ const loadLS = (key) => {
     if (!v) return [];
     const parsed = JSON.parse(v);
     if (!Array.isArray(parsed)) return [];
-    // 구버전 목업 데이터(더미 아이디 show-1, show-2, show-3 또는 객체가 아닌 값)가 잔존할 경우 영구 차단
-    return parsed.filter(item => item && item.id && !String(item.id).startsWith('show-dummy') && item.id !== 'show-1' && item.id !== 'show-2' && item.id !== 'show-3');
+    return parsed;
   } catch {
     return [];
   }
 };
+const migrateShows = (value) => {
+  const next = Array.isArray(value) ? value : [];
+  try {
+    localStorage.setItem(LS_SHOWS, JSON.stringify(next));
+    localStorage.removeItem(LS_SHOWS_LEGACY);
+  } catch {}
+  return next;
+};
 const saveLS = (key, val) => {
   try {
-    if (!val || (Array.isArray(val) && val.length === 0)) {
-      localStorage.setItem(key, JSON.stringify([]));
-    } else {
-      localStorage.setItem(key, JSON.stringify(val));
-    }
+    localStorage.setItem(key, JSON.stringify(Array.isArray(val) ? val : []));
   } catch {}
 };
 
@@ -318,11 +322,23 @@ function ShowFormModal({ show, onClose, onSave }) {
 
 /* ────── 메인 페이지 ────── */
 export default function PerformancePage() {
-  const [shows,      setShows]      = useState(() => loadLS(LS_SHOWS));
+  const [shows,      setShows]      = useState(() => {
+    const primary = loadLS(LS_SHOWS);
+    if (primary.length > 0) return primary;
+    const legacy = loadLS(LS_SHOWS_LEGACY);
+    if (legacy.length > 0) {
+      return migrateShows(legacy);
+    }
+    return [];
+  });
   const [orders,     setOrders]     = useState(() => loadLS(LS_ORDERS));
   const [selectedId, setSelectedId] = useState(null);
   const [modalState, setModalState] = useState({ open: false, editShow: null });
   const [copyDone,   setCopyDone]   = useState(false);
+
+  useEffect(() => {
+    saveLS(LS_SHOWS, shows);
+  }, [shows]);
 
   useEffect(() => {
     if (!selectedId && shows.length > 0) setSelectedId(shows[0].id);
@@ -338,7 +354,6 @@ export default function PerformancePage() {
     }
     next.sort((a,b) => a.date.localeCompare(b.date));
     setShows(next);
-    saveLS(LS_SHOWS, next);
     setSelectedId(showData.id);
   }, [shows]);
 
@@ -346,20 +361,24 @@ export default function PerformancePage() {
     if (!window.confirm('공연과 모든 예매 내역이 영구 삭제됩니다. 진행할까요?')) return;
     const ns = shows.filter(s => s.id !== id);
     const no = orders.filter(o => o.concertId !== id);
-    setShows(ns);  saveLS(LS_SHOWS,  ns);
-    setOrders(no); saveLS(LS_ORDERS, no);
+    setShows(ns);
+    setOrders(no);
     setSelectedId(ns[0]?.id || null);
   }, [shows, orders]);
 
   const updateOrder = useCallback((oid, changes) => {
     const next = orders.map(o => o.id===oid ? {...o,...changes} : o);
-    setOrders(next); saveLS(LS_ORDERS, next);
+    setOrders(next);
   }, [orders]);
 
   const deleteOrder = useCallback(oid => {
     if (!window.confirm('이 예매 내역을 삭제할까요?')) return;
     const next = orders.filter(o => o.id !== oid);
-    setOrders(next); saveLS(LS_ORDERS, next);
+    setOrders(next);
+  }, [orders]);
+
+  useEffect(() => {
+    saveLS(LS_ORDERS, orders);
   }, [orders]);
 
   const copyLink = id => {
