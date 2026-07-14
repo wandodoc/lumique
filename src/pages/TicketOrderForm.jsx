@@ -197,16 +197,13 @@ export default function TicketOrderForm({ showId }) {
 
           {showInfo.description ? (
             <div style={{ marginTop: 20 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>공연 소개 / 안내</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>공연 소개</h3>
               <p style={{ fontSize: 14, color: '#4b5563', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{showInfo.description}</p>
             </div>
           ) : null}
 
           <SectionList sections={showInfo.customSections} />
 
-          <div style={{ marginTop: 20, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px', color: '#475569', fontSize: 13, lineHeight: 1.7 }}>
-            <strong style={{ color: '#111827' }}>💸 추가 자율 후원 안내 (선택):</strong> 루미크 동아리 활동을 후원해 주실 분들은 아래 안내된 무통장 입금 계좌로 자유롭게 입금해 주시면 감사하겠습니다. 🙏
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>

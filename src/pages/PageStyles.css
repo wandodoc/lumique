@@ -565,6 +565,16 @@
   padding: 16px;
 }
 
+.perf-show-item {
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.perf-show-item:hover {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
 @media (min-width: 1024px) {
   .perf-list-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
