@@ -42,9 +42,9 @@ function StatsRow({ orders }) {
   return (
     <div className="perf-stats-grid">
       {items.map(it => (
-        <div key={it.label} className="card" style={{ padding:'16px 18px' }}>
-          <div style={{ fontSize:22, marginBottom:4 }}>{it.icon}</div>
-          <div style={{ fontSize:13, color:'var(--text-muted)', fontWeight:600, marginBottom:3 }}>{it.label}</div>
+        <div key={it.label} className="card card-pad" style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          <div style={{ fontSize:22 }}>{it.icon}</div>
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontWeight:600 }}>{it.label}</div>
           <div style={{ fontSize:20, fontWeight:800, color:'var(--slate-900)' }}>{it.value}</div>
         </div>
       ))}
@@ -63,18 +63,18 @@ function OrderList({ orders, onUpdate, onDelete }) {
   return (
     <div>
       {/* 검색창 */}
-      <div style={{ position:'relative', marginBottom:14 }}>
-        <span style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', fontSize:15 }}>🔍</span>
+      <div style={{ position:'relative', marginBottom:16 }}>
+        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', fontSize:16 }}>🔍</span>
         <input
-          type="text" placeholder="이름 또는 전화번호로 검색..."
+          type="text" placeholder="이름 또는 연락처 검색..."
           value={q} onChange={e => setQ(e.target.value)}
           className="search-input"
-          style={{ width:'100%', paddingLeft:40, boxSizing:'border-box' }}
+          style={{ width:'100%', paddingLeft:40, boxSizing:'border-box', height:42, fontSize:14 }}
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)', fontSize:14 }}>
+        <div style={{ textAlign:'center', padding:'48px 0', color:'var(--text-muted)', fontSize:14 }}>
           {orders.length === 0 ? '예매 신청자가 없습니다. 위 링크를 관객들에게 공유해보세요!' : '검색 결과가 없습니다.'}
         </div>
       ) : (
@@ -82,37 +82,37 @@ function OrderList({ orders, onUpdate, onDelete }) {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:14 }}>
             <thead>
               <tr style={{ borderBottom:'2px solid var(--slate-100)', background:'var(--slate-50)' }}>
-                {['신청자','연락처','매수','후원금','총금액','입금상태','입장상태','관리'].map((h,i) => (
-                  <th key={h} style={{ padding:'10px 12px', textAlign: i===7 ?'right':'left', fontWeight:700, color:'var(--text-muted)', fontSize:13, whiteSpace:'nowrap' }}>{h}</th>
+                {['신청자','연락처','매수','후원금','총금액','입금 상태','입장 상태','관리'].map((h,i) => (
+                  <th key={h} style={{ padding:'12px', textAlign: i===7 ?'right':'left', fontWeight:700, color:'var(--text-muted)', fontSize:13, whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(o => (
-                <tr key={o.id} style={{ borderBottom:'1px solid var(--slate-50)', background: o.attendanceStatus==='입장완료' ? '#f9fafb' : '#fff' }}>
-                  <td style={{ padding:'12px', fontWeight:700, color:'var(--slate-900)', fontSize:14 }}>{o.audienceName}</td>
-                  <td style={{ padding:'12px', color:'var(--slate-600)', fontSize:14 }}>{o.phone}</td>
-                  <td style={{ padding:'12px', fontWeight:700, fontSize:14 }}>{o.ticketCount}매</td>
-                  <td style={{ padding:'12px', color:'var(--slate-600)', fontSize:14 }}>{(o.supportAmount||0).toLocaleString()}원</td>
-                  <td style={{ padding:'12px', fontWeight:700, color:'var(--slate-900)', fontSize:14 }}>{(o.totalPrice||0).toLocaleString()}원</td>
+                <tr key={o.id} style={{ borderBottom:'1px solid var(--slate-100)', background: o.attendanceStatus==='입장완료' ? '#f9fafb' : '#fff' }}>
+                  <td style={{ padding:'12px', fontWeight:700, color:'var(--slate-900)' }}>{o.audienceName}</td>
+                  <td style={{ padding:'12px', color:'var(--slate-600)' }}>{o.phone}</td>
+                  <td style={{ padding:'12px', fontWeight:700 }}>{o.ticketCount}매</td>
+                  <td style={{ padding:'12px', color:'var(--slate-600)' }}>{(o.supportAmount||0).toLocaleString()}원</td>
+                  <td style={{ padding:'12px', fontWeight:700, color:'var(--slate-900)' }}>{(o.totalPrice||0).toLocaleString()}원</td>
                   <td style={{ padding:'12px' }}><Badge label={o.depositStatus} color={o.depositStatus==='입금완료'?'green':'amber'} /></td>
                   <td style={{ padding:'12px' }}><Badge label={o.attendanceStatus} color={o.attendanceStatus==='입장완료'?'blue':'slate'} /></td>
                   <td style={{ padding:'12px', textAlign:'right' }}>
-                    <div style={{ display:'flex', gap:5, justifyContent:'flex-end', flexWrap:'nowrap' }}>
+                    <div style={{ display:'flex', gap:6, justifyContent:'flex-end', flexWrap:'nowrap' }}>
                       {o.depositStatus !== '입금완료' && (
                         <button onClick={() => onUpdate(o.id, { depositStatus:'입금완료' })}
-                          style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #bbf7d0', background:'#f0fdf4', color:'#15803d', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                          style={{ padding:'6px 12px', borderRadius:8, border:'1px solid #bbf7d0', background:'#f0fdf4', color:'#15803d', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                           입금확인
                         </button>
                       )}
                       {o.attendanceStatus !== '입장완료' && (
                         <button onClick={() => onUpdate(o.id, { attendanceStatus:'입장완료' })}
-                          style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                          style={{ padding:'6px 12px', borderRadius:8, border:'1px solid #bfdbfe', background:'#eff6ff', color:'#1d4ed8', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                           입장체크
                         </button>
                       )}
                       <button onClick={() => onDelete(o.id)}
-                        style={{ padding:'5px 9px', borderRadius:7, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:12, cursor:'pointer' }}>🗑</button>
+                        style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:12, cursor:'pointer' }}>🗑</button>
                     </div>
                   </td>
                 </tr>
@@ -137,41 +137,41 @@ function AddShowModal({ onClose, onAdd }) {
     onClose();
   };
 
-  const fieldStyle = { width:'100%', padding:'10px 13px', borderRadius:9, border:'1px solid var(--slate-200)', fontSize:14, outline:'none', boxSizing:'border-box', fontFamily:'inherit' };
+  const fieldStyle = { width:'100%', padding:'12px 14px', borderRadius:10, border:'1px solid var(--slate-200)', fontSize:14, outline:'none', boxSizing:'border-box', fontFamily:'inherit' };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" style={{ maxWidth:460 }} onClick={e => e.stopPropagation()}>
+      <div className="modal-sheet" style={{ maxWidth:480 }} onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
-        <h3 style={{ fontSize:18, fontWeight:800, margin:'0 0 20px', color:'var(--slate-900)' }}>🎭 신규 공연 등록</h3>
-        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <h3 style={{ fontSize:20, fontWeight:800, margin:'0 0 24px', color:'var(--slate-900)' }}>🎭 신규 공연 등록</h3>
+        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {[['공연 타이틀 *','text','title','예: 2026 루미크 여름 정기공연'],
             ['공연 날짜 *','date','date',''],
             ['장소 *','text','location','예: 홍대 상상마당 라이브홀']].map(([label,type,key,ph]) => (
             <div key={key}>
-              <label style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:5 }}>{label}</label>
+              <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>{label}</label>
               <input type={type} style={fieldStyle} value={form[key]} onChange={e => set(key, e.target.value)} placeholder={ph} />
             </div>
           ))}
           <div>
-            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:5 }}>티켓 가격 (원)</label>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>티켓 가격 (원)</label>
             <input type="number" min="0" step="500" style={fieldStyle} value={form.price} onChange={e => set('price', e.target.value)} />
           </div>
           <div>
-            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:5 }}>공연 소개 / 안내</label>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>공연 소개 / 안내</label>
             <textarea rows={3} style={{ ...fieldStyle, resize:'vertical', lineHeight:1.6 }}
               value={form.description} onChange={e => set('description', e.target.value)} placeholder="공연 소개 및 유의사항" />
           </div>
           <div>
-            <label style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:5 }}>상태</label>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>상태</label>
             <select style={{ ...fieldStyle, background:'#f9fafb' }} value={form.status} onChange={e => set('status', e.target.value)}>
               <option value="예매중">예매중</option>
               <option value="종료">종료</option>
             </select>
           </div>
-          <div style={{ display:'flex', gap:9, marginTop:6 }}>
-            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex:1 }}>취소</button>
-            <button type="submit" className="btn-primary" style={{ flex:2 }}>공연 등록</button>
+          <div style={{ display:'flex', gap:10, marginTop:8 }}>
+            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex:1, height:44 }}>취소</button>
+            <button type="submit" className="btn-primary" style={{ flex:2, height:44 }}>공연 등록</button>
           </div>
         </form>
       </div>
@@ -230,21 +230,21 @@ export default function PerformancePage() {
       {/* ── 헤더 ── */}
       <div className="flex-between" style={{ flexWrap:'wrap', gap:10 }}>
         <div>
-          <h2 style={{ fontSize:22, fontWeight:900, margin:0, color:'var(--slate-900)' }}>🎭 공연 관리</h2>
-          <p style={{ fontSize:13, color:'var(--text-muted)', margin:'4px 0 0' }}>공연 등록 · 예매 신청 · 입금 확인 · 현장 입장 체크</p>
+          <h2 style={{ fontSize:22, fontWeight:900, margin:0, color:'var(--slate-900)' }}>🎭 공연 및 관객 티켓 신청 관리</h2>
+          <p style={{ fontSize:14, color:'var(--text-muted)', margin:'4px 0 0' }}>공연 등록 · 예매 신청 · 입금 확인 · 현장 입장 체크</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display:'flex', alignItems:'center', gap:6, height:40 }}>
+        <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display:'flex', alignItems:'center', gap:6, height:42, padding:'0 18px', fontSize:14 }}>
           <span style={{ fontSize:18, lineHeight:1 }}>+</span> 신규 공연 추가
         </button>
       </div>
 
       {/* ── 공연 없음 ── */}
       {shows.length === 0 && (
-        <div className="card card-pad" style={{ textAlign:'center', padding:'60px 24px' }}>
-          <div style={{ fontSize:48, marginBottom:14 }}>🎭</div>
-          <p style={{ fontSize:16, fontWeight:700, color:'var(--slate-700)', margin:'0 0 6px' }}>등록된 공연이 없습니다</p>
-          <p style={{ fontSize:14, color:'var(--text-muted)', margin:'0 0 20px' }}>[신규 공연 추가] 버튼으로 첫 공연을 등록해보세요</p>
-          <button className="btn-primary" onClick={() => setShowModal(true)}>첫 공연 등록하기</button>
+        <div className="card card-pad" style={{ textAlign:'center', padding:'80px 24px' }}>
+          <div style={{ fontSize:56, marginBottom:16 }}>🎭</div>
+          <p style={{ fontSize:18, fontWeight:700, color:'var(--slate-700)', margin:'0 0 8px' }}>등록된 공연이 없습니다</p>
+          <p style={{ fontSize:14, color:'var(--text-muted)', margin:'0 0 24px' }}>[신규 공연 추가] 버튼으로 첫 공연을 등록해보세요</p>
+          <button className="btn-primary" onClick={() => setShowModal(true)} style={{ height:42, padding:'0 24px', fontSize:14 }}>첫 공연 등록하기</button>
         </div>
       )}
 
@@ -254,21 +254,21 @@ export default function PerformancePage() {
 
           {/* 좌: 공연 목록 */}
           <div className="card" style={{ overflow:'hidden' }}>
-            <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--slate-100)', fontSize:14, fontWeight:800, color:'var(--slate-700)' }}>
+            <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--slate-100)', fontSize:15, fontWeight:800, color:'var(--slate-700)' }}>
               등록된 공연 <span style={{ color:'var(--text-muted)', fontWeight:500 }}>({shows.length})</span>
             </div>
             <div>
               {shows.map(s => (
                 <button key={s.id} onClick={() => setSelectedId(s.id)}
                   style={{
-                    width:'100%', textAlign:'left', padding:'13px 16px',
+                    width:'100%', textAlign:'left', padding:'16px 20px',
                     border:'none', borderBottom:'1px solid var(--slate-50)',
-                    borderLeft: selectedId===s.id ? '3px solid #111827' : '3px solid transparent',
+                    borderLeft: selectedId===s.id ? '4px solid #111827' : '4px solid transparent',
                     background: selectedId===s.id ? '#f9fafb' : '#fff',
                     cursor:'pointer', transition:'background 0.15s',
                   }}>
-                  <div style={{ fontSize:14, fontWeight:800, color:'var(--slate-900)', marginBottom:3 }}>{s.title}</div>
-                  <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:6 }}>📅 {s.date}</div>
+                  <div style={{ fontSize:15, fontWeight:800, color:'var(--slate-900)', marginBottom:4 }}>{s.title}</div>
+                  <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:8 }}>📅 {s.date}</div>
                   <Badge label={s.status} color={s.status==='예매중'?'green':'slate'} />
                 </button>
               ))}
@@ -282,43 +282,43 @@ export default function PerformancePage() {
                 {/* 공연 상세 카드 */}
                 <div className="card">
                   {/* 공연 제목 영역 */}
-                  <div style={{ padding:'18px 20px', borderBottom:'1px solid var(--slate-100)' }}>
+                  <div style={{ padding:'20px 24px', borderBottom:'1px solid var(--slate-100)' }}>
                     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
                       <div style={{ flex:1 }}>
-                        <div style={{ marginBottom:7 }}>
+                        <div style={{ marginBottom:8 }}>
                           <Badge label={sel.status} color={sel.status==='예매중'?'green':'slate'} />
                         </div>
-                        <h3 style={{ fontSize:18, fontWeight:900, color:'var(--slate-900)', margin:'0 0 5px' }}>{sel.title}</h3>
+                        <h3 style={{ fontSize:20, fontWeight:900, color:'var(--slate-900)', margin:'0 0 6px' }}>{sel.title}</h3>
                         {sel.description && (
                           <p style={{ fontSize:14, color:'var(--slate-600)', margin:0, lineHeight:1.6 }}>{sel.description}</p>
                         )}
                       </div>
                       <button onClick={() => deleteShow(sel.id)}
-                        style={{ padding:'7px 14px', borderRadius:9, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
+                        style={{ padding:'8px 16px', borderRadius:10, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
                         공연 삭제
                       </button>
                     </div>
                   </div>
 
                   {/* 공연 정보 그리드 */}
-                  <div style={{ padding:'14px 20px', display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12, borderBottom:'1px solid var(--slate-100)' }}>
-                    {[['📅','날짜',sel.date],['📍','장소',sel.location],
-                      ['🪙','티켓가',`${(sel.price??TICKET_PRICE).toLocaleString()}원/매`],
-                      ['🏦','계좌',sel.supportAccount]].map(([ic,lb,vl]) => (
+                  <div style={{ padding:'18px 24px', display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:16, borderBottom:'1px solid var(--slate-100)' }}>
+                    {[['📅','일시',sel.date],['📍','장소',sel.location],
+                      ['🪙','티켓 가격',`${(sel.price??TICKET_PRICE).toLocaleString()}원/매`],
+                      ['🏦','예매용 계좌',sel.supportAccount]].map(([ic,lb,vl]) => (
                       <div key={lb}>
-                        <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:600, marginBottom:3 }}>{ic} {lb}</div>
+                        <div style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600, marginBottom:4 }}>{ic} {lb}</div>
                         <div style={{ fontSize:14, fontWeight:700, color:'var(--slate-800)' }}>{vl}</div>
                       </div>
                     ))}
                   </div>
 
                   {/* 예매 링크 */}
-                  <div style={{ padding:'13px 20px', display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                    <span style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', whiteSpace:'nowrap' }}>🔗 관객 예매 링크</span>
+                  <div style={{ padding:'16px 24px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+                    <span style={{ fontSize:14, fontWeight:700, color:'var(--text-muted)', whiteSpace:'nowrap' }}>🔗 외부 예매 신청 폼 링크</span>
                     <input readOnly value={`${window.location.origin}/form/${sel.id}`}
-                      style={{ flex:1, padding:'8px 12px', border:'1px solid var(--slate-200)', borderRadius:9, fontSize:12, background:'var(--slate-50)', color:'var(--slate-600)', minWidth:180, boxSizing:'border-box', outline:'none' }} />
+                      style={{ flex:1, padding:'10px 14px', border:'1px solid var(--slate-200)', borderRadius:10, fontSize:13, background:'var(--slate-50)', color:'var(--slate-600)', minWidth:220, boxSizing:'border-box', outline:'none' }} />
                     <button onClick={() => copyLink(sel.id)} className={copyDone ? 'btn-secondary' : 'btn-primary'}
-                      style={{ height:38, padding:'0 14px', borderRadius:9, fontSize:13, fontWeight:700, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+                      style={{ height:42, padding:'0 18px', borderRadius:10, fontSize:13, fontWeight:700, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:6 }}>
                       {copyDone ? '✅ 복사완료' : '링크 복사'}
                     </button>
                   </div>
@@ -328,10 +328,10 @@ export default function PerformancePage() {
                 <StatsRow orders={showOrders} />
 
                 {/* 관객 명단 */}
-                <div className="card card-pad">
-                  <div className="flex-between" style={{ marginBottom:14, flexWrap:'wrap', gap:8 }}>
+                <div className="card card-pad" style={{ padding:'20px 24px' }}>
+                  <div className="flex-between" style={{ marginBottom:16, flexWrap:'wrap', gap:8 }}>
                     <span style={{ fontSize:16, fontWeight:800, color:'var(--slate-900)' }}>🎟️ 관객 신청 명단</span>
-                    <span style={{ fontSize:13, color:'var(--text-muted)' }}>총 {showOrders.length}건</span>
+                    <span style={{ fontSize:14, color:'var(--text-muted)' }}>총 {showOrders.length}건</span>
                   </div>
                   <OrderList orders={showOrders} onUpdate={updateOrder} onDelete={deleteOrder} />
                 </div>
