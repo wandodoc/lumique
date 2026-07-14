@@ -11,6 +11,7 @@ import SettingsPage from './pages/SettingsPage';
 import LoginModal from './components/LoginModal';
 import CalendarPage from './pages/CalendarPage';
 import PerformancePage from './pages/PerformancePage';
+import ReservationManagementPage from './pages/ReservationManagementPage';
 import TicketOrderForm from './pages/TicketOrderForm';
 import './App.css';
 
@@ -127,6 +128,7 @@ function AppInner() {
       case 'home':      return <DashboardPage setTab={setTab} />;
       case 'members':   return <MembersPage initialView="회원 목록" />;
       case 'perf':      return <PerformancePage />;
+      case 'reservations': return <ReservationManagementPage />;
       case 'calendar':  return <CalendarPage />;
       case 'dues':      return <MemberDuesPage />;
       case 'ledger':    return <TransactionPage openExcelImport={() => runWithAdmin(() => setShowExcelModal(true))} />;
@@ -359,6 +361,15 @@ function AppInner() {
 export default function App() {
   const path = window.location.pathname;
   const formMatch = path.match(/^\/form\/([^/]+)$/);
+  if (path === '/reservations') {
+    return (
+      <AuthProvider>
+        <AppProvider>
+          <ReservationManagementPage />
+        </AppProvider>
+      </AuthProvider>
+    );
+  }
   
   if (formMatch) {
     const showId = formMatch[1];
