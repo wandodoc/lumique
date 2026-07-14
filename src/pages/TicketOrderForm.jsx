@@ -1,170 +1,275 @@
 import { useState, useEffect } from 'react';
-import './PageStyles.css';
+
+const LS_SHOWS = 'lumique_performances';
+const LS_ORDERS = 'lumique_ticket_orders';
+const TICKET_PRICE = 5000;
+const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
+
+const loadLS = (key) => {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : []; }
+  catch { return []; }
+};
+const saveLS = (key, val) => {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+};
 
 export default function TicketOrderForm({ showId }) {
   const [showInfo, setShowInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [support, setSupport] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [qty, setQty] = useState(1);
+  const [support, setSupport] = useState('');
 
-  // Load show info from LocalStorage without fallback dummy data
   useEffect(() => {
-    const shows = localStorage.getItem('lumique_performances');
-    const showList = shows ? JSON.parse(shows) : [];
-    const found = showList.find(s => s.id === showId);
+    const shows = loadLS(LS_SHOWS);
+    const found = shows.find(s => s.id === showId);
     setShowInfo(found || null);
     setLoading(false);
   }, [showId]);
+
+  const ticketPrice = showInfo?.price ?? TICKET_PRICE;
+  const supportNum = Number(support) || 0;
+  const total = qty * ticketPrice + supportNum;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return alert('성함을 입력해 주세요.');
     if (!phone.trim()) return alert('연락처를 입력해 주세요.');
-    if (quantity < 1) return alert('최소 1매 이상 신청하셔야 합니다.');
+    if (qty < 1) return alert('최소 1매 이상 신청하셔야 합니다.');
 
-    const savedOrders = localStorage.getItem('lumique_ticket_orders');
-    const orderList = savedOrders ? JSON.parse(savedOrders) : [];
-
-    const ticketPrice = showInfo?.price || 0;
-    const totalPrice = quantity * ticketPrice + Number(support);
-
+    const orders = loadLS(LS_ORDERS);
     const newOrder = {
-      id: `ord-${Date.now()}`,
+      id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       concertId: showId,
       audienceName: name.trim(),
       phone: phone.trim(),
-      ticketCount: Number(quantity),
-      supportAmount: Number(support),
-      totalPrice: totalPrice,
+      ticketCount: Number(qty),
+      supportAmount: supportNum,
+      totalPrice: total,
       depositStatus: '입금대기',
       attendanceStatus: '미입장',
     };
-
-    const updated = [...orderList, newOrder];
-    localStorage.setItem('lumique_ticket_orders', JSON.stringify(updated));
+    saveLS(LS_ORDERS, [...orders, newOrder]);
     setSubmitted(true);
   };
 
+  const inputStyle = {
+    width: '100%',
+    padding: '13px 16px',
+    borderRadius: 12,
+    border: '1.5px solid #e2e8f0',
+    fontSize: 15,
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+    background: '#fff',
+    transition: 'border-color 0.15s',
+  };
+  const focusHandler = e => e.target.style.borderColor = '#3b82f6';
+  const blurHandler = e => e.target.style.borderColor = '#e2e8f0';
+
+  /* ── 로딩 ── */
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
-        <div style={{ fontSize: 16, color: 'var(--slate-500)', fontWeight: 600 }}>공연 티켓 신청 폼 로딩 중...</div>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', background: '#f8fafc' }}>
+        <div style={{ fontSize: 15, color: '#94a3b8', fontWeight: 600 }}>불러오는 중...</div>
       </div>
     );
   }
 
+  /* ── 공연 없음 ── */
   if (!showInfo) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc', padding: 24, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-        <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--slate-800)', marginBottom: 8 }}>공연 정보를 찾을 수 없습니다</h2>
-        <p style={{ fontSize: 14, color: 'var(--slate-500)' }}>공연 링크가 만료되었거나 올바르지 않은 주소입니다.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', background: '#f8fafc', padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 52, marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1e293b', margin: '0 0 8px' }}>공연 정보를 찾을 수 없습니다</h2>
+        <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>링크가 만료되었거나 잘못된 주소입니다.</p>
       </div>
     );
   }
 
+  /* ── 신청 완료 ── */
   if (submitted) {
-    const ticketPrice = showInfo?.price || 0;
-    const totalPrice = quantity * ticketPrice + Number(support);
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f8fafc', padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', background: '#f8fafc', padding: '24px 16px' }}>
         <div style={{
-          maxWidth: '460px',
-          width: '100%',
-          background: '#ffffff',
-          borderRadius: 24,
-          padding: '40px 24px',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
-          textAlign: 'center'
+          maxWidth: 460, width: '100%', background: '#fff',
+          borderRadius: 24, padding: '40px 28px',
+          boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)',
+          textAlign: 'center',
         }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--slate-800)', marginBottom: 12 }}>티켓 신청 완료!</h2>
-          <p style={{ fontSize: 15, color: 'var(--slate-600)', marginBottom: 24, lineHeight: 1.6 }}>
-            성공적으로 접수되었습니다.<br />현장에서 확인 후 입금 안내 등이 문자로 전송됩니다.
+          <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#1e293b', margin: '0 0 10px' }}>예매 신청 완료!</h2>
+          <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.7, margin: '0 0 24px' }}>
+            신청이 접수되었습니다.<br />아래 계좌로 입금 후 운영진이 확인하면 완료됩니다.
           </p>
-          <div style={{ background: 'var(--slate-50)', padding: 16, borderRadius: 16, textAlign: 'left', marginBottom: 24, fontSize: 14 }}>
-            <div style={{ marginBottom: 8 }}><strong>공연:</strong> {showInfo.title}</div>
-            <div style={{ marginBottom: 8 }}><strong>신청자:</strong> {name}</div>
-            <div style={{ marginBottom: 8 }}><strong>매수:</strong> {quantity}매</div>
-            <div style={{ marginBottom: 8 }}><strong>후원금:</strong> {Number(support).toLocaleString()}원</div>
-            <div style={{ marginBottom: 8 }}><strong>총 금액:</strong> {totalPrice.toLocaleString()}원</div>
+
+          {/* 입금 안내 박스 */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+            borderRadius: 16, padding: '20px', marginBottom: 24, textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 600, marginBottom: 6 }}>무통장 입금 계좌</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>{SUPPORT_ACCOUNT}</div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 8 }}>
+              입금 금액: <strong>{total.toLocaleString()}원</strong>
+            </div>
           </div>
-          <p style={{ fontSize: 12, color: 'var(--slate-400)' }}>문의사항은 동아리 루미크 운영진에게 연락 바랍니다.</p>
+
+          {/* 신청 요약 */}
+          <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px', textAlign: 'left', marginBottom: 24 }}>
+            {[
+              ['공연', showInfo.title],
+              ['신청자', name],
+              ['매수', `${qty}매`],
+              ['자율 후원금', `${supportNum.toLocaleString()}원`],
+              ['총 입금 금액', `${total.toLocaleString()}원`],
+            ].map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ color: '#64748b' }}>{k}</span>
+                <span style={{ fontWeight: 700, color: '#1e293b' }}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>문의: 동아리 루미크 운영진</p>
         </div>
       </div>
     );
   }
 
+  /* ── 메인 폼 ── */
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f8fafc', padding: '24px 16px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '100dvh', background: '#f1f5f9', padding: '24px 16px 60px' }}>
       <div style={{
-        maxWidth: '460px',
-        width: '100%',
-        background: '#ffffff',
-        borderRadius: 24,
-        padding: '32px 24px',
-        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)'
+        maxWidth: 460, width: '100%', background: '#fff',
+        borderRadius: 24, overflow: 'hidden',
+        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)',
       }}>
-        {/* 상단 헤더 */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <img src="/logo.png" alt="Lumique" style={{ height: 16, width: 'auto' }} />
-            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: 15, fontWeight: 800, color: '#475569' }}>Lumique</span>
+        {/* 헤더 배너 */}
+        <div style={{
+          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+          padding: '28px 24px 24px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <img src="/logo.png" alt="Lumique" style={{ height: 18, width: 'auto', opacity: 0.9 }} onError={e => e.target.style.display = 'none'} />
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.85)', letterSpacing: 1 }}>LUMIQUE</span>
           </div>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#0f172a', margin: '0 0 8px 0' }}>공연 티켓 예매 신청</h2>
-          <p style={{ fontSize: 13, color: 'var(--slate-500)', margin: 0 }}>아래 폼을 입력하여 간편하게 예매 신청을 접수할 수 있습니다.</p>
+          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: '0 0 5px' }}>{showInfo.title}</h1>
+          {showInfo.description && (
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: '0 0 12px', lineHeight: 1.5 }}>{showInfo.description}</p>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: 20 }}>📅 {showInfo.date}</span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: 20 }}>📍 {showInfo.location}</span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: 20 }}>🪙 {ticketPrice.toLocaleString()}원/매</span>
+          </div>
         </div>
 
-        {/* 공연 정보 요약 카드 */}
-        <div style={{ background: '#f0f9ff', border: '1px solid #e0f2fe', padding: 16, borderRadius: 16, marginBottom: 24 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0369a1', margin: '0 0 6px 0' }}>{showInfo.title}</h3>
-          <p style={{ fontSize: 13, color: '#0284c7', margin: '0 0 12px 0', lineHeight: 1.4 }}>{showInfo.description}</p>
-          <div style={{ fontSize: 13, color: '#0369a1', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span>📅 <strong>일시:</strong> {showInfo.date}</span>
-            <span>📍 <strong>장소:</strong> {showInfo.location}</span>
-            <span>🪙 <strong>티켓가:</strong> {(showInfo?.price || 0).toLocaleString()}원 / 1매</span>
+        {/* 폼 영역 */}
+        <form onSubmit={handleSubmit} style={{ padding: '24px 24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>성함 *</label>
+            <input
+              type="text" required placeholder="홍길동"
+              value={name} onChange={e => setName(e.target.value)}
+              style={inputStyle} onFocus={focusHandler} onBlur={blurHandler}
+            />
           </div>
-        </div>
 
-        {/* 예매 신청 폼 */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label style={{ fontSize: 13, color: 'var(--slate-700)', fontWeight: 700, display: 'block', marginBottom: 6 }}>신청자 성함</label>
-            <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="홍길동"
-              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 15 }} />
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>연락처 *</label>
+            <input
+              type="tel" required placeholder="010-0000-0000"
+              value={phone} onChange={e => setPhone(e.target.value)}
+              style={inputStyle} onFocus={focusHandler} onBlur={blurHandler}
+            />
           </div>
+
           <div>
-            <label style={{ fontSize: 13, color: 'var(--slate-700)', fontWeight: 700, display: 'block', marginBottom: 6 }}>연락처</label>
-            <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000"
-              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 15 }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 13, color: 'var(--slate-700)', fontWeight: 700, display: 'block', marginBottom: 6 }}>신청 매수</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button type="button" onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid var(--slate-200)', background: '#ffffff', fontSize: 20, fontWeight: 600, cursor: 'pointer' }}>-</button>
-              <span style={{ fontSize: 18, fontWeight: 800, minWidth: 40, textAlign: 'center' }}>{quantity}매</span>
-              <button type="button" onClick={() => setQuantity(q => q + 1)}
-                style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid var(--slate-200)', background: '#ffffff', fontSize: 20, fontWeight: 600, cursor: 'pointer' }}>+</button>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>신청 매수</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button
+                type="button"
+                onClick={() => setQty(q => Math.max(1, q - 1))}
+                style={{
+                  width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc', fontSize: 22, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0,
+                }}>−</button>
+              <span style={{ fontSize: 22, fontWeight: 900, minWidth: 60, textAlign: 'center', color: '#1e293b' }}>{qty}매</span>
+              <button
+                type="button"
+                onClick={() => setQty(q => q + 1)}
+                style={{
+                  width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc', fontSize: 22, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0,
+                }}>+</button>
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>× {ticketPrice.toLocaleString()}원</span>
             </div>
           </div>
+
           <div>
-            <label style={{ fontSize: 13, color: 'var(--slate-700)', fontWeight: 700, display: 'block', marginBottom: 6 }}>추가 후원금 (선택)</label>
-            <input type="number" min="0" value={support} onChange={e => setSupport(e.target.value)} placeholder="예: 10000"
-              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 15 }} />
-          </div>
-          <div style={{ marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--slate-100)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: 14, color: 'var(--slate-500)', fontWeight: 600 }}>총 결제 예정 금액</span>
-              <strong style={{ fontSize: 20, fontWeight: 900, color: 'var(--slate-800)' }}>
-                {(quantity * (showInfo?.price || 0) + Number(support)).toLocaleString()}원
-              </strong>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>
+              💸 자율 후원금 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>(선택)</span>
+            </label>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 7px' }}>루미크 후원을 원하신다면 추가 금액을 입력해 주세요 🙏</p>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="number" min="0" step="1000" placeholder="0"
+                value={support} onChange={e => setSupport(e.target.value)}
+                style={{ ...inputStyle, paddingRight: 36 }}
+                onFocus={focusHandler} onBlur={blurHandler}
+              />
+              <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#94a3b8', pointerEvents: 'none' }}>원</span>
             </div>
-            <button type="submit" className="btn-primary" style={{ width: '100%', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 800 }}>예매 신청하기</button>
           </div>
+
+          {/* 무통장 입금 안내 박스 */}
+          <div style={{
+            background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+            borderRadius: 16, padding: '18px 20px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 600, marginBottom: 5 }}>무통장 입금 계좌</div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: 0.3, marginBottom: 8 }}>{SUPPORT_ACCOUNT}</div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>
+              <span>티켓 ({qty}매)</span>
+              <span>{(qty * ticketPrice).toLocaleString()}원</span>
+            </div>
+            {supportNum > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
+                <span>자율 후원금</span>
+                <span>+{supportNum.toLocaleString()}원</span>
+              </div>
+            )}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.25)', marginTop: 8, paddingTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', fontWeight: 900 }}>
+                <span style={{ fontSize: 14 }}>총 입금 예정 금액</span>
+                <span style={{ fontSize: 22 }}>{total.toLocaleString()}원</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            style={{
+              width: '100%', padding: '15px', borderRadius: 14,
+              border: 'none', background: '#2563eb', color: '#fff',
+              fontWeight: 900, fontSize: 16, cursor: 'pointer',
+              marginTop: 4,
+              boxShadow: '0 4px 16px rgba(37, 99, 235, 0.35)',
+              transition: 'transform 0.1s',
+            }}
+            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
+            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            예매 신청하기 →
+          </button>
+          <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', margin: '-4px 0 0' }}>신청 후 위 계좌로 입금하시면 접수가 완료됩니다.</p>
         </form>
       </div>
     </div>
