@@ -6,12 +6,8 @@ import { firebaseStorage } from '../utils/firebaseStorage';
 
 const AppContext = createContext(null);
 
-// 기본 공연 목록 (YYYY-MM-DD 형식)
-const DEFAULT_PERFORMANCES = [
-  { key: '2025-07-20', label: '2025년 7월 20일' },
-  { key: '2025-12-28', label: '2025년 12월 28일' },
-  { key: '2026-07-11', label: '2026년 7월 11일' },
-];
+// 기본 공연 목록: 하드코딩 데이터 없음. 항상 빈 배열로 시작.
+const DEFAULT_PERFORMANCES = [];
 
 const initialState = {
   members: [],
@@ -119,7 +115,7 @@ export function AppProvider({ children }) {
           '2026-07': '2026-07-11'
         };
 
-        let performances = fbState.performances || DEFAULT_PERFORMANCES;
+        let performances = fbState.performances || [];
         let needsPerfUpdate = false;
         
         const mappedPerformances = performances.map(p => {
@@ -195,7 +191,7 @@ export function AppProvider({ children }) {
         const migState = {
           members,
           transactions: savedTxs || SAMPLE_TRANSACTIONS,
-          performances: savedPerformances || DEFAULT_PERFORMANCES,
+          performances: savedPerformances || [],
           lastUpdated: savedLastUpdated || new Date().toISOString(),
         };
 
