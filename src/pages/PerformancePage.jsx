@@ -25,6 +25,15 @@ const sanitizeShow = (show) => {
   const location = String(show.location || '').trim();
   const id = String(show.id || '').trim();
   if (!title || !date || !location) return null;
+  const customSections = Array.isArray(show.customSections)
+    ? show.customSections
+        .map((section) => ({
+          id: String(section?.id || '').trim() || `sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          title: String(section?.title || '').trim(),
+          content: String(section?.content || '').trim(),
+        }))
+        .filter((section) => section.title && section.content)
+    : [];
   return {
     ...show,
     id: id || `show-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -32,6 +41,7 @@ const sanitizeShow = (show) => {
     date,
     location,
     time: String(show.time || '19:00').trim() || '19:00',
+    customSections,
   };
 };
 const normalizeShows = (value) => {
@@ -204,7 +214,8 @@ function ShowFormModal({ show, onClose, onSave }) {
     price: TICKET_PRICE,
     description: '',
     status: '예매중',
-    imageUrl: ''
+    imageUrl: '',
+    customSections: [],
   });
 
   useEffect(() => {
@@ -217,12 +228,43 @@ function ShowFormModal({ show, onClose, onSave }) {
         price: show.price ?? TICKET_PRICE,
         description: show.description || '',
         status: show.status || '예매중',
-        imageUrl: show.imageUrl || ''
+        imageUrl: show.imageUrl || '',
+        customSections: Array.isArray(show.customSections)
+          ? show.customSections.map(section => ({
+              id: section.id || `sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              title: section.title || '',
+              content: section.content || '',
+            }))
+          : [],
       });
     }
   }, [isEdit, show]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]:v }));
+  const setSection = (sectionId, key, value) => {
+    setForm(prev => ({
+      ...prev,
+      customSections: prev.customSections.map(section =>
+        section.id === sectionId ? { ...section, [key]: value } : section
+      ),
+    }));
+  };
+  const addSection = () => {
+    setForm(prev => ({
+      ...prev,
+      customSections: [...prev.customSections, {
+        id: `sec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: '',
+        content: '',
+      }],
+    }));
+  };
+  const removeSection = (sectionId) => {
+    setForm(prev => ({
+      ...prev,
+      customSections: prev.customSections.filter(section => section.id !== sectionId),
+    }));
+  };
 
   const handleSubmit = e => {
     e.preventDefault();
@@ -233,6 +275,7 @@ function ShowFormModal({ show, onClose, onSave }) {
       id: isEdit ? show.id : `show-${Date.now()}`,
       supportAccount: show?.supportAccount || SUPPORT_ACCOUNT,
       ...form,
+      customSections: form.customSections.filter(section => section.title.trim() && section.content.trim()),
       price: Number(form.price) ?? TICKET_PRICE
     });
     onClose();
@@ -318,11 +361,11 @@ function ShowFormModal({ show, onClose, onSave }) {
                 </button>
               )}
             </div>
-            {form.imageUrl && (
-              <div style={{ marginTop: 8, width: '100%', maxHeight: 120, overflow: 'hidden', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                <img src={form.imageUrl} alt="포스터 미리보기" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-            )}
+              {form.imageUrl && (
+                <div style={{ marginTop: 8, width: '100%', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', padding: 8 }}>
+                  <img src={form.imageUrl} alt="포스터 미리보기" style={{ width: '100%', height: 'auto', objectFit: 'contain', display: 'block' }} />
+                </div>
+              )}
           </div>
 
           <div>
@@ -330,6 +373,36 @@ function ShowFormModal({ show, onClose, onSave }) {
             <textarea rows={3} style={{ ...fieldStyle, resize:'vertical', lineHeight:1.6 }}
               value={form.description} onChange={e => set('description', e.target.value)} placeholder="공연 소개 및 유의사항" />
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)' }}>추가 섹션</label>
+            <button type="button" className="btn-secondary" onClick={addSection} style={{ height: 36, padding: '0 14px', fontSize: 13 }}>
+              + 섹션 추가
+            </button>
+          </div>
+
+          {form.customSections.map((section, index) => (
+            <div key={section.id} style={{ border: '1px solid var(--slate-200)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 10, background: '#fafafa' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input
+                  value={section.title}
+                  onChange={e => setSection(section.id, 'title', e.target.value)}
+                  placeholder={`섹션 제목 ${index + 1} (예: 🎤 Setlist)`}
+                  style={{ ...fieldStyle, flex: 1, background: '#fff' }}
+                />
+                <button type="button" onClick={() => removeSection(section.id)} className="btn-secondary" style={{ height: 44, padding: '0 14px', fontSize: 13 }}>
+                  삭제
+                </button>
+              </div>
+              <textarea
+                rows={3}
+                value={section.content}
+                onChange={e => setSection(section.id, 'content', e.target.value)}
+                placeholder="섹션 내용"
+                style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.6, background: '#fff' }}
+              />
+            </div>
+          ))}
 
           <div>
             <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>상태</label>
@@ -434,6 +507,12 @@ export default function PerformancePage() {
 
   const sel        = shows.find(s => s.id === selectedId);
   const showOrders = orders.filter(o => o.concertId === selectedId);
+  const renderSections = (sections = []) => sections.map(section => (
+    <div key={section.id} style={{ padding: '0 24px 8px' }}>
+      <h4 style={{ fontSize:15, fontWeight:800, color:'var(--slate-900)', margin:'16px 0 8px' }}>{section.title}</h4>
+      <p style={{ fontSize:14, color:'var(--slate-600)', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{section.content}</p>
+    </div>
+  ));
 
   return (
     <div className="page fade-in" style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
@@ -494,8 +573,8 @@ export default function PerformancePage() {
                 <div className="card" style={{ overflow:'hidden' }}>
                   {/* 포스터 이미지 */}
                   {sel.imageUrl && (
-                    <div style={{ width:'100%', maxHeight:'340px', overflow:'hidden', borderBottom:'1px solid var(--slate-100)' }}>
-                      <img src={sel.imageUrl} alt={sel.title} style={{ width:'100%', height:'340px', objectFit:'cover' }} />
+                    <div style={{ width:'100%', borderBottom:'1px solid var(--slate-100)', background:'#fff', padding:16 }}>
+                      <img src={sel.imageUrl} alt={sel.title} style={{ width:'100%', height:'auto', objectFit:'contain', display:'block' }} />
                     </div>
                   )}
 
@@ -538,6 +617,15 @@ export default function PerformancePage() {
                   </div>
 
                   {/* 예매 링크 */}
+                  {sel.description && (
+                    <div style={{ padding:'0 24px 8px' }}>
+                      <h4 style={{ fontSize:15, fontWeight:800, color:'var(--slate-900)', margin:'16px 0 8px' }}>공연 소개 / 안내</h4>
+                      <p style={{ fontSize:14, color:'var(--slate-600)', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{sel.description}</p>
+                    </div>
+                  )}
+
+                  {renderSections(sel.customSections)}
+
                   <div style={{ padding:'16px 24px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
                     <span style={{ fontSize:14, fontWeight:700, color:'var(--text-muted)', whiteSpace:'nowrap' }}>🔗 외부 예매 신청 폼 링크</span>
                     <input readOnly value={`${window.location.origin}/form/${sel.id}`}
