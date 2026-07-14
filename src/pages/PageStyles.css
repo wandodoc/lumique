@@ -532,3 +532,27 @@
   white-space: nowrap;
 }
 
+/* ===== 공연 관리 반응형 레이아웃 ===== */
+.perf-main-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.perf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 900px) {
+  .perf-main-grid {
+    grid-template-columns: 260px 1fr;
+    gap: 20px;
+  }
+  .perf-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+}
