@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import './PageStyles.css';
 
 const LS_SHOWS = 'lumique_concerts';
@@ -192,6 +193,7 @@ function StatsRow({ orders }) {
 }
 
 function OrderList({ orders, onUpdate, onDelete }) {
+  const { isAdmin } = useAuth();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -257,7 +259,15 @@ function OrderList({ orders, onUpdate, onDelete }) {
                       background: attendanceDone ? '#f9fafb' : '#fff',
                     }}
                   >
-                    <td style={{ padding: '12px', fontWeight: 800, color: 'var(--slate-900)' }}>{order.audienceName}</td>
+                    <td style={{ padding: '12px', fontWeight: 800, color: 'var(--slate-900)' }}>
+                      <div>{order.audienceName}</div>
+                      <div style={{ marginTop: 4, fontSize: 12, color: 'var(--slate-500)', lineHeight: 1.5 }}>
+                        뒤풀이: {order.isAfterParty ? `참여(${order.afterPartyCount || 1}명)` : '미참여'}
+                      </div>
+                      <div style={{ marginTop: 2, fontSize: 12, color: 'var(--slate-500)', lineHeight: 1.5 }}>
+                        메시지: {order.comment ? order.comment : '-'}
+                      </div>
+                    </td>
                     <td style={{ padding: '12px', color: 'var(--slate-600)' }}>{order.phone}</td>
                     <td style={{ padding: '12px', fontWeight: 800 }}>{order.ticketCount}장</td>
                     <td style={{ padding: '12px', fontWeight: 800, color: 'var(--slate-900)' }}>{(order.totalPrice || 0).toLocaleString()}원</td>
@@ -269,65 +279,71 @@ function OrderList({ orders, onUpdate, onDelete }) {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onUpdate(order.id, {
-                              depositStatus: depositDone ? '입금대기' : '입금완료',
-                            })
-                          }
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: 10,
-                            border: '1px solid #bbf7d0',
-                            background: depositDone ? '#ecfdf5' : '#f0fdf4',
-                            color: '#15803d',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {depositDone ? '입금 대기' : '입금 완료'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onUpdate(order.id, {
-                              attendanceStatus: attendanceDone ? '미입장' : '입장완료',
-                            })
-                          }
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: 10,
-                            border: '1px solid #bfdbfe',
-                            background: attendanceDone ? '#dbeafe' : '#eff6ff',
-                            color: '#1d4ed8',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {attendanceDone ? '미입장' : '입장 완료'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(order.id)}
-                          style={{
-                            padding: '7px 10px',
-                            borderRadius: 10,
-                            border: '1px solid #fecdd3',
-                            background: '#fff1f2',
-                            color: '#be123c',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          삭제
-                        </button>
+                        {isAdmin ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onUpdate(order.id, {
+                                  depositStatus: depositDone ? '입금대기' : '입금완료',
+                                })
+                              }
+                              style={{
+                                padding: '7px 12px',
+                                borderRadius: 10,
+                                border: '1px solid #bbf7d0',
+                                background: depositDone ? '#ecfdf5' : '#f0fdf4',
+                                color: '#15803d',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {depositDone ? '입금 대기' : '입금 완료'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onUpdate(order.id, {
+                                  attendanceStatus: attendanceDone ? '미입장' : '입장완료',
+                                })
+                              }
+                              style={{
+                                padding: '7px 12px',
+                                borderRadius: 10,
+                                border: '1px solid #bfdbfe',
+                                background: attendanceDone ? '#dbeafe' : '#eff6ff',
+                                color: '#1d4ed8',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {attendanceDone ? '미입장' : '입장 완료'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDelete(order.id)}
+                              style={{
+                                padding: '7px 10px',
+                                borderRadius: 10,
+                                border: '1px solid #fecdd3',
+                                background: '#fff1f2',
+                                color: '#be123c',
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              삭제
+                            </button>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700 }}>조회 전용</span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -606,6 +622,7 @@ function ShowDetailModal({
   onCopyLink,
   copied,
 }) {
+  const { isAdmin } = useAuth();
   if (!show) return null;
 
   return (
@@ -628,26 +645,30 @@ function ShowDetailModal({
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={onEdit} className="btn-secondary" style={{ height: 40, padding: '0 14px' }}>
-              수정
-            </button>
-            <button
-              type="button"
-              onClick={onDeleteShow}
-              style={{
-                height: 40,
-                padding: '0 14px',
-                borderRadius: 10,
-                border: '1px solid #fecdd3',
-                background: '#fff1f2',
-                color: '#be123c',
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              삭제
-            </button>
+            {isAdmin ? (
+              <>
+                <button type="button" onClick={onEdit} className="btn-secondary" style={{ height: 40, padding: '0 14px' }}>
+                  수정
+                </button>
+                <button
+                  type="button"
+                  onClick={onDeleteShow}
+                  style={{
+                    height: 40,
+                    padding: '0 14px',
+                    borderRadius: 10,
+                    border: '1px solid #fecdd3',
+                    background: '#fff1f2',
+                    color: '#be123c',
+                    fontSize: 14,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  삭제
+                </button>
+              </>
+            ) : null}
             <button type="button" onClick={onClose} className="btn-secondary" style={{ height: 40, padding: '0 14px' }}>
               닫기
             </button>
@@ -719,9 +740,11 @@ function ShowDetailModal({
                   outline: 'none',
                 }}
               />
-              <button type="button" onClick={() => onCopyLink(show.id)} className={copied ? 'btn-secondary' : 'btn-primary'} style={{ height: 42, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 800 }}>
-                {copied ? '복사 완료' : '링크 복사'}
-              </button>
+              {isAdmin ? (
+                <button type="button" onClick={() => onCopyLink(show.id)} className={copied ? 'btn-secondary' : 'btn-primary'} style={{ height: 42, padding: '0 18px', borderRadius: 10, fontSize: 13, fontWeight: 800 }}>
+                  {copied ? '복사 완료' : '링크 복사'}
+                </button>
+              ) : null}
             </div>
 
             <StatsRow orders={orders} />
@@ -741,6 +764,7 @@ function ShowDetailModal({
 }
 
 export default function PerformancePage() {
+  const { isAdmin } = useAuth();
   const [shows, setShows] = useState(() => {
     const primary = normalizeShows(loadLS(LS_SHOWS));
     if (primary.length > 0) return primary;
@@ -848,14 +872,16 @@ export default function PerformancePage() {
           <h2 style={{ fontSize: 22, fontWeight: 950, margin: 0, color: 'var(--slate-900)' }}>공연 관리 · 관객 예매 관리</h2>
           <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' }}>신규 등록 · 예매 신청 · 입금 확인 · 현장 입장 체크</p>
         </div>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => setFormState({ open: true, show: null })}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 24px', fontSize: 14, width: 'auto', whiteSpace: 'nowrap' }}
-        >
-          <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> 공연 추가
-        </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setFormState({ open: true, show: null })}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 24px', fontSize: 14, width: 'auto', whiteSpace: 'nowrap' }}
+          >
+            <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> 공연 추가
+          </button>
+        ) : null}
       </div>
 
       {shows.length === 0 ? (

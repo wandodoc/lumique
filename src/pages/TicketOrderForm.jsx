@@ -59,6 +59,9 @@ export default function TicketOrderForm({ showId }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [qty, setQty] = useState(1);
+  const [isAfterParty, setIsAfterParty] = useState(false);
+  const [afterPartyCount, setAfterPartyCount] = useState(1);
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     document.title = 'Lumique 공연 신청 폼';
@@ -90,6 +93,9 @@ export default function TicketOrderForm({ showId }) {
       totalPrice: total,
       depositStatus: '입금대기',
       attendanceStatus: '미입장',
+      isAfterParty,
+      afterPartyCount: isAfterParty ? Number(afterPartyCount) : 0,
+      comment: comment.trim(),
     };
 
     try {
@@ -259,6 +265,30 @@ export default function TicketOrderForm({ showId }) {
               </button>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>× {ticketPrice.toLocaleString()}원</span>
             </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>?? ?? ? ???? ?????????</label>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => { setIsAfterParty(true); setAfterPartyCount((value) => Math.max(1, Number(value) || 1)); }} style={{ flex: 1, minWidth: 120, padding: '12px 14px', borderRadius: 12, border: isAfterParty ? '1.5px solid #111827' : '1px solid #e2e8f0', background: isAfterParty ? '#111827' : '#fff', color: isAfterParty ? '#fff' : '#475569', fontWeight: 800, cursor: 'pointer' }}>??</button>
+              <button type="button" onClick={() => setIsAfterParty(false)} style={{ flex: 1, minWidth: 120, padding: '12px 14px', borderRadius: 12, border: !isAfterParty ? '1.5px solid #111827' : '1px solid #e2e8f0', background: !isAfterParty ? '#111827' : '#fff', color: !isAfterParty ? '#fff' : '#475569', fontWeight: 800, cursor: 'pointer' }}>???</button>
+            </div>
+          </div>
+
+                    {isAfterParty ? (
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>??? ?? ??? ? ?????</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <button type="button" onClick={() => setAfterPartyCount((value) => Math.max(1, Number(value) - 1))} style={{ width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0 }}>-</button>
+                <span style={{ fontSize: 16, fontWeight: 500, minWidth: 52, textAlign: 'center', color: '#111827' }}>{afterPartyCount}?</span>
+                <button type="button" onClick={() => setAfterPartyCount((value) => Number(value) + 1)} style={{ width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0 }}>+</button>
+              </div>
+            </div>
+          ) : null}
+
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>?? ?? ? (??)</label>
+            <textarea rows={3} placeholder="??? ????? ?? ?? ??? ?? ???? ???? ?????! (??)" value={comment} onChange={(event) => setComment(event.target.value)} style={inputStyle} />
           </div>
 
           <div style={{ background: '#111827', borderRadius: 16, padding: '18px 20px', textAlign: 'center' }}>
