@@ -9,6 +9,20 @@ const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const loadLS = (key) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : []; } catch { return []; } };
 const saveLS = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
 
+// 날짜+시간 요일 포함 포맷터
+const formatDateTime = (dateStr, timeStr) => {
+  if (!dateStr) return '';
+  const dateObj = new Date(dateStr);
+  if (isNaN(dateObj.getTime())) return `${dateStr} ${timeStr || ''}`;
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const dow = days[dateObj.getDay()];
+  const [y, m, d] = dateStr.split('-');
+  const formattedM = parseInt(m, 10);
+  const formattedD = parseInt(d, 10);
+  const timeFormatted = timeStr || '00:00';
+  return `${y}년 ${formattedM}월 ${formattedD}일 (${dow}) ${timeFormatted}`;
+};
+
 /* ────── Badge ────── */
 function Badge({ label, color }) {
   const map = {
@@ -125,15 +139,48 @@ function OrderList({ orders, onUpdate, onDelete }) {
   );
 }
 
-/* ────── 공연 추가 모달 ────── */
-function AddShowModal({ onClose, onAdd }) {
-  const [form, setForm] = useState({ title:'', date:'', location:'', price:TICKET_PRICE, description:'', status:'예매중' });
+/* ────── 등록/수정 모달 ────── */
+function ShowFormModal({ show, onClose, onSave }) {
+  const isEdit = !!show;
+  const [form, setForm] = useState({
+    title: '',
+    date: '',
+    time: '19:00',
+    location: '',
+    price: TICKET_PRICE,
+    description: '',
+    status: '예매중',
+    imageUrl: ''
+  });
+
+  useEffect(() => {
+    if (isEdit && show) {
+      setForm({
+        title: show.title || '',
+        date: show.date || '',
+        time: show.time || '19:00',
+        location: show.location || '',
+        price: show.price ?? TICKET_PRICE,
+        description: show.description || '',
+        status: show.status || '예매중',
+        imageUrl: show.imageUrl || ''
+      });
+    }
+  }, [isEdit, show]);
+
   const set = (k, v) => setForm(p => ({ ...p, [k]:v }));
 
   const handleSubmit = e => {
     e.preventDefault();
-    if (!form.title.trim() || !form.date || !form.location.trim()) return alert('공연명, 날짜, 장소는 필수입니다.');
-    onAdd({ id:`show-${Date.now()}`, supportAccount:SUPPORT_ACCOUNT, ...form, price:Number(form.price)||TICKET_PRICE });
+    if (!form.title.trim() || !form.date || !form.location.trim()) {
+      return alert('공연명, 날짜, 장소는 필수입니다.');
+    }
+    onSave({
+      id: isEdit ? show.id : `show-${Date.now()}`,
+      supportAccount: show?.supportAccount || SUPPORT_ACCOUNT,
+      ...form,
+      price: Number(form.price) ?? TICKET_PRICE
+    });
     onClose();
   };
 
@@ -143,25 +190,52 @@ function AddShowModal({ onClose, onAdd }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" style={{ maxWidth:480 }} onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
-        <h3 style={{ fontSize:20, fontWeight:800, margin:'0 0 24px', color:'var(--slate-900)' }}>🎭 신규 공연 등록</h3>
-        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:16 }}>
-          {[['공연 타이틀 *','text','title','예: 2026 루미크 여름 정기공연'],
-            ['공연 날짜 *','date','date',''],
-            ['장소 *','text','location','예: 홍대 상상마당 라이브홀']].map(([label,type,key,ph]) => (
-            <div key={key}>
-              <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>{label}</label>
-              <input type={type} style={fieldStyle} value={form[key]} onChange={e => set(key, e.target.value)} placeholder={ph} />
+        <h3 style={{ fontSize:20, fontWeight:800, margin:'0 0 20px', color:'var(--slate-900)' }}>
+          {isEdit ? '📝 공연 정보 수정' : '🎭 신규 공연 등록'}
+        </h3>
+        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>공연 타이틀 *</label>
+            <input style={fieldStyle} value={form.title} onChange={e => set('title', e.target.value)} placeholder="예: 2026 루미크 여름 정기공연" required />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>공연 날짜 *</label>
+              <input type="date" style={fieldStyle} value={form.date} onChange={e => set('date', e.target.value)} required />
             </div>
-          ))}
+            <div>
+              <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>시작 시간 *</label>
+              <input type="time" style={fieldStyle} value={form.time} onChange={e => set('time', e.target.value)} required />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>공연 장소 *</label>
+            <input style={fieldStyle} value={form.location} onChange={e => set('location', e.target.value)} placeholder="예: 홍대 상상마당 라이브홀" required />
+          </div>
+
           <div>
             <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>티켓 가격 (원)</label>
             <input type="number" min="0" step="500" style={fieldStyle} value={form.price} onChange={e => set('price', e.target.value)} />
           </div>
+
+          <div>
+            <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>포스터 이미지 URL</label>
+            <input style={fieldStyle} value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} placeholder="https://example.com/poster.jpg (선택)" />
+            {form.imageUrl && (
+              <div style={{ marginTop: 8, width: '100%', maxHeight: 120, overflow: 'hidden', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <img src={form.imageUrl} alt="포스터 미리보기" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+              </div>
+            )}
+          </div>
+
           <div>
             <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>공연 소개 / 안내</label>
             <textarea rows={3} style={{ ...fieldStyle, resize:'vertical', lineHeight:1.6 }}
               value={form.description} onChange={e => set('description', e.target.value)} placeholder="공연 소개 및 유의사항" />
           </div>
+
           <div>
             <label style={{ fontSize:13, fontWeight:700, color:'var(--text-muted)', display:'block', marginBottom:6 }}>상태</label>
             <select style={{ ...fieldStyle, background:'#f9fafb' }} value={form.status} onChange={e => set('status', e.target.value)}>
@@ -169,9 +243,12 @@ function AddShowModal({ onClose, onAdd }) {
               <option value="종료">종료</option>
             </select>
           </div>
+
           <div style={{ display:'flex', gap:10, marginTop:8 }}>
             <button type="button" onClick={onClose} className="btn-secondary" style={{ flex:1, height:44 }}>취소</button>
-            <button type="submit" className="btn-primary" style={{ flex:2, height:44 }}>공연 등록</button>
+            <button type="submit" className="btn-primary" style={{ flex:2, height:44 }}>
+              {isEdit ? '변경사항 저장' : '공연 등록'}
+            </button>
           </div>
         </form>
       </div>
@@ -184,16 +261,25 @@ export default function PerformancePage() {
   const [shows,      setShows]      = useState(() => loadLS(LS_SHOWS));
   const [orders,     setOrders]     = useState(() => loadLS(LS_ORDERS));
   const [selectedId, setSelectedId] = useState(null);
-  const [showModal,  setShowModal]  = useState(false);
+  const [modalState, setModalState] = useState({ open: false, editShow: null });
   const [copyDone,   setCopyDone]   = useState(false);
 
   useEffect(() => {
     if (!selectedId && shows.length > 0) setSelectedId(shows[0].id);
   }, [shows, selectedId]);
 
-  const addShow = useCallback(show => {
-    const next = [...shows, show].sort((a,b) => a.date.localeCompare(b.date));
-    setShows(next); saveLS(LS_SHOWS, next); setSelectedId(show.id);
+  const saveShow = useCallback(showData => {
+    const isEdit = shows.some(s => s.id === showData.id);
+    let next;
+    if (isEdit) {
+      next = shows.map(s => s.id === showData.id ? showData : s);
+    } else {
+      next = [...shows, showData];
+    }
+    next.sort((a,b) => a.date.localeCompare(b.date));
+    setShows(next);
+    saveLS(LS_SHOWS, next);
+    setSelectedId(showData.id);
   }, [shows]);
 
   const deleteShow = useCallback(id => {
@@ -225,7 +311,7 @@ export default function PerformancePage() {
   const showOrders = orders.filter(o => o.concertId === selectedId);
 
   return (
-    <div className="page fade-in">
+    <div className="page fade-in" style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
 
       {/* ── 헤더 ── */}
       <div className="flex-between" style={{ flexWrap:'wrap', gap:10 }}>
@@ -233,7 +319,7 @@ export default function PerformancePage() {
           <h2 style={{ fontSize:22, fontWeight:900, margin:0, color:'var(--slate-900)' }}>🎭 공연 및 관객 티켓 신청 관리</h2>
           <p style={{ fontSize:14, color:'var(--text-muted)', margin:'4px 0 0' }}>공연 등록 · 예매 신청 · 입금 확인 · 현장 입장 체크</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display:'flex', alignItems:'center', gap:6, height:42, padding:'0 18px', fontSize:14 }}>
+        <button className="btn-primary" onClick={() => setModalState({ open: true, editShow: null })} style={{ display:'flex', alignItems:'center', gap:6, height:42, padding:'0 18px', fontSize:14 }}>
           <span style={{ fontSize:18, lineHeight:1 }}>+</span> 신규 공연 추가
         </button>
       </div>
@@ -244,7 +330,7 @@ export default function PerformancePage() {
           <div style={{ fontSize:56, marginBottom:16 }}>🎭</div>
           <p style={{ fontSize:18, fontWeight:700, color:'var(--slate-700)', margin:'0 0 8px' }}>등록된 공연이 없습니다</p>
           <p style={{ fontSize:14, color:'var(--text-muted)', margin:'0 0 24px' }}>[신규 공연 추가] 버튼으로 첫 공연을 등록해보세요</p>
-          <button className="btn-primary" onClick={() => setShowModal(true)} style={{ height:42, padding:'0 24px', fontSize:14 }}>첫 공연 등록하기</button>
+          <button className="btn-primary" onClick={() => setModalState({ open: true, editShow: null })} style={{ height:42, padding:'0 24px', fontSize:14 }}>첫 공연 등록하기</button>
         </div>
       )}
 
@@ -268,7 +354,7 @@ export default function PerformancePage() {
                     cursor:'pointer', transition:'background 0.15s',
                   }}>
                   <div style={{ fontSize:15, fontWeight:800, color:'var(--slate-900)', marginBottom:4 }}>{s.title}</div>
-                  <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:8 }}>📅 {s.date}</div>
+                  <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:8 }}>📅 {formatDateTime(s.date, s.time).split(')')[0] + ')'}</div>
                   <Badge label={s.status} color={s.status==='예매중'?'green':'slate'} />
                 </button>
               ))}
@@ -280,7 +366,14 @@ export default function PerformancePage() {
             {sel && (
               <>
                 {/* 공연 상세 카드 */}
-                <div className="card">
+                <div className="card" style={{ overflow:'hidden' }}>
+                  {/* 포스터 이미지 */}
+                  {sel.imageUrl && (
+                    <div style={{ width:'100%', maxHeight:'340px', overflow:'hidden', borderBottom:'1px solid var(--slate-100)' }}>
+                      <img src={sel.imageUrl} alt={sel.title} style={{ width:'100%', height:'340px', objectFit:'cover' }} />
+                    </div>
+                  )}
+
                   {/* 공연 제목 영역 */}
                   <div style={{ padding:'20px 24px', borderBottom:'1px solid var(--slate-100)' }}>
                     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
@@ -290,19 +383,26 @@ export default function PerformancePage() {
                         </div>
                         <h3 style={{ fontSize:20, fontWeight:900, color:'var(--slate-900)', margin:'0 0 6px' }}>{sel.title}</h3>
                         {sel.description && (
-                          <p style={{ fontSize:14, color:'var(--slate-600)', margin:0, lineHeight:1.6 }}>{sel.description}</p>
+                          <p style={{ fontSize:14, color:'var(--slate-600)', margin:0, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{sel.description}</p>
                         )}
                       </div>
-                      <button onClick={() => deleteShow(sel.id)}
-                        style={{ padding:'8px 16px', borderRadius:10, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap' }}>
-                        공연 삭제
-                      </button>
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button onClick={() => setModalState({ open: true, editShow: sel })}
+                          className="btn-secondary"
+                          style={{ padding:'8px 14px', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', height:38 }}>
+                          수정
+                        </button>
+                        <button onClick={() => deleteShow(sel.id)}
+                          style={{ padding:'8px 14px', borderRadius:10, border:'1px solid #fecdd3', background:'#fff1f2', color:'#be123c', fontSize:13, fontWeight:700, cursor:'pointer', height:38 }}>
+                          삭제
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                   {/* 공연 정보 그리드 */}
                   <div style={{ padding:'18px 24px', display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:16, borderBottom:'1px solid var(--slate-100)' }}>
-                    {[['📅','일시',sel.date],['📍','장소',sel.location],
+                    {[['📅','일시',formatDateTime(sel.date, sel.time)],['📍','장소',sel.location],
                       ['🪙','티켓 가격',`${(sel.price??TICKET_PRICE).toLocaleString()}원/매`],
                       ['🏦','예매용 계좌',sel.supportAccount]].map(([ic,lb,vl]) => (
                       <div key={lb}>
@@ -341,7 +441,13 @@ export default function PerformancePage() {
         </div>
       )}
 
-      {showModal && <AddShowModal onClose={() => setShowModal(false)} onAdd={addShow} />}
+      {modalState.open && (
+        <ShowFormModal
+          show={modalState.editShow}
+          onClose={() => setModalState({ open: false, editShow: null })}
+          onSave={saveShow}
+        />
+      )}
     </div>
   );
 }

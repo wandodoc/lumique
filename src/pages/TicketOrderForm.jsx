@@ -13,6 +13,20 @@ const saveLS = (key, val) => {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
 };
 
+// 날짜+시간 요일 포함 포맷터
+const formatDateTime = (dateStr, timeStr) => {
+  if (!dateStr) return '';
+  const dateObj = new Date(dateStr);
+  if (isNaN(dateObj.getTime())) return `${dateStr} ${timeStr || ''}`;
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const dow = days[dateObj.getDay()];
+  const [y, m, d] = dateStr.split('-');
+  const formattedM = parseInt(m, 10);
+  const formattedD = parseInt(d, 10);
+  const timeFormatted = timeStr || '00:00';
+  return `${y}년 ${formattedM}월 ${formattedD}일 (${dow}) ${timeFormatted}`;
+};
+
 export default function TicketOrderForm({ showId }) {
   const [showInfo, setShowInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +82,7 @@ export default function TicketOrderForm({ showId }) {
     background: '#fff',
     transition: 'border-color 0.15s',
   };
-  const focusHandler = e => e.target.style.borderColor = '#3b82f6';
+  const focusHandler = e => e.target.style.borderColor = '#111827';
   const blurHandler = e => e.target.style.borderColor = '#e2e8f0';
 
   /* ── 로딩 ── */
@@ -96,31 +110,32 @@ export default function TicketOrderForm({ showId }) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', background: '#f8fafc', padding: '24px 16px' }}>
         <div style={{
-          maxWidth: 460, width: '100%', background: '#fff',
+          maxWidth: 480, width: '100%', background: '#fff',
           borderRadius: 24, padding: '40px 28px',
-          boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)',
+          boxShadow: '0 10px 40px -10px rgba(0,0,0,0.06)',
+          border: '1px solid #e2e8f0',
           textAlign: 'center',
         }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#1e293b', margin: '0 0 10px' }}>예매 신청 완료!</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111827', margin: '0 0 10px' }}>예매 신청 완료!</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.7, margin: '0 0 24px' }}>
-            신청이 접수되었습니다.<br />아래 계좌로 입금 후 운영진이 확인하면 완료됩니다.
+            신청이 성공적으로 접수되었습니다.<br />아래 계좌로 입금해 주시면 확인 후 완료됩니다.
           </p>
 
           {/* 입금 안내 박스 */}
           <div style={{
-            background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+            background: '#111827',
             borderRadius: 16, padding: '20px', marginBottom: 24, textAlign: 'center',
           }}>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 600, marginBottom: 6 }}>무통장 입금 계좌</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>{SUPPORT_ACCOUNT}</div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, marginBottom: 6 }}>무통장 입금 계좌</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>{SUPPORT_ACCOUNT}</div>
+            <div style={{ fontSize: 14, color: '#e5e7eb', marginTop: 8 }}>
               입금 금액: <strong>{total.toLocaleString()}원</strong>
             </div>
           </div>
 
           {/* 신청 요약 */}
-          <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px', textAlign: 'left', marginBottom: 24 }}>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px', textAlign: 'left', marginBottom: 24 }}>
             {[
               ['공연', showInfo.title],
               ['신청자', name],
@@ -128,9 +143,9 @@ export default function TicketOrderForm({ showId }) {
               ['자율 후원금', `${supportNum.toLocaleString()}원`],
               ['총 입금 금액', `${total.toLocaleString()}원`],
             ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}>
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: '1px solid #f1f5f9' }}>
                 <span style={{ color: '#64748b' }}>{k}</span>
-                <span style={{ fontWeight: 700, color: '#1e293b' }}>{v}</span>
+                <span style={{ fontWeight: 700, color: '#111827' }}>{v}</span>
               </div>
             ))}
           </div>
@@ -143,38 +158,54 @@ export default function TicketOrderForm({ showId }) {
 
   /* ── 메인 폼 ── */
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '100dvh', background: '#f1f5f9', padding: '24px 16px 60px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '100dvh', background: '#f8fafc', padding: '36px 16px 80px' }}>
       <div style={{
-        maxWidth: 460, width: '100%', background: '#fff',
+        maxWidth: 480, width: '100%', background: '#fff',
         borderRadius: 24, overflow: 'hidden',
-        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)',
+        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.06)',
+        border: '1px solid #e2e8f0',
       }}>
-        {/* 헤더 배너 */}
-        <div style={{
-          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-          padding: '28px 24px 24px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <img src="/logo.png" alt="Lumique" style={{ height: 18, width: 'auto', opacity: 0.9 }} onError={e => e.target.style.display = 'none'} />
-            <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.85)', letterSpacing: 1 }}>LUMIQUE</span>
+        {/* 포스터 이미지 */}
+        {showInfo.imageUrl && (
+          <div style={{ width: '100%', maxHeight: '380px', overflow: 'hidden', borderBottom: '1px solid #e2e8f0' }}>
+            <img src={showInfo.imageUrl} alt={showInfo.title} style={{ width: '100%', height: '380px', objectFit: 'cover' }} />
           </div>
-          <h1 style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: '0 0 5px' }}>{showInfo.title}</h1>
+        )}
+
+        {/* 안내 영역 */}
+        <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#111827', letterSpacing: 1.5, background: '#f1f5f9', padding: '3px 8px', borderRadius: 4 }}>LUMIQUE TICKET</span>
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 950, color: '#111827', margin: '0 0 12px', lineHeight: 1.3 }}>{showInfo.title}</h1>
+          
           {showInfo.description && (
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: '0 0 12px', lineHeight: 1.5 }}>{showInfo.description}</p>
+            <p style={{ fontSize: 14, color: '#4b5563', margin: '0 0 20px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{showInfo.description}</p>
           )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: 20 }}>📅 {showInfo.date}</span>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: 20 }}>📍 {showInfo.location}</span>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: 20 }}>🪙 {ticketPrice.toLocaleString()}원/매</span>
+
+          {/* 정보 카드 그리드 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px' }}>
+            <div style={{ display: 'flex', gap: 8, fontSize: 14 }}>
+              <span style={{ color: '#9ca3af' }}>📅 일시</span>
+              <span style={{ fontWeight: 700, color: '#111827' }}>{formatDateTime(showInfo.date, showInfo.time)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, fontSize: 14 }}>
+              <span style={{ color: '#9ca3af' }}>📍 장소</span>
+              <span style={{ fontWeight: 700, color: '#111827' }}>{showInfo.location}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, fontSize: 14 }}>
+              <span style={{ color: '#9ca3af' }}>🪙 가격</span>
+              <span style={{ fontWeight: 700, color: '#111827' }}>{ticketPrice.toLocaleString()}원 / 1매</span>
+            </div>
           </div>
         </div>
 
         {/* 폼 영역 */}
-        <form onSubmit={handleSubmit} style={{ padding: '24px 24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleSubmit} style={{ padding: '20px 24px 28px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>성함 *</label>
             <input
-              type="text" required placeholder="홍길동"
+              type="text" required placeholder="예: 홍길동"
               value={name} onChange={e => setName(e.target.value)}
               style={inputStyle} onFocus={focusHandler} onBlur={blurHandler}
             />
@@ -183,7 +214,7 @@ export default function TicketOrderForm({ showId }) {
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>연락처 *</label>
             <input
-              type="tel" required placeholder="010-0000-0000"
+              type="tel" required placeholder="예: 010-1234-5678"
               value={phone} onChange={e => setPhone(e.target.value)}
               style={inputStyle} onFocus={focusHandler} onBlur={blurHandler}
             />
@@ -196,17 +227,17 @@ export default function TicketOrderForm({ showId }) {
                 type="button"
                 onClick={() => setQty(q => Math.max(1, q - 1))}
                 style={{
-                  width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0',
-                  background: '#f8fafc', fontSize: 22, fontWeight: 700, cursor: 'pointer',
+                  width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0,
                 }}>−</button>
-              <span style={{ fontSize: 22, fontWeight: 900, minWidth: 60, textAlign: 'center', color: '#1e293b' }}>{qty}매</span>
+              <span style={{ fontSize: 20, fontWeight: 900, minWidth: 60, textAlign: 'center', color: '#111827' }}>{qty}매</span>
               <button
                 type="button"
                 onClick={() => setQty(q => q + 1)}
                 style={{
-                  width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0',
-                  background: '#f8fafc', fontSize: 22, fontWeight: 700, cursor: 'pointer',
+                  width: 42, height: 42, borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc', fontSize: 20, fontWeight: 700, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#374151', flexShrink: 0,
                 }}>+</button>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>× {ticketPrice.toLocaleString()}원</span>
@@ -215,9 +246,9 @@ export default function TicketOrderForm({ showId }) {
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>
-              💸 자율 후원금 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>(선택)</span>
+              💸 추가 자율 후원금 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>(선택)</span>
             </label>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 7px' }}>루미크 후원을 원하신다면 추가 금액을 입력해 주세요 🙏</p>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 7px' }}>루미크 동아리 활동을 후원해 주실 분들은 자유롭게 입력해 주세요.</p>
             <div style={{ position: 'relative' }}>
               <input
                 type="number" min="0" step="1000" placeholder="0"
@@ -231,25 +262,25 @@ export default function TicketOrderForm({ showId }) {
 
           {/* 무통장 입금 안내 박스 */}
           <div style={{
-            background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+            background: '#111827',
             borderRadius: 16, padding: '18px 20px', textAlign: 'center',
           }}>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 600, marginBottom: 5 }}>무통장 입금 계좌</div>
+            <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, marginBottom: 5 }}>무통장 입금 계좌</div>
             <div style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: 0.3, marginBottom: 8 }}>{SUPPORT_ACCOUNT}</div>
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#d1d5db' }}>
               <span>티켓 ({qty}매)</span>
               <span>{(qty * ticketPrice).toLocaleString()}원</span>
             </div>
             {supportNum > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#d1d5db', marginTop: 4 }}>
                 <span>자율 후원금</span>
                 <span>+{supportNum.toLocaleString()}원</span>
               </div>
             )}
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.25)', marginTop: 8, paddingTop: 8 }}>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', marginTop: 8, paddingTop: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', fontWeight: 900 }}>
                 <span style={{ fontSize: 14 }}>총 입금 예정 금액</span>
-                <span style={{ fontSize: 22 }}>{total.toLocaleString()}원</span>
+                <span style={{ fontSize: 20 }}>{total.toLocaleString()}원</span>
               </div>
             </div>
           </div>
@@ -257,11 +288,11 @@ export default function TicketOrderForm({ showId }) {
           <button
             type="submit"
             style={{
-              width: '100%', padding: '15px', borderRadius: 14,
-              border: 'none', background: '#2563eb', color: '#fff',
+              width: '100%', padding: '15px', borderRadius: 12,
+              border: 'none', background: '#111827', color: '#fff',
               fontWeight: 900, fontSize: 16, cursor: 'pointer',
               marginTop: 4,
-              boxShadow: '0 4px 16px rgba(37, 99, 235, 0.35)',
+              boxShadow: '0 4px 12px rgba(17, 24, 39, 0.25)',
               transition: 'transform 0.1s',
             }}
             onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
@@ -269,7 +300,7 @@ export default function TicketOrderForm({ showId }) {
           >
             예매 신청하기 →
           </button>
-          <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', margin: '-4px 0 0' }}>신청 후 위 계좌로 입금하시면 접수가 완료됩니다.</p>
+          <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', margin: '-4px 0 0' }}>신청 후 위 계좌로 입금 완료되면 최종 예매가 확정됩니다.</p>
         </form>
       </div>
     </div>
