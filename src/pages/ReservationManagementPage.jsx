@@ -1,6 +1,9 @@
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useMemo, useState } from 'react';
 import './PageStyles.css';
+
+const LS_SHOWS = 'lumique_concerts';
 
 const LS_ORDERS = 'lumique_ticket_orders';
 const DEPOSIT_WAIT = '입금대기';
@@ -48,9 +51,15 @@ function StatCard({ label, value, color = 'var(--slate-900)' }) {
 
 export default function ReservationManagementPage() {
   const { isAdmin } = useAuth();
+  const { id: concertId } = useParams();
+  const navigate = useNavigate();
+
   const [orders, setOrders] = useState(() => loadLS(LS_ORDERS));
+  const [shows] = useState(() => loadLS(LS_SHOWS));
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+
+  const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
   useEffect(() => {
     document.title = '🎟️ 티켓 신청 및 입장 관리';
@@ -63,6 +72,9 @@ export default function ReservationManagementPage() {
   const visibleOrders = useMemo(() => {
     const q = query.trim().toLowerCase();
     return orders.filter((order) => {
+      // Filter by current concert
+      if (concertId && order.concertId !== concertId) return false;
+
       const matchesSearch = !q || 
         String(order.audienceName || '').toLowerCase().includes(q) || 
         String(order.phone || '').includes(q);
@@ -74,31 +86,39 @@ export default function ReservationManagementPage() {
       
       return matchesSearch && matchesFilter;
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [orders, query, filter]);
+  }, [orders, query, filter, concertId]);
 
   const totals = useMemo(() => {
     return {
-      total: orders.length,
-      paid: orders.filter((o) => o.depositStatus === DEPOSIT_DONE).length,
-      entered: orders.filter((o) => o.attendanceStatus === ATTEND_DONE).length,
+      total: visibleOrders.length,
+      paid: visibleOrders.filter((o) => o.depositStatus === DEPOSIT_DONE).length,
+      entered: visibleOrders.filter((o) => o.attendanceStatus === ATTEND_DONE).length,
+      tickets: visibleOrders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0),
+      afterParties: visibleOrders.reduce((sum, o) => sum + (o.isAfterParty ? (Number(o.afterPartyCount) || 1) : 0), 0),
     };
-  }, [orders]);
+  }, [visibleOrders]);
 
   const exportCsv = () => {
-    const headers = ['예매자명', '신청 매수', '입금 확인', '뒤풀이 참여 여부', '뒤풀이 참여자 수', '입장 처리', '신청 시간'];
+    const headers = ['예매자명', '신청 매수', '뒤풀이 참여자 수', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
       headers,
       ...visibleOrders.map((o) => [
         o.audienceName || '',
         o.ticketCount || 0,
-        o.depositStatus === DEPOSIT_DONE ? '입금 완료' : '입금 대기',
-        o.isAfterParty ? '참여' : '미참여',
         o.isAfterParty ? o.afterPartyCount || 1 : 0,
+        o.createdAt ? formatDate(o.createdAt) : '',
+        o.depositStatus === DEPOSIT_DONE ? '입금 완료' : '입금 대기',
         o.attendanceStatus === ATTEND_DONE ? '입장 완료' : '미입장',
-        o.createdAt ? new Date(o.createdAt).toLocaleString('ko-KR') : '',
       ]),
     ];
     downloadCsv(`lumique_reservations_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+  };
+
+  const formatDate = (isoStr) => {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '-';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
   const updateOrder = (id, patch) => {
@@ -120,20 +140,27 @@ export default function ReservationManagementPage() {
   return (
     <div className="page-shell" style={{ background: '#f8fafc', minHeight: '100dvh' }}>
       <div className="page-container" style={{ display: 'grid', gap: 20, padding: '32px 16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 28, letterSpacing: '-0.5px' }}>🎟️ 티켓 신청 및 입장 관리</h1>
-            <p className="caption" style={{ margin: '6px 0 0', fontWeight: 500 }}>입금 확인과 현장 입장 상태를 한 화면에서 관리합니다.</p>
+            <h1 style={{ margin: 0, fontSize: 28, letterSpacing: '-0.5px' }}>🎟️ 티켓 관리</h1>
+            {currentShow ? (
+              <p className="caption" style={{ margin: '8px 0 0', fontWeight: 600, color: 'var(--slate-600)', fontSize: 14 }}>
+                <strong style={{ color: 'var(--slate-900)' }}>{currentShow.title}</strong> · {currentShow.date} · {currentShow.location}
+              </p>
+            ) : (
+              <p className="caption" style={{ margin: '6px 0 0', fontWeight: 500 }}>전체 공연의 예매 데이터를 조회 중입니다.</p>
+            )}
           </div>
-          <button type="button" className="btn-secondary" style={{ height: 44, padding: '0 20px', borderRadius: 12, fontWeight: 700 }} onClick={() => window.location.assign('/')}>
-            대시보드로 돌아가기
+          <button type="button" className="btn-secondary" style={{ height: 44, padding: '0 20px', borderRadius: 12, fontWeight: 700 }} onClick={() => navigate('/concerts')}>
+            공연 목록으로 돌아가기
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-          <StatCard label="총 신청" value={`${totals.total}명`} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+          <StatCard label="총 예매자" value={`${totals.total}명`} />
+          <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="var(--indigo-600)" />
+          <StatCard label="총 뒤풀이 참여" value={`${totals.afterParties}명`} color="var(--blue-600)" />
           <StatCard label="입금 완료" value={`${totals.paid}명`} color="var(--emerald-600)" />
-          <StatCard label="현장 입장" value={`${totals.entered}명`} color="var(--blue-600)" />
         </div>
 
         <div className="card card-pad" style={{ display: 'grid', gap: 18, borderRadius: 20, border: '1px solid var(--slate-100)' }}>
@@ -187,7 +214,7 @@ export default function ReservationManagementPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ background: 'var(--slate-50)', borderBottom: '2px solid var(--slate-100)' }}>
-                    {['예매자명', '신청 매수', '입금 확인', '뒤풀이 참여 여부', '뒤풀이 참여자 수', '입장 처리', '신청 시간'].map((h) => (
+                    {['예매자명', '신청 매수', '뒤풀이 참여자 수', '신청 시간', '입금 여부', '입장 여부'].map((h) => (
                       <th key={h} style={{ padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -202,6 +229,10 @@ export default function ReservationManagementPage() {
                       <tr key={o.id} style={{ borderBottom: '1px solid var(--slate-100)', transition: 'background 0.2s' }}>
                         <td style={{ padding: '16px 12px', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15 }}>{o.audienceName}</td>
                         <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--slate-700)' }}>{o.ticketCount}매</td>
+                        <td style={{ padding: '16px 12px', fontWeight: 600 }}>{o.isAfterParty ? `${o.afterPartyCount || 1}명` : '0명'}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                          {o.createdAt ? formatDate(o.createdAt) : '-'}
+                        </td>
                         <td style={{ padding: '16px 12px' }}>
                           <button
                             type="button"
@@ -222,8 +253,6 @@ export default function ReservationManagementPage() {
                             {isPaid ? '입금 완료' : '입금 대기'}
                           </button>
                         </td>
-                        <td style={{ padding: '16px 12px', fontWeight: 600, color: o.isAfterParty ? 'var(--blue-600)' : 'var(--slate-500)' }}>{o.isAfterParty ? '참여' : '미참여'}</td>
-                        <td style={{ padding: '16px 12px', fontWeight: 600 }}>{o.isAfterParty ? `${o.afterPartyCount || 1}명` : '0명'}</td>
                         <td style={{ padding: '16px 12px' }}>
                           <button
                             type="button"
@@ -243,9 +272,6 @@ export default function ReservationManagementPage() {
                           >
                             {isEntered ? '입장 완료' : '미입장'}
                           </button>
-                        </td>
-                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                          {o.createdAt ? new Date(o.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }) : '-'}
                         </td>
                       </tr>
                     );

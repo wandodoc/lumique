@@ -257,12 +257,26 @@ function ShowDetailModal({ show, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 20, overflowY: 'auto' }}>
       <div style={{ width: 'min(800px, 100%)', background: '#fff', borderRadius: 20, marginTop: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid #eef2f7' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '18px 20px', borderBottom: '1px solid #eef2f7' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>{show.title}</h3>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{fmtDT(show.date, show.time)} · {show.location}</p>
           </div>
-          <button type="button" onClick={onClose} className="btn-secondary" style={{ height: 40 }}>닫기</button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button 
+                onClick={() => window.open(`/manage/${show.id}`, '_blank')}
+                className="btn-primary"
+                style={{ background: '#111827', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+              >
+                티켓 관리로 이동 ➔
+              </button>
+              <button type="button" onClick={onClose} className="btn-secondary" style={{ height: 38 }}>닫기</button>
+            </div>
+            <p style={{ margin: 0, fontSize: 11, color: '#9ca3af', maxWidth: 250, textAlign: 'right', lineHeight: 1.3 }}>
+              이 공연의 예매자 명단 확인, 입금 처리 및 현장 입장 관리는 전용 페이지에서 가능합니다.
+            </p>
+          </div>
         </div>
         <div style={{ padding: 20, display: 'grid', gap: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
@@ -282,29 +296,34 @@ function ShowDetailModal({ show, onClose }) {
             ))}
             {card('포스터', show.imageUrl ? <img src={show.imageUrl} style={{ width: '100%', borderRadius: 12 }} /> : <div style={{ height: 160, background: '#f1f5f9', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>포스터 없음</div>)}
           </div>
-          
-          <div style={{ background: '#111827', borderRadius: 16, padding: 24, textAlign: 'center', color: '#fff' }}>
-            <h4 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 900 }}>티켓 예매 현황 관리</h4>
-            <p style={{ margin: '0 0 20px', fontSize: 14, color: '#9ca3af' }}>이 공연의 예매자 명단 확인, 입금 처리 및 현장 입장 관리는 전용 페이지에서 가능합니다.</p>
-            <button 
-              onClick={() => window.location.assign('/admin/reservations')}
-              style={{ background: '#fff', color: '#111827', border: 'none', padding: '12px 24px', borderRadius: 12, fontWeight: 800, cursor: 'pointer' }}
-            >
-              티켓 신청 및 입장 관리로 이동 ➔
-            </button>
-          </div>
         </div>
       </div>
     </div>
   );
 }
 
+import { useParams, useNavigate } from 'react-router-dom';
+
 export default function PerformancePage() {
   const [shows, setShows] = useState(() => normShows(lsGet(LS_SHOWS).length ? lsGet(LS_SHOWS) : migrate(lsGet(LS_SHOWS_LEGACY))));
   const [orders, setOrders] = useState(() => lsGet(LS_ORDERS));
   const [editing, setEditing] = useState(null);
-  const [detail, setDetail] = useState(null);
   const { isAdmin } = useAuth();
+  
+  const { id: paramId } = useParams();
+  const navigate = useNavigate();
+  
+  const detail = useMemo(() => {
+    return paramId ? shows.find(s => s.id === paramId) : null;
+  }, [paramId, shows]);
+
+  const setDetail = (show) => {
+    if (show) {
+      navigate(`/concerts/${show.id}`);
+    } else {
+      navigate('/concerts');
+    }
+  };
 
   useEffect(() => { lsSet(LS_SHOWS, shows); }, [shows]);
   useEffect(() => { lsSet(LS_ORDERS, orders); }, [orders]);
@@ -322,7 +341,14 @@ export default function PerformancePage() {
   return (
     <div className="page-shell">
       <div className="page-container" style={{ padding: '24px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>공연 및 티켓 관리</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>공연 목록</h1>
+          {isAdmin && (
+            <button className="btn-primary" onClick={() => setEditing(blankShow)} style={{ height: 40, padding: '0 20px', borderRadius: 10 }}>
+              + 새 공연 등록
+            </button>
+          )}
+        </div>
 
         <div style={{ 
           display: 'grid', 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import './PageStyles.css';
 
@@ -6,6 +7,8 @@ export default function CalendarPage() {
   const { state } = useApp();
   const members = state?.members || [];
   const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'settlement'
+  const { id: detailId } = useParams();
+  const navigate = useNavigate();
 
   // 1. 곡 마스터 데이터 (Clean State)
   const [songs, setSongs] = useState(() => {
@@ -30,7 +33,9 @@ export default function CalendarPage() {
   };
 
   // --- 곡 마스터 관련 상태 및 핸들러 ---
+  const [editingSongId, setEditingSongId] = useState(null);
   const [songTitle, setSongTitle] = useState('');
+  const [songArtist, setSongArtist] = useState('');
   const [selectedSongMembers, setSelectedSongMembers] = useState([]);
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
@@ -50,19 +55,38 @@ export default function CalendarPage() {
     if (!songTitle.trim()) return alert('곡명을 입력해 주세요.');
 
     const newSong = {
-      id: `song-${Date.now()}`,
+      id: editingSongId || `song-${Date.now()}`,
       title: songTitle.trim(),
+      artist: songArtist.trim(),
       members: selectedSongMembers,
       memberCount: selectedSongMembers.length,
       regularDay: songRegularDay,
       musicStatus: songStatus
     };
 
-    saveSongs([...songs, newSong]);
+    if (editingSongId) {
+      saveSongs(songs.map(s => s.id === editingSongId ? newSong : s));
+    } else {
+      saveSongs([...songs, newSong]);
+    }
+    
+    setEditingSongId(null);
     setSongTitle('');
+    setSongArtist('');
     setSelectedSongMembers([]);
     setSongRegularDay('월요일');
     setSongStatus('시작전');
+  };
+
+  const handleEditSong = (s) => {
+    setEditingSongId(s.id);
+    setSongTitle(s.title);
+    setSongArtist(s.artist || '');
+    setSelectedSongMembers(s.members || []);
+    setSongRegularDay(s.regularDay || '월요일');
+    setSongStatus(s.musicStatus || '시작전');
+    setActiveSubTab('songs');
+    window.scrollTo(0, 0);
   };
 
   const handleDeleteSong = (id) => {
@@ -319,9 +343,11 @@ export default function CalendarPage() {
                           color: '#475569',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
-                          textOverflow: 'ellipsis'
-                        }}>
-                          {dayActs[0].location || dayActs[0].title}
+                          textOverflow: 'ellipsis',
+                          cursor: 'pointer'
+                        }} onClick={() => navigate(`/calendar/detail/${dayActs[0].id}`)}>
+                          <span style={{ fontWeight: 700, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].title}</span>
+                          <small style={{ display: 'block', fontSize: '10px', marginTop: 2, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].location}</small>
                         </div>
                       )}
                     </div>
@@ -392,12 +418,18 @@ export default function CalendarPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {/* 곡 신규 등록 */}
           <div className="card card-pad">
-            <span className="card-title" style={{ fontSize: 16, marginBottom: 0 }}>🎼 신규 곡 마스터 등록</span>
+            <span className="card-title" style={{ fontSize: 16, marginBottom: 0 }}>🎼 {editingSongId ? '곡 마스터 수정' : '신규 곡 마스터 등록'}</span>
             <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 20px 0' }} />
             <form onSubmit={handleAddSong} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>곡명 (Title)</label>
-                <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="예: Hype Boy - NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', outline: 'none' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>곡명 (Title) *</label>
+                  <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="예: Hype Boy" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', outline: 'none' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>가수 (Artist)</label>
+                  <input type="text" value={songArtist} onChange={e => setSongArtist(e.target.value)} placeholder="예: NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', outline: 'none' }} />
+                </div>
               </div>
               
               <div>
@@ -510,7 +542,19 @@ export default function CalendarPage() {
                   </select>
                 </div>
               </div>
-              <button type="submit" className="btn-primary" style={{ marginTop: 8 }}>곡 등록하기</button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                {editingSongId && (
+                  <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => {
+                    setEditingSongId(null);
+                    setSongTitle('');
+                    setSongArtist('');
+                    setSelectedSongMembers([]);
+                    setSongRegularDay('월요일');
+                    setSongStatus('시작전');
+                  }}>취소</button>
+                )}
+                <button type="submit" className="btn-primary" style={{ flex: 2 }}>{editingSongId ? '곡 수정하기' : '곡 등록하기'}</button>
+              </div>
             </form>
           </div>
 
@@ -532,16 +576,21 @@ export default function CalendarPage() {
                     alignItems: 'center'
                   }}>
                     <div>
-                      <strong style={{ fontSize: 15, color: 'var(--slate-800)', display: 'block', marginBottom: 4 }}>{s.title}</strong>
+                      <strong style={{ fontSize: 15, color: 'var(--slate-800)', display: 'block', marginBottom: 4 }}>{s.title} {s.artist && <span style={{ color: 'var(--slate-500)', fontSize: 13 }}>- {s.artist}</span>}</strong>
                       <div style={{ fontSize: 12, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <span>👥 <strong>참여 ({s.memberCount}명):</strong> {s.members.join(', ')}</span>
                         <span>📅 <strong>요일:</strong> {s.regularDay}</span>
                         <span>🏷️ <strong>상태:</strong> {s.musicStatus}</span>
                       </div>
                     </div>
-                    <button onClick={() => handleDeleteSong(s.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-                      삭제
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => handleEditSong(s)} style={{ background: 'none', border: 'none', color: 'var(--blue-600)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                        수정
+                      </button>
+                      <button onClick={() => handleDeleteSong(s.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -671,6 +720,50 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+      {/* 일정 상세 보기 모달 */}
+      {detailId && (() => {
+        const act = activities.find(a => a.id === detailId);
+        if (!act) return null;
+        const linkedSong = songs.find(s => s.id === act.songId);
+        
+        return (
+          <div className="modal-overlay" onClick={() => navigate('/calendar')}>
+            <div className="modal-sheet" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-handle" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 4px' }}>🗓️ 일정 상세 보기</h3>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--slate-500)' }}>등록된 일정의 세부 정보를 확인합니다.</p>
+                </div>
+                <button type="button" onClick={() => navigate('/calendar')} className="btn-secondary" style={{ height: 32, padding: '0 12px', fontSize: 12 }}>닫기</button>
+              </div>
+              <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 16px 0' }} />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ padding: 16, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, backgroundColor: act.location.includes('네오관') ? '#fee2e2' : '#f0f9ff', color: act.location.includes('네오관') ? '#ef4444' : '#0284c7' }}>
+                      {act.round}회차
+                    </span>
+                    <strong style={{ fontSize: 16 }}>{act.title}</strong>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 14 }}>
+                    <span>📅 <strong>일시:</strong> {act.date}</span>
+                    <span>📍 <strong>장소:</strong> {act.location}</span>
+                    {linkedSong && <span>🎼 <strong>관련 곡:</strong> {linkedSong.title} {linkedSong.artist && `- ${linkedSong.artist}`}</span>}
+                    {act.plan && <span>📝 <strong>계획:</strong> {act.plan}</span>}
+                    {act.cost > 0 && <span>🪙 <strong>대여비:</strong> {(act.cost || 0).toLocaleString()}원 ({act.booker} 예약 / 정산: {act.status})</span>}
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="button" onClick={() => navigate('/calendar')} className="btn-primary" style={{ flex: 1 }}>확인</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

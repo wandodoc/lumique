@@ -20,7 +20,7 @@ const EXPENSE_CATS = [
   { cat: '외주비', part: '공통', desc: '스태프 사례비, 플레이어 및 스태프 공연 주차비 등' },
   { cat: '복리후생비', part: '공통/파트', desc: '연습 및 공연 식대, MT 및 뒤풀이 행사 일부 지원금' },
   { cat: '비품', part: '공통/파트', desc: '조명, 연무기, DI 박스 등 무대 효과 장치 및 장비 구매비' },
-  { cat: '소모품비', part: '공통/파트', desc: '공연 포스터·팜플렛 홍보물 제작비, MC 의상비 (※ 플레이어 의상 제외)' },
+  { cat: '소모품비', part: '공통/파트', desc: '공연 홍보물 제작, MC 의상 구매비' },
 ];
 
 export default function SettingsPage() {
@@ -52,6 +52,51 @@ export default function SettingsPage() {
     } else {
       alert('기존 비밀번호가 일치하지 않습니다.');
     }
+  };
+
+  const handleBackup = () => {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('lumique_')) {
+        data[key] = localStorage.getItem(key);
+      }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lumique_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestore = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!window.confirm('기존 데이터가 덮어씌워집니다. 진행하시겠습니까?')) {
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        let count = 0;
+        Object.keys(data).forEach(key => {
+          if (key.startsWith('lumique_')) {
+            localStorage.setItem(key, data[key]);
+            count++;
+          }
+        });
+        alert(`복구 완료! ${count}개의 데이터 키가 복원되었습니다. 페이지를 새로고침합니다.`);
+        window.location.reload();
+      } catch (err) {
+        alert('잘못된 백업 파일입니다.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // reset
   };
 
   const rawEquipments = [];
@@ -142,9 +187,9 @@ export default function SettingsPage() {
       <div className="card card-pad">
         <span className="card-title">📋 회비 운영 세칙</span>
         {REGULATIONS.map(r => (
-          <div key={r.label} className="reg-row">
-            <span className="reg-label">{r.label}</span>
-            <span className="reg-value">{r.value}</span>
+          <div key={r.label} className="reg-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="reg-label" style={{ fontSize: 'clamp(12px, 1.2vw, 14px)' }}>{r.label}</span>
+            <span className="reg-value" style={{ fontSize: 'clamp(12px, 1.2vw, 14px)', textAlign: 'right' }}>{r.value}</span>
           </div>
         ))}
       </div>
@@ -274,6 +319,23 @@ export default function SettingsPage() {
             비밀번호 변경하기
           </button>
         </form>
+      </div>
+
+      {/* 데이터 백업/복구 (관리자 도구) */}
+      <div className="card card-pad">
+        <span className="card-title">💾 시스템 데이터 관리 (로컬)</span>
+        <p style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 12 }}>
+          브라우저에 저장된 모든 루미크 데이터를 안전하게 백업하거나, 이전 백업 파일로 복원할 수 있습니다.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn-primary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 14 }} onClick={handleBackup}>
+            데이터 전체 백업 (JSON 다운로드)
+          </button>
+          <label className="btn-secondary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 14, textAlign: 'center', cursor: 'pointer', boxSizing: 'border-box' }}>
+            데이터 복구 (JSON 업로드)
+            <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleRestore} />
+          </label>
+        </div>
       </div>
     </div>
   );

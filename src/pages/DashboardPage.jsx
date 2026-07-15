@@ -13,7 +13,7 @@ const PART_CONFIGS = {
 
 import { CATEGORY_ICONS } from '../data/constants';
 
-export default function DashboardPage({ onAddClick, setTab }) {
+export default function DashboardPage() {
   const { state } = useApp();
   const { transactions, members } = state;
   const [showShareModal, setShowShareModal] = useState(false);
