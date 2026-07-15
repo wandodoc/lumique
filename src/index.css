@@ -142,6 +142,7 @@ h2, .h2 {
   overflow-wrap: break-word;
 }
 
-button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; }
+button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; white-space: nowrap; }
+th, .badge, [class^="badge-"] { white-space: nowrap; }
 input, select, textarea { font-family: inherit; outline: none; font-size: inherit; }
 a { text-decoration: none; color: inherit; }
