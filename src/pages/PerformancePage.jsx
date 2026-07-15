@@ -101,54 +101,89 @@ const card = (title, children) => (
 );
 
 function SectionEditor({ section, index, onChange, onRemove }) {
+  const [isEditing, setIsEditing] = useState(!section.title);
+
+  if (!isEditing) {
+    return (
+      <div 
+        onClick={() => setIsEditing(true)}
+        style={{ border: '1px solid var(--slate-200)', borderRadius: 8, padding: 16, background: '#fafafa', cursor: 'pointer', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', gap: 8 }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--indigo-600)' }}>
+            {section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
+            {section.required && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>클릭하여 수정</span>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--slate-900)' }}>
+          {section.title || '(제목 없음)'}
+        </div>
+        {section.type === 'text' && <div style={{ fontSize: 13, color: 'var(--slate-500)', whiteSpace: 'pre-wrap' }}>{section.content || '(내용 없음)'}</div>}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ border: '1px solid var(--slate-200)', borderRadius: 14, padding: 14, background: '#fafafa', display: 'grid', gap: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, display: 'grid', gap: 10 }}>
-          <select
-            value={section.type}
-            onChange={(e) => onChange(section.id, { type: e.target.value, options: e.target.value === 'text' ? [] : section.options })}
+    <div style={{ border: '1px solid var(--indigo-300)', borderRadius: 8, padding: 16, background: '#fff', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <select
+          value={section.type}
+          onChange={(e) => onChange(section.id, { type: e.target.value, options: e.target.value === 'text' ? [] : section.options })}
+          className="search-input"
+          style={{ height: 40, flex: 1, background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8 }}
+        >
+          <option value="text">안내 텍스트</option>
+          <option value="input_text">단답형 질문</option>
+          <option value="input_textarea">장문형 질문</option>
+          <option value="input_radio">단일 선택(라디오)</option>
+          <option value="input_checkbox">복수 선택(체크박스)</option>
+          <option value="input_number">수량(숫자) 질문</option>
+        </select>
+        <button type="button" onClick={() => onRemove(section.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '8px 4px' }}>항목 삭제</button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', textAlign: 'left' }}>항목 제목 (질문)</label>
+        <input
+          value={section.title}
+          onChange={(e) => onChange(section.id, { title: e.target.value })}
+          placeholder="질문 내용을 입력하세요"
+          className="search-input"
+          style={{ background: '#fff', width: '100%', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '10px 12px', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      {section.type === 'text' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', textAlign: 'left' }}>안내 문구 상세</label>
+          <textarea
+            rows={3}
+            value={section.content}
+            onChange={(e) => onChange(section.id, { content: e.target.value })}
+            placeholder="상세 안내 문구를 입력하세요"
             className="search-input"
-            style={{ height: 42, background: '#fff' }}
-          >
-            <option value="text">안내 텍스트</option>
-            <option value="input_text">단답형 질문</option>
-            <option value="input_textarea">장문형 질문</option>
-            <option value="input_radio">단일 선택(라디오)</option>
-            <option value="input_checkbox">복수 선택(체크박스)</option>
-            <option value="input_number">수량(숫자) 질문</option>
-          </select>
-          <input
-            value={section.title}
-            onChange={(e) => onChange(section.id, { title: e.target.value })}
-            placeholder={`섹션 제목 ${index + 1}`}
-            className="search-input"
-            style={{ background: '#fff' }}
+            style={{ background: '#fff', minHeight: 90, width: '100%', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '10px 12px', boxSizing: 'border-box', resize: 'vertical' }}
           />
         </div>
-        <button type="button" onClick={() => onRemove(section.id)} className="btn-secondary" style={{ height: 42, padding: '0 12px' }}>삭제</button>
-      </div>
-      {section.type === 'text' ? (
-        <textarea
-          rows={3}
-          value={section.content}
-          onChange={(e) => onChange(section.id, { content: e.target.value })}
-          placeholder="안내 문구"
-          className="search-input"
-          style={{ background: '#fff', minHeight: 90 }}
-        />
       ) : (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#374151' }}>
-          <input type="checkbox" checked={section.required} onChange={(e) => onChange(section.id, { required: e.target.checked })} />
-          필수 입력
+          <input type="checkbox" checked={section.required} onChange={(e) => onChange(section.id, { required: e.target.checked })} style={{ width: 16, height: 16 }} />
+          필수 입력 항목으로 설정
         </label>
       )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+        <button type="button" onClick={() => setIsEditing(false)} className="btn-primary" style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>편집 완료</button>
+      </div>
     </div>
   );
 }
 
 function ShowFormModal({ show, onClose, onSave }) {
   const [form, setForm] = useState(blankShow);
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     if (!show) { setForm(blankShow); return; }
     setForm({
@@ -174,72 +209,102 @@ function ShowFormModal({ show, onClose, onSave }) {
     e.preventDefault();
     const clean = cleanShow(form);
     if (!clean) return alert('공연명, 날짜, 장소는 반드시 입력해야 합니다.');
-    onSave({ ...clean, id: show?.id || id('show'), createdAt: show?.createdAt || clean.createdAt, updatedAt: new Date().toISOString() });
-    onClose();
+    
+    setIsSaving(true);
+    setTimeout(() => {
+      onSave({ ...clean, id: show?.id || id('show'), createdAt: show?.createdAt || clean.createdAt, updatedAt: new Date().toISOString() });
+      setIsSaving(false);
+      onClose();
+    }, 600); // 로딩 피드백 제공 (UX)
   };
 
-  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 14, boxSizing: 'border-box', background: '#fff' };
+  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 14, boxSizing: 'border-box', background: '#fff' };
+  const labelStyle = { display: 'block', textAlign: 'left', fontSize: 13, fontWeight: 700, color: 'var(--slate-700)' };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.45)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 20, overflowY: 'auto' }}>
-      <div style={{ width: 'min(640px, 100%)', background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.15)', marginTop: 20 }}>
-        <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 900 }}>공연 {show?.id ? '정보 수정' : '신규 등록'}</h3>
-        <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>공연명 *</label>
-            <input value={form.title} onChange={e => update('title', e.target.value)} style={inputStyle} placeholder="공연 제목을 입력하세요" />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>날짜 *</label>
-              <input type="date" value={form.date} onChange={e => update('date', e.target.value)} style={inputStyle} />
+    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.45)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: '640px', background: '#fff', borderRadius: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--slate-100)' }}>
+          <h3 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--slate-900)' }}>공연 {show?.id ? '정보 수정' : '신규 등록'}</h3>
+        </div>
+        
+        <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
+          <form id="show-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={labelStyle}>공연명 *</label>
+              <input value={form.title} onChange={e => update('title', e.target.value)} style={inputStyle} placeholder="공연 제목을 입력하세요" />
             </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>시간</label>
-              <input type="time" value={form.time} onChange={e => update('time', e.target.value)} style={inputStyle} />
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={labelStyle}>날짜 *</label>
+                <input type="date" value={form.date} onChange={e => update('date', e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={labelStyle}>시간</label>
+                <input type="time" value={form.time} onChange={e => update('time', e.target.value)} style={inputStyle} />
+              </div>
             </div>
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>장소 *</label>
-            <input value={form.location} onChange={e => update('location', e.target.value)} style={inputStyle} placeholder="공연 장소" />
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>티켓 가격 (원)</label>
-            <input type="number" value={form.price} onChange={e => update('price', e.target.value)} style={inputStyle} />
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>상태</label>
-            <select value={form.status} onChange={e => update('status', e.target.value)} style={inputStyle}>
-              <option value={OPEN}>예매 진행 중</option>
-              <option value={CLOSED}>예매 종료</option>
-            </select>
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>포스터 이미지 URL</label>
-            <input value={form.imageUrl} onChange={e => update('imageUrl', e.target.value)} style={inputStyle} placeholder="https://..." />
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>공연 상세 설명</label>
-            <textarea rows={4} value={form.description} onChange={e => update('description', e.target.value)} style={{ ...inputStyle, height: 100 }} placeholder="공연에 대한 설명을 입력하세요" />
-          </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={labelStyle}>장소 *</label>
+              <input value={form.location} onChange={e => update('location', e.target.value)} style={inputStyle} placeholder="공연 장소" />
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={labelStyle}>티켓 가격 (원)</label>
+                <input type="number" value={form.price} onChange={e => update('price', e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={labelStyle}>예매 상태</label>
+                <select value={form.status} onChange={e => update('status', e.target.value)} style={inputStyle}>
+                  <option value={OPEN}>예매 진행 중</option>
+                  <option value={CLOSED}>예매 종료</option>
+                </select>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={labelStyle}>포스터 이미지 URL</label>
+              <input value={form.imageUrl} onChange={e => update('imageUrl', e.target.value)} style={inputStyle} placeholder="https://..." />
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={labelStyle}>공연 상세 설명</label>
+              <textarea rows={4} value={form.description} onChange={e => update('description', e.target.value)} style={{ ...inputStyle, height: 100, resize: 'vertical' }} placeholder="공연에 대한 설명을 입력하세요" />
+            </div>
 
-          <div style={{ borderTop: '1px solid #eef2f7', pt: 20, mt: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 12 }}>
-              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>커스텀 신청 항목</h4>
-              <button type="button" onClick={() => add('input_text')} className="btn-secondary" style={{ height: 32, padding: '0 10px', fontSize: 12 }}>+ 항목 추가</button>
+            <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--slate-900)' }}>커스텀 신청 항목 (폼 빌더)</h4>
+                  <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--slate-500)' }}>예매자에게 추가로 받을 정보를 자유롭게 구성하세요.</p>
+                </div>
+                <button type="button" onClick={() => add('input_text')} className="btn-secondary" style={{ height: 36, padding: '0 16px', fontSize: 13, fontWeight: 700 }}>+ 항목 추가</button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {form.customSections.length === 0 ? (
+                  <div style={{ padding: '32px 0', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--slate-300)' }}>
+                    <span style={{ fontSize: 14, color: 'var(--slate-400)', fontWeight: 600 }}>추가 항목이 없습니다.</span>
+                  </div>
+                ) : (
+                  form.customSections.map((s, idx) => (
+                    <SectionEditor key={s.id} section={s} index={idx} onChange={sec} onRemove={del} />
+                  ))
+                )}
+              </div>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {form.customSections.map((s, idx) => (
-                <SectionEditor key={s.id} section={s} index={idx} onChange={sec} onRemove={del} />
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, mt: 10 }}>
-            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex: 1 }}>취소</button>
-            <button type="submit" className="btn-primary" style={{ flex: 2 }}>저장하기</button>
-          </div>
-        </form>
+          </form>
+        </div>
+        
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--slate-100)', display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#fafafa', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}>
+          <button type="button" onClick={onClose} disabled={isSaving} style={{ padding: '10px 24px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>취소</button>
+          <button type="submit" form="show-form" disabled={isSaving} className="btn-primary" style={{ padding: '10px 32px', borderRadius: 8, fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isSaving ? '저장 중...' : '저장하기'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -255,15 +320,17 @@ function ShowDetailModal({ show, onClose }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 20, overflowY: 'auto' }}>
-      <div style={{ width: 'min(800px, 100%)', background: '#fff', borderRadius: 20, marginTop: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', border: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '18px 20px', borderBottom: '1px solid #eef2f7' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: '800px', background: '#fff', borderRadius: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px', borderBottom: '1px solid var(--slate-100)' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>{show.title}</h3>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{fmtDT(show.date, show.time)} · {show.location}</p>
+            <h3 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--slate-900)' }}>{show.title}</h3>
+            <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--slate-500)' }}>{fmtDT(show.date, show.time)} · {show.location}</p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>닫기</button>
               <button 
                 onClick={() => window.open(`/manage/${show.id}`, '_blank')}
                 className="btn-primary"
@@ -271,14 +338,11 @@ function ShowDetailModal({ show, onClose }) {
               >
                 티켓 관리로 이동 ➔
               </button>
-              <button type="button" onClick={onClose} className="btn-secondary" style={{ height: 38 }}>닫기</button>
             </div>
-            <p style={{ margin: 0, fontSize: 11, color: '#9ca3af', maxWidth: 250, textAlign: 'right', lineHeight: 1.3 }}>
-              이 공연의 예매자 명단 확인, 입금 처리 및 현장 입장 관리는 전용 페이지에서 가능합니다.
-            </p>
           </div>
         </div>
-        <div style={{ padding: 20, display: 'grid', gap: 20 }}>
+
+        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'grid', gap: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
             {card('공연 정보', (
               <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
