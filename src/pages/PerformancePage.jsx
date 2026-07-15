@@ -310,7 +310,7 @@ function ShowFormModal({ show, onClose, onSave }) {
   );
 }
 
-function ShowDetailModal({ show, onClose }) {
+function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
   if (!show) return null;
   const formUrl = `${window.location.origin}/form/${show.id}`;
 
@@ -330,11 +330,16 @@ function ShowDetailModal({ show, onClose }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>닫기</button>
+              {isAdmin && (
+                <button type="button" onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--indigo-300)', background: '#f8fafc', color: 'var(--indigo-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  공연 수정
+                </button>
+              )}
+              <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>닫기</button>
               <button 
                 onClick={() => window.open(`/manage/${show.id}`, '_blank')}
                 className="btn-primary"
-                style={{ background: '#111827', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
+                style={{ background: '#111827', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}
               >
                 티켓 관리로 이동 ➔
               </button>
@@ -449,7 +454,7 @@ export default function PerformancePage() {
         </div>
 
         {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
-        {detail && <ShowDetailModal show={detail} onClose={() => setDetail(null)} />}
+        {detail && <ShowDetailModal show={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail); setDetail(null); }} isAdmin={isAdmin} />}
       </div>
     </div>
   );
