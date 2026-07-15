@@ -185,22 +185,22 @@ export default function SettingsPage() {
     <div className="page fade-in">
       {/* 회비 운영 세칙 */}
       <div className="card card-pad">
-        <span className="card-title">📋 회비 운영 세칙</span>
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>📋 회비 운영 세칙</span>
         {REGULATIONS.map(r => (
           <div key={r.label} className="reg-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="reg-label" style={{ fontSize: 'clamp(12px, 1.2vw, 14px)' }}>{r.label}</span>
-            <span className="reg-value" style={{ fontSize: 'clamp(12px, 1.2vw, 14px)', textAlign: 'right' }}>{r.value}</span>
+            <span className="reg-label" style={{ fontSize: 15, fontWeight: 600 }}>{r.label}</span>
+            <span className="reg-value" style={{ fontSize: 15, textAlign: 'right' }}>{r.value}</span>
           </div>
         ))}
       </div>
 
       {/* 수입 계정과목 */}
       <div className="card card-pad">
-        <span className="card-title" style={{ fontSize: 17 }}>💰 수입 계정과목</span>
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>💰 수입 계정과목</span>
         {INCOME_CATS.map(c => (
           <div key={c.cat} className="reg-row">
             <div>
-              <strong style={{ fontSize: 16 }}>{c.cat}</strong>
+              <strong style={{ fontSize: 15 }}>{c.cat}</strong>
             </div>
             <span className="reg-value" style={{ fontSize: 14, color: 'var(--gray-500)' }}>{c.desc}</span>
           </div>
@@ -209,11 +209,11 @@ export default function SettingsPage() {
 
       {/* 지출 계정과목 */}
       <div className="card card-pad">
-        <span className="card-title" style={{ fontSize: 17 }}>💸 지출 계정과목</span>
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>💸 지출 계정과목</span>
         {EXPENSE_CATS.map(c => (
           <div key={c.cat} className="reg-row">
             <div>
-              <strong style={{ fontSize: 16 }}>{c.cat}</strong>
+              <strong style={{ fontSize: 15 }}>{c.cat}</strong>
             </div>
             <span className="reg-value" style={{ fontSize: 14, color: 'var(--gray-500)' }}>{c.desc}</span>
           </div>
@@ -222,37 +222,37 @@ export default function SettingsPage() {
 
       {/* 공용 비품 */}
       <div className="card card-pad">
-        <span className="card-title" style={{ fontSize: 17 }}>🛒 공용 비품 목록</span>
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>🛒 공용 비품 목록</span>
         {equipmentList.length === 0 && (
           <p className="text-muted" style={{ textAlign: 'center', padding: '16px 0', fontSize: 14 }}>등록된 비품 내역이 없습니다.</p>
         )}
         {equipmentList.map((e, i) => (
           <div key={i} className="equip-row">
             <div className="equip-info">
-              <strong style={{ fontSize: 16 }}>{e.name}</strong>
+              <strong style={{ fontSize: 15 }}>{e.name}</strong>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
-                <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>{e.date}</span>
+                <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>{e.date}</span>
                 {e.note && <span style={{ fontSize: 13, color: 'var(--gray-500)' }}>| {e.note}</span>}
               </div>
             </div>
             <div className="equip-right">
               <span className={`badge badge-${e.part === '공통' ? 'common' : e.part.toLowerCase()}`} style={{ fontSize: 12 }}>{e.part}</span>
-              <strong style={{ fontSize: 16 }}>{(e.price || 0).toLocaleString()}원</strong>
+              <strong style={{ fontSize: 15 }}>{(e.price || 0).toLocaleString()}원</strong>
             </div>
           </div>
         ))}
         <div className="equip-total">
           <span>합계</span>
-          <strong style={{ fontSize: 17 }}>{(equipmentList.reduce((s, e) => s + (e.price || 0), 0)).toLocaleString()}원</strong>
+          <strong style={{ fontSize: 16 }}>{(equipmentList.reduce((s, e) => s + (e.price || 0), 0)).toLocaleString()}원</strong>
         </div>
       </div>
 
       {/* 공용 비밀번호 변경 */}
       <div className="card card-pad">
-        <span className="card-title">🔒 공용 비밀번호 변경</span>
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>🔒 공용 비밀번호 변경</span>
         <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-600)' }}>기존 비밀번호</label>
+            <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--slate-600)' }}>기존 비밀번호</label>
             <input
               type="password"
               placeholder="기존 비밀번호 입력"
@@ -263,14 +263,14 @@ export default function SettingsPage() {
                 padding: '10px 14px',
                 borderRadius: 8,
                 border: '1px solid var(--slate-200)',
-                fontSize: 14,
+                fontSize: 15,
                 outline: 'none',
                 background: 'white'
               }}
             />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-600)' }}>새 비밀번호</label>
+            <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--slate-600)' }}>새 비밀번호</label>
             <input
               type="password"
               placeholder="새 비밀번호 입력"
@@ -281,14 +281,14 @@ export default function SettingsPage() {
                 padding: '10px 14px',
                 borderRadius: 8,
                 border: '1px solid var(--slate-200)',
-                fontSize: 14,
+                fontSize: 15,
                 outline: 'none',
                 background: 'white'
               }}
             />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-600)' }}>새 비밀번호 확인</label>
+            <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--slate-600)' }}>새 비밀번호 확인</label>
             <input
               type="password"
               placeholder="새 비밀번호 확인 입력"
@@ -299,7 +299,7 @@ export default function SettingsPage() {
                 padding: '10px 14px',
                 borderRadius: 8,
                 border: '1px solid var(--slate-200)',
-                fontSize: 14,
+                fontSize: 15,
                 outline: 'none',
                 background: 'white'
               }}
@@ -310,10 +310,10 @@ export default function SettingsPage() {
             className="btn-primary"
             style={{
               marginTop: 8,
-              height: 42,
+              height: 48,
               borderRadius: 8,
               fontWeight: 700,
-              fontSize: 14
+              fontSize: 15
             }}
           >
             비밀번호 변경하기
@@ -323,15 +323,15 @@ export default function SettingsPage() {
 
       {/* 데이터 백업/복구 (관리자 도구) */}
       <div className="card card-pad">
-        <span className="card-title">💾 시스템 데이터 관리 (로컬)</span>
-        <p style={{ fontSize: 13, color: 'var(--slate-500)', marginBottom: 12 }}>
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>💾 시스템 데이터 관리 (로컬)</span>
+        <p style={{ fontSize: 14, color: 'var(--slate-500)', marginBottom: 12 }}>
           브라우저에 저장된 모든 루미크 데이터를 안전하게 백업하거나, 이전 백업 파일로 복원할 수 있습니다.
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn-primary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 14 }} onClick={handleBackup}>
+          <button className="btn-primary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 15 }} onClick={handleBackup}>
             데이터 전체 백업 (JSON 다운로드)
           </button>
-          <label className="btn-secondary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 14, textAlign: 'center', cursor: 'pointer', boxSizing: 'border-box' }}>
+          <label className="btn-secondary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 15, textAlign: 'center', cursor: 'pointer', boxSizing: 'border-box' }}>
             데이터 복구 (JSON 업로드)
             <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleRestore} />
           </label>
