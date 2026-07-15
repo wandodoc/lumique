@@ -90,10 +90,9 @@ export default function ReservationManagementPage() {
 
   const totals = useMemo(() => {
     return {
-      total: visibleOrders.length,
-      paid: visibleOrders.filter((o) => o.depositStatus === DEPOSIT_DONE).length,
-      entered: visibleOrders.filter((o) => o.attendanceStatus === ATTEND_DONE).length,
       tickets: visibleOrders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0),
+      enteredTotal: visibleOrders.reduce((sum, o) => sum + (Number(o.enteredCount) || 0), 0),
+      paidTickets: visibleOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? (Number(o.ticketCount) || 0) : 0), 0),
       afterParties: visibleOrders.reduce((sum, o) => sum + (o.isAfterParty ? (Number(o.afterPartyCount) || 1) : 0), 0),
     };
   }, [visibleOrders]);
@@ -133,8 +132,23 @@ export default function ReservationManagementPage() {
 
   const toggleAttendance = (order) => {
     if (!isAdmin) return;
-    const isDone = order.attendanceStatus === ATTEND_DONE;
-    updateOrder(order.id, { attendanceStatus: isDone ? ATTEND_WAIT : ATTEND_DONE });
+    const totalTickets = Number(order.ticketCount) || 0;
+    const currentEntered = Number(order.enteredCount) || 0;
+    
+    let newEntered = currentEntered + 1;
+    let newStatus = ATTEND_WAIT;
+    
+    if (newEntered === totalTickets) {
+      newStatus = ATTEND_DONE;
+    } else if (newEntered > totalTickets || currentEntered === totalTickets) {
+      newEntered = 0;
+      newStatus = ATTEND_WAIT;
+    }
+    
+    updateOrder(order.id, { 
+      enteredCount: newEntered,
+      attendanceStatus: newStatus 
+    });
   };
 
   return (
@@ -157,10 +171,10 @@ export default function ReservationManagementPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-          <StatCard label="총 예매자" value={`${totals.total}명`} />
           <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="var(--indigo-600)" />
-          <StatCard label="총 뒤풀이 참여" value={`${totals.afterParties}명`} color="var(--blue-600)" />
-          <StatCard label="입금 완료" value={`${totals.paid}명`} color="var(--emerald-600)" />
+          <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="var(--blue-600)" />
+          <StatCard label="입금 완료" value={`${totals.paidTickets}명`} color="var(--emerald-600)" />
+          <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="var(--slate-600)" />
         </div>
 
         <div className="card card-pad" style={{ display: 'grid', gap: 18, borderRadius: 20, border: '1px solid var(--slate-100)' }}>
@@ -210,27 +224,31 @@ export default function ReservationManagementPage() {
           {visibleOrders.length === 0 ? (
             <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 15, fontWeight: 500 }}>표시할 예매 정보가 없습니다.</div>
           ) : (
-            <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <div style={{ overflowX: 'auto', margin: '0 -24px' }}>
+              <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 14, minWidth: 700 }}>
                 <thead>
                   <tr style={{ background: 'var(--slate-50)', borderBottom: '2px solid var(--slate-100)' }}>
-                    {['예매자명', '신청 매수', '뒤풀이 참여자 수', '신청 시간', '입금 여부', '입장 여부'].map((h) => (
-                      <th key={h} style={{ padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {h}
-                      </th>
-                    ))}
+                    <th style={{ width: 'auto', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>예매자명</th>
+                    <th style={{ width: '80px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 매수</th>
+                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>뒤풀이 참여자 수</th>
+                    <th style={{ width: '140px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 시간</th>
+                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입금 여부</th>
+                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입장 여부</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleOrders.map((o) => {
                     const isPaid = o.depositStatus === DEPOSIT_DONE;
-                    const isEntered = o.attendanceStatus === ATTEND_DONE;
+                    const totalTickets = Number(o.ticketCount) || 0;
+                    const currentEntered = Number(o.enteredCount) || 0;
+                    const isEntered = currentEntered === totalTickets;
+                    
                     return (
                       <tr key={o.id} style={{ borderBottom: '1px solid var(--slate-100)', transition: 'background 0.2s' }}>
-                        <td style={{ padding: '16px 12px', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15 }}>{o.audienceName}</td>
+                        <td style={{ padding: '16px 12px', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.audienceName}</td>
                         <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--slate-700)' }}>{o.ticketCount}매</td>
                         <td style={{ padding: '16px 12px', fontWeight: 600 }}>{o.isAfterParty ? `${o.afterPartyCount || 1}명` : '0명'}</td>
-                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {o.createdAt ? formatDate(o.createdAt) : '-'}
                         </td>
                         <td style={{ padding: '16px 12px' }}>
@@ -238,7 +256,8 @@ export default function ReservationManagementPage() {
                             type="button"
                             onClick={() => toggleDeposit(o)}
                             style={{
-                              padding: '8px 16px',
+                              width: '100%',
+                              padding: '8px 12px',
                               borderRadius: 10,
                               border: `1.5px solid ${isPaid ? '#10b981' : 'var(--slate-200)'}`,
                               background: isPaid ? '#10b981' : '#fff',
@@ -258,7 +277,8 @@ export default function ReservationManagementPage() {
                             type="button"
                             onClick={() => toggleAttendance(o)}
                             style={{
-                              padding: '8px 16px',
+                              width: '100%',
+                              padding: '8px 12px',
                               borderRadius: 10,
                               border: `1.5px solid ${isEntered ? '#3b82f6' : 'var(--slate-200)'}`,
                               background: isEntered ? '#3b82f6' : '#fff',
@@ -270,13 +290,21 @@ export default function ReservationManagementPage() {
                               transition: 'all 0.2s'
                             }}
                           >
-                            {isEntered ? '입장 완료' : '미입장'}
+                            {isEntered ? '입장 완료' : `${currentEntered}/${totalTickets} 입장`}
                           </button>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
+                <tfoot>
+                  <tr style={{ background: 'var(--slate-100)', fontWeight: 800, borderTop: '2px solid var(--slate-200)' }}>
+                    <td style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--slate-700)' }}>합계</td>
+                    <td style={{ padding: '16px 12px', color: 'var(--indigo-600)' }}>{totals.tickets}매</td>
+                    <td style={{ padding: '16px 12px', color: 'var(--blue-600)' }}>{totals.afterParties}명</td>
+                    <td colSpan={3}></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
