@@ -1,0 +1,671 @@
+﻿import { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
+import './PageStyles.css';
+
+export default function CalendarPage() {
+  const { state } = useApp();
+  const members = state?.members || [];
+  const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'settlement'
+
+  // 1. 怨?留덉뒪???곗씠??(Clean State)
+  const [songs, setSongs] = useState(() => {
+    const saved = localStorage.getItem('lumique_songs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // 2. ?쇱젙 ?곗씠??(Clean State)
+  const [activities, setActivities] = useState(() => {
+    const saved = localStorage.getItem('lumique_activities');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const saveSongs = (list) => {
+    setSongs(list);
+    localStorage.setItem('lumique_songs', JSON.stringify(list));
+  };
+
+  const saveActivities = (list) => {
+    setActivities(list);
+    localStorage.setItem('lumique_activities', JSON.stringify(list));
+  };
+
+  // --- 怨?留덉뒪??愿???곹깭 諛??몃뱾??---
+  const [songTitle, setSongTitle] = useState('');
+  const [selectedSongMembers, setSelectedSongMembers] = useState([]);
+  const [songRegularDay, setSongRegularDay] = useState('?붿슂??);
+  const [songStatus, setSongStatus] = useState('?쒖옉??);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const handleToggleMember = (memberName) => {
+    setSelectedSongMembers(prev => 
+      prev.includes(memberName) 
+        ? prev.filter(m => m !== memberName) 
+        : [...prev, memberName]
+    );
+  };
+
+  const handleAddSong = (e) => {
+    e.preventDefault();
+    if (!songTitle.trim()) return alert('怨〓챸???낅젰??二쇱꽭??');
+
+    const newSong = {
+      id: `song-${Date.now()}`,
+      title: songTitle.trim(),
+      members: selectedSongMembers,
+      memberCount: selectedSongMembers.length,
+      regularDay: songRegularDay,
+      musicStatus: songStatus
+    };
+
+    saveSongs([...songs, newSong]);
+    setSongTitle('');
+    setSelectedSongMembers([]);
+    setSongRegularDay('?붿슂??);
+    setSongStatus('?쒖옉??);
+  };
+
+  const handleDeleteSong = (id) => {
+    if (!window.confirm('怨?留덉뒪?곕? ??젣?섏떆寃좎뒿?덇퉴? 愿???쇱젙??怨??뺣낫???좎??⑸땲??')) return;
+    saveSongs(songs.filter(s => s.id !== id));
+  };
+
+  // --- ?쇱젙 愿???곹깭 諛??몃뱾??---
+  const [actTitle, setActTitle] = useState('');
+  const [actDate, setActDate] = useState('');
+  const [actLocation, setActLocation] = useState('');
+  const [actSongId, setActSongId] = useState('');
+  const [actRound, setActRound] = useState(1);
+  const [actPlan, setActPlan] = useState('');
+  const [actCost, setActCost] = useState(0);
+  const [actBooker, setActBooker] = useState('');
+  const [actStatus, setActStatus] = useState('?대떦?놁쓬');
+  const [showAddActModal, setShowAddActModal] = useState(false);
+  
+  // 怨??꾪꽣 ?곹깭
+  const [filterSongId, setFilterSongId] = useState('');
+
+  // ?ㅼ삤愿 5???愿 珥덇낵 寃利?濡쒖쭅
+  const checkNeoLimit = (dateStr, locationStr, currentActId = null) => {
+    if (!locationStr.includes('?ㅼ삤愿')) return true;
+
+    // ?대떦 ?곗썡 怨꾩궛 (YYYY-MM)
+    const targetYm = dateStr.slice(0, 7);
+
+    // ?대떦 ?붿쓽 湲곗〈 ?ㅼ삤愿 ????잛닔 ?⑹궛 (?꾩옱 ?섏젙 以묒씤 ?쇱젙 ID???쒖쇅)
+    const neoActsInMonth = activities.filter(act => {
+      if (currentActId && act.id === currentActId) return false;
+      return act.date.slice(0, 7) === targetYm && act.location.includes('?ㅼ삤愿');
+    });
+
+    // ?대쾲 異붽?/?섏젙???ы븿?섏뿬 5?뚮? 珥덇낵?섍쾶 ?섎뒗吏 寃利?(湲곗〈 嫄댁닔 + 1)
+    if (neoActsInMonth.length + 1 > 5) {
+      alert('?숆탳 ?곗뒿???ㅼ삤愿)? ???愿 ?쒗븳 5?뚮? 珥덇낵?????놁뒿?덈떎.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddActivity = (e) => {
+    e.preventDefault();
+    if (!actTitle.trim() || !actDate || !actLocation.trim()) {
+      return alert('?꾩닔 ??ぉ(?쇱젙紐? ?쇱떆, ?μ냼)???낅젰??二쇱꽭??');
+    }
+
+    // ?ㅼ삤愿 ?愿 ?잛닔 ?쒕룄 泥댄겕
+    if (!checkNeoLimit(actDate, actLocation)) return;
+
+    const newAct = {
+      id: `act-${Date.now()}`,
+      title: actTitle.trim(),
+      date: actDate,
+      location: actLocation.trim(),
+      songId: actSongId || '?대떦?놁쓬',
+      round: Number(actRound) || 1,
+      plan: actPlan.trim(),
+      cost: Number(actCost) || 0,
+      booker: actBooker.trim() || '?대떦?놁쓬',
+      status: actStatus
+    };
+
+    saveActivities([...activities, newAct].sort((a, b) => a.date.localeCompare(b.date)));
+    
+    // ?곹깭 珥덇린??    setActTitle('');
+    setActDate('');
+    setActLocation('');
+    setActSongId('');
+    setActRound(1);
+    setActPlan('');
+    setActCost(0);
+    setActBooker('');
+    setActStatus('?대떦?놁쓬');
+    setShowAddActModal(false);
+  };
+
+  const handleDeleteActivity = (id) => {
+    if (!window.confirm('?쇱젙????젣?섏떆寃좎뒿?덇퉴?')) return;
+    saveActivities(activities.filter(a => a.id !== id));
+  };
+
+  // --- ?붾쭚 ?뺤궛 ?쇳꽣 愿???곹깭 諛?濡쒖쭅 ---
+  const [settleYear, setSettleYear] = useState(2026);
+  const [settleMonth, setSettleMonth] = useState(7);
+
+  // ?곗썡???꾪꽣留곷맂 ?뺤궛?湲????  const targetYmStr = `${settleYear}-${String(settleMonth).padStart(2, '0')}`;
+  const pendingSettles = activities.filter(act => 
+    act.date.slice(0, 7) === targetYmStr && act.status === '?뺤궛?湲?
+  );
+
+  // booker蹂?洹몃９??諛?吏묎퀎
+  const bookerSummary = {};
+  pendingSettles.forEach(act => {
+    const booker = act.booker || '?덉빟??誘몄젙';
+    if (!bookerSummary[booker]) {
+      bookerSummary[booker] = { count: 0, totalCost: 0, actIds: [] };
+    }
+    bookerSummary[booker].count += 1;
+    bookerSummary[booker].totalCost += act.cost;
+    bookerSummary[booker].actIds.push(act.id);
+  });
+
+  const handleSettleComplete = (bookerName, actIds) => {
+    if (!window.confirm(`[${bookerName}] ?섏쓽 ???嫄곕옒?ㅼ쓣 '?뺤궛?꾨즺'濡??쇨큵 蹂寃?泥섎━?섏떆寃좎뒿?덇퉴?`)) return;
+    
+    const updated = activities.map(act => 
+      actIds.includes(act.id) ? { ...act, status: '?뺤궛?꾨즺' } : act
+    );
+    saveActivities(updated);
+    alert('?뺤궛 泥섎━媛 ?꾨즺?섏뿀?듬땲??');
+  };
+
+  // --- 罹섎┛???좎쭨 ?뚮뜑留곸슜 ---
+  const [calYear, setCalYear] = useState(2026);
+  const [calMonth, setCalMonth] = useState(7);
+
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  const firstDayIndex = new Date(calYear, calMonth - 1, 1).getDay();
+
+  const calendarCells = [];
+  for (let i = 0; i < firstDayIndex; i++) {
+    calendarCells.push(null);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    calendarCells.push(d);
+  }
+
+  return (
+    <div className="page fade-in">
+      {/* ?쒕툕 ???ㅻ퉬寃뚯씠??*/}
+      <div className="calendar-tabs">
+        {[
+          { id: 'calendar', label: '?뱟 罹섎┛?? },
+          { id: 'songs', label: '?렯 ?뗫━?ㅽ듃' },
+          { id: 'settlement', label: '?뮯 ?붾쭚 ?뺤궛' }
+        ].map(tab => (
+          <button key={tab.id}
+            onClick={() => {
+              setActiveSubTab(tab.id);
+              if (tab.id === 'calendar') setFilterSongId(''); // 罹섎┛???대룞 ???꾪꽣 由ъ뀑
+            }}
+            className="calendar-tab-btn"
+            style={{
+              background: activeSubTab === tab.id ? 'var(--blue-500)' : 'transparent',
+              color: activeSubTab === tab.id ? '#ffffff' : 'var(--slate-500)'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* --- 1. ?곗뒿/怨듭뿰 罹섎┛????--- */}
+      {activeSubTab === 'calendar' && (
+        <div>
+          <div className="calendar-main-header">
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>?뱟 ?곗뒿 & 怨듭뿰 罹섎┛??/h2>
+            
+            <div className="calendar-header-controls">
+              {/* 怨〓퀎 ?꾪꽣 ?쒕∼?ㅼ슫 */}
+              <select
+                value={filterSongId}
+                onChange={e => setFilterSongId(e.target.value)}
+                className="calendar-select"
+              >
+                <option value="">?슟 ?꾩껜 怨?蹂닿린</option>
+                {songs.map(s => (
+                  <option key={s.id} value={s.id}>?렯 {s.title}</option>
+                ))}
+              </select>
+
+              <button className="calendar-btn calendar-btn-primary" onClick={() => setShowAddActModal(true)}>
+                + ?쇱젙 ?깅줉
+              </button>
+            </div>
+          </div>
+
+          <div className="calendar-grid-container">
+            {/* ?щ젰 ?먮꽟 */}
+            <div className="card card-pad calendar-left-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span className="card-title" style={{ fontSize: 16, margin: 0 }}>
+                  {calYear}??{calMonth}??                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn-sm" onClick={() => {
+                    const today = new Date();
+                    setCalYear(today.getFullYear());
+                    setCalMonth(today.getMonth() + 1);
+                  }} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>?ㅻ뒛</button>
+                  <button className="btn-sm" onClick={() => {
+                    if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
+                    else { setCalMonth(m => m - 1); }
+                  }}>?댁쟾</button>
+                  <button className="btn-sm" onClick={() => {
+                    if (calMonth === 12) { setCalYear(y => y + 1); setCalMonth(1); }
+                    else { setCalMonth(m => m + 1); }
+                  }}>?ㅼ쓬</button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--slate-500)', marginBottom: 8 }}>
+                {['??, '??, '??, '??, '紐?, '湲?, '??].map((day, idx) => (
+                  <span key={day} style={{ color: idx === 0 ? 'var(--red-500)' : idx === 6 ? 'var(--blue-500)' : 'inherit' }}>{day}</span>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                {calendarCells.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`empty-${index}`} style={{ aspectRatio: '1', background: '#f8fafc', borderRadius: 8 }} />;
+                  }
+
+                  const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const dayActs = activities.filter(a => {
+                    const matchDate = a.date === dateStr;
+                    const matchSong = filterSongId ? a.songId === filterSongId : true;
+                    return matchDate && matchSong;
+                  });
+
+                  const todayObj = new Date();
+                  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+                  const isToday = dateStr === todayStr;
+
+                  return (
+                    <div key={`day-${day}`} style={{
+                      aspectRatio: '1',
+                      background: isToday ? '#eff6ff' : '#ffffff',
+                      border: isToday ? '2px solid #3b82f6' : '1px solid var(--slate-100)',
+                      borderRadius: 8,
+                      padding: 4,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      position: 'relative'
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? '#1d4ed8' : 'var(--slate-600)' }}>{day}</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                        {dayActs.map(act => (
+                          <span key={act.id} style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            backgroundColor: act.location.includes('?ㅼ삤愿') ? 'var(--red-500)' : 'var(--blue-500)'
+                          }} title={`${act.title} @ ${act.location}`} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ?쇱젙 由ъ뒪??*/}
+            <div className="card card-pad calendar-right-card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title" style={{ fontSize: 16 }}>?쇱젙 由ъ뒪??({calYear}??{calMonth}??</span>
+              {activities.filter(a => {
+                const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
+                const matchSong = filterSongId ? a.songId === filterSongId : true;
+                return matchMonth && matchSong;
+              }).length === 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: '300px', color: '#9ca3af', fontSize: '14px', fontWeight: '500', textAlign: 'center' }}>
+                  ?깅줉???쇱젙???놁뒿?덈떎.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {activities
+                    .filter(a => {
+                      const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
+                      const matchSong = filterSongId ? a.songId === filterSongId : true;
+                      return matchMonth && matchSong;
+                    })
+                    .map(act => {
+                      const linkedSong = songs.find(s => s.id === act.songId);
+                      return (
+                        <div key={act.id} style={{
+                          padding: 14,
+                          borderRadius: 12,
+                          border: '1px solid var(--slate-100)',
+                          background: '#ffffff',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <span style={{
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                backgroundColor: act.location.includes('?ㅼ삤愿') ? '#fee2e2' : '#f0f9ff',
+                                color: act.location.includes('?ㅼ삤愿') ? '#ef4444' : '#0284c7'
+                              }}>{act.round}?뚯감</span>
+                              <strong style={{ fontSize: 14, color: 'var(--slate-800)' }}>{act.title}</strong>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span>?뱟 <strong>?쇱떆:</strong> {act.date}</span>
+                              <span>?뱧 <strong>?μ냼:</strong> {act.location}</span>
+                              {linkedSong && <span>?렯 <strong>愿??怨?</strong> {linkedSong.title}</span>}
+                              {act.plan && <span>?뱷 <strong>怨꾪쉷:</strong> {act.plan}</span>}
+                              {act.cost > 0 && <span>?첌 <strong>??щ퉬:</strong> {(act.cost || 0).toLocaleString()}??({act.booker} ?덉빟 / ?뺤궛: {act.status})</span>}
+                            </div>
+                          </div>
+                          <button onClick={() => handleDeleteActivity(act.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                            ??젣
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- 2. 怨?留덉뒪??愿由???--- */}
+      {activeSubTab === 'songs' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+          {/* 怨??좉퇋 ?깅줉 */}
+          <div className="card card-pad">
+            <span className="card-title" style={{ fontSize: 16, marginBottom: 0 }}>?렯 ?좉퇋 怨?留덉뒪???깅줉</span>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 20px 0' }} />
+            <form onSubmit={handleAddSong} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>怨〓챸 (Title)</label>
+                <input type="text" value={songTitle} onChange={e => setSongTitle(e.target.value)} placeholder="?? Hype Boy - NewJeans" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', outline: 'none' }} />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>李몄뿬 遺???좏깮 (?쒕룞 遺?먮쭔 ???</label>
+                
+                {/* 1. ?좏깮??遺??移?Chip) ?곸뿭 */}
+                {selectedSongMembers.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                    {selectedSongMembers.map(name => (
+                      <span key={name} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '4px 10px',
+                        borderRadius: '9999px',
+                        backgroundColor: '#f3f4f6',
+                        color: '#1f2937',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        {name}
+                        <button type="button" onClick={() => handleToggleMember(name)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0 0 0 6px', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>횞</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Autocomplete 而⑦뀒?대꼫 */}
+                <div style={{ position: 'relative' }}>
+                  {/* 2. ?대쫫 寃?됱갹 */}
+                  <input
+                    type="text"
+                    value={memberSearchQuery}
+                    onChange={e => setMemberSearchQuery(e.target.value)}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                    placeholder="?뵇 ?대쫫?쇰줈 遺??寃??.."
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid var(--slate-200)',
+                      fontSize: 12,
+                      outline: 'none'
+                    }}
+                  />
+
+                  {/* 3. 寃??異붿쿇 absolute ?쒕∼?ㅼ슫 */}
+                  {(isSearchFocused || memberSearchQuery.trim() !== '') && (
+                    <div style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: '100%',
+                      marginTop: '4px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      zIndex: 50,
+                      maxHeight: '192px',
+                      overflowY: 'auto',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      {(() => {
+                        const activeMembers = (members || []).filter(m => m.status === 'active');
+                        const filtered = activeMembers.filter(m => 
+                          m.name.toLowerCase().includes(memberSearchQuery.toLowerCase())
+                        );
+
+                        if (filtered.length > 0) {
+                          return filtered.map(m => (
+                            <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }} onMouseDown={e => e.preventDefault()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSongMembers.includes(m.name)}
+                                onChange={() => handleToggleMember(m.name)}
+                              />
+                              <span>{m.name} ({m.part})</span>
+                            </label>
+                          ));
+                        } else {
+                          return <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>寃??寃곌낵媛 ?놁뒿?덈떎.</span>;
+                        }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>?뺢린 ?곗뒿 ?붿씪</label>
+                  <select value={songRegularDay} onChange={e => setSongRegularDay(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
+                    {['?붿슂??, '?붿슂??, '?섏슂??, '紐⑹슂??, '湲덉슂??, '?좎슂??, '?쇱슂??].map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>吏꾪뻾 ?곹깭</label>
+                  <select value={songStatus} onChange={e => setSongStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
+                    <option value="?쒖옉??>?쒖옉??/option>
+                    <option value="吏꾪뻾以?>吏꾪뻾以?/option>
+                    <option value="?꾨즺">?꾨즺</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="btn-primary" style={{ marginTop: 8 }}>怨??깅줉?섍린</button>
+            </form>
+          </div>
+
+          {/* 怨?由ъ뒪??*/}
+          <div className="card card-pad">
+            <span className="card-title" style={{ fontSize: 16 }}>?깅줉??怨?留덉뒪??紐⑸줉</span>
+            {songs.length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>?깅줉??怨≪씠 ?놁뒿?덈떎.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {songs.map(s => (
+                  <div key={s.id} style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    border: '1px solid var(--slate-100)',
+                    background: '#ffffff',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <strong style={{ fontSize: 15, color: 'var(--slate-800)', display: 'block', marginBottom: 4 }}>{s.title}</strong>
+                      <div style={{ fontSize: 12, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span>?뫁 <strong>李몄뿬 ({s.memberCount}紐?:</strong> {s.members.join(', ')}</span>
+                        <span>?뱟 <strong>?붿씪:</strong> {s.regularDay}</span>
+                        <span>?뤇截?<strong>?곹깭:</strong> {s.musicStatus}</span>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDeleteSong(s.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                      ??젣
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- 3. ?곗뒿???붾쭚 ?뺤궛 ?쇳꽣 ??--- */}
+      {activeSubTab === 'settlement' && (
+        <div className="card card-pad">
+          <div className="flex-between" style={{ marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <span className="card-title" style={{ fontSize: 16, margin: 0 }}>?뮯 ?곗뒿???붾쭚 ?뺤궛 ?쇳꽣</span>
+              <p style={{ fontSize: 12, color: 'var(--slate-500)', margin: '4px 0 0 0' }}>?덉빟?먮퀎 ?щ퉬 ?愿猷??댁뿭???먮룞 ?⑹궛?섏뿬 ?쇨큵 ?뺤궛 泥섎━?⑸땲??</p>
+            </div>
+            {/* ?뺤궛 ?곗썡 ?좏깮 */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select value={settleYear} onChange={e => setSettleYear(Number(e.target.value))} style={{ padding: '8px 12px', border: '1px solid var(--slate-200)', borderRadius: 8 }}>
+                {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}??/option>)}
+              </select>
+              <select value={settleMonth} onChange={e => setSettleMonth(Number(e.target.value))} style={{ padding: '8px 12px', border: '1px solid var(--slate-200)', borderRadius: 8 }}>
+                {Array.from({ length: 12 }, (_, idx) => idx + 1).map(m => (
+                  <option key={m} value={m}>{m}??/option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            {Object.keys(bookerSummary).length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '40px 0' }}>
+                {settleYear}??{settleMonth}?붿뿉 ?대떦?섎뒗 '?뺤궛?湲? ?곹깭???щ퉬 ?쇱젙 ?댁뿭???놁뒿?덈떎.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {Object.entries(bookerSummary).map(([booker, data]) => (
+                  <div key={booker} style={{
+                    padding: 16,
+                    borderRadius: 12,
+                    border: '1px solid var(--slate-100)',
+                    background: 'var(--slate-50)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <strong style={{ fontSize: 16, color: 'var(--slate-800)' }}>?뫀 {booker}</strong>
+                      <span style={{ fontSize: 14, color: 'var(--slate-500)', marginLeft: 12 }}>
+                        ?愿 {data.count}嫄?/ <strong>{(data.totalCost || 0).toLocaleString()}??/strong> ?뺤궛 ?꾩슂
+                      </span>
+                    </div>
+                    <button className="btn-primary"
+                      onClick={() => handleSettleComplete(booker, data.actIds)}
+                      style={{ padding: '8px 16px', fontSize: 13, background: 'var(--emerald-600)', borderColor: 'var(--emerald-600)' }}
+                    >
+                      吏湲??꾨즺
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ?쇱젙 ?깅줉 紐⑤떖 */}
+      {showAddActModal && (
+        <div className="modal-overlay" onClick={() => setShowAddActModal(false)}>
+          <div className="modal-sheet" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 0 }}>?뿎截??좉퇋 ?곗뒿/怨듭뿰 ?쇱젙 ?깅줉</h3>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 16px 0' }} />
+            <form onSubmit={handleAddActivity} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?쇱젙紐?*</label>
+                <input type="text" value={actTitle} onChange={e => setActTitle(e.target.value)} placeholder="?? ?꾩뒪 ?뚰듃 蹂닿컯 ?곗뒿" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?쇱떆 *</label>
+                  <input type="date" value={actDate} onChange={e => setActDate(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?뚯감 (Round)</label>
+                  <input type="number" value={actRound} onChange={e => setActRound(Number(e.target.value))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?μ냼 * (?ㅼ삤愿 ?ы븿 ????5???쒗븳 ?곸슜)</label>
+                <input type="text" value={actLocation} onChange={e => setActLocation(e.target.value)} placeholder="?? ?숆탳 ?ㅼ삤愿 4痢??몃??섎８" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>愿??怨?留덉뒪??留ㅽ븨</label>
+                <select value={actSongId} onChange={e => setActSongId(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
+                  <option value="">?대떦?놁쓬</option>
+                  {songs.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?곗뒿 怨꾪쉷 (Plan)</label>
+                <input type="text" value={actPlan} onChange={e => setActPlan(e.target.value)} placeholder="?곗뒿 ?쇰뱶諛?踰붿쐞 諛?怨꾪쉷 湲곗닠" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>???湲덉븸 (?щ퉬 ?愿猷?</label>
+                  <input type="number" value={actCost} onChange={e => setActCost(Number(e.target.value))} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?덉빟?먮챸 (Booker)</label>
+                  <input type="text" value={actBooker} onChange={e => setActBooker(e.target.value)} placeholder="?? 議곗뿉?ㅻ뜑" style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600, display: 'block', marginBottom: 4 }}>?뺤궛 ???援щ텇</label>
+                <select value={actStatus} onChange={e => setActStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
+                  <option value="?대떦?놁쓬">?대떦?놁쓬 (怨듬룞 吏異???</option>
+                  <option value="?뺤궛?湲?>?뺤궛?湲?(?덉빟???좎?遺??щ퉬嫄?</option>
+                  <option value="?뺤궛?꾨즺">?뺤궛?꾨즺</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddActModal(false)}>痍⑥냼</button>
+                <button type="submit" className="btn-primary" style={{ flex: 2 }}>?쇱젙 ?깅줉</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

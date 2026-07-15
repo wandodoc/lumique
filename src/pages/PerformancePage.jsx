@@ -321,54 +321,39 @@ export default function PerformancePage() {
 
   return (
     <div className="page-shell">
-      <div className="page-container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap' }}>
-          <div>
-            <h2 style={{ fontSize: 22, fontWeight: 950, margin: 0, color: 'var(--slate-900)' }}>공연 및 예매 폼 관리</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' }}>공연 일정을 등록하고 관객용 예매 폼을 생성합니다.</p>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" onClick={() => window.location.assign('/admin/reservations')} className="btn-secondary" style={{ height: 40, px: 16 }}>
-              🎟️ 입장 관리 바로가기
-            </button>
-            {isAdmin && (
-              <button type="button" onClick={() => setEditing(blankShow)} className="btn-primary" style={{ height: 40, px: 18 }}>
-                + 공연 추가
-              </button>
-            )}
-          </div>
-        </div>
+      <div className="page-container" style={{ padding: '24px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '24px' }}>공연 및 티켓 관리</h1>
 
-        <div className="grid-layout" style={{ gap: 20 }}>
-          {card('등록된 공연 목록', (
-            <div style={{ display: 'grid', gap: 12 }}>
-              {sorted.length === 0 ? (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>등록된 공연이 없습니다.</div>
-              ) : (
-                sorted.map(show => {
-                  const cnt = orders.filter(o => o.concertId === show.id).length;
-                  return (
-                    <div key={show.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: 16, border: '1px solid #eef2f7', borderRadius: 16, background: '#fff' }}>
-                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setDetail(show)}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, mb: 4 }}>
-                          <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: show.status === CLOSED ? '#f1f5f9' : '#ecfdf5', color: show.status === CLOSED ? '#64748b' : '#10b981' }}>
-                            {show.status === CLOSED ? '종료' : '진행중'}
-                          </span>
-                          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{show.date}</span>
-                        </div>
-                        <h5 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{show.title}</h5>
-                        <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>{show.location} · 신청 {cnt}건</p>
-                      </div>
-                      {isAdmin && (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => setEditing(show)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: 12 }}>수정</button>
-                          <button onClick={() => delShow(show.id)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: 12, color: '#ef4444' }}>삭제</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+          gap: '20px' 
+        }}>
+          {sorted.map(show => (
+            <div 
+              key={show.id}
+              onClick={() => setDetail(show)}
+              style={{ 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '12px', 
+                padding: '16px', 
+                cursor: 'pointer', 
+                backgroundColor: '#fff',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <div style={{ 
+                width: '100%', 
+                height: '160px', 
+                background: show.imageUrl ? `url(${show.imageUrl}) center/cover` : '#f3f4f6', 
+                borderRadius: '8px', 
+                marginBottom: '16px' 
+              }} />
+              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>{show.title}</h2>
+              <p style={{ fontSize: '14px', color: '#6b7280' }}>
+                {show.date} | {show.status === CLOSED ? '종료' : '예매 중'}
+              </p>
             </div>
           ))}
         </div>
