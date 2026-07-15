@@ -105,6 +105,22 @@ export default function CalendarPage() {
   const [actBooker, setActBooker] = useState('');
   const [actStatus, setActStatus] = useState('해당없음');
   const [showAddActModal, setShowAddActModal] = useState(false);
+  const [editingActId, setEditingActId] = useState(null);
+  const [isActSaving, setIsActSaving] = useState(false);
+
+  const handleEditActivity = (act) => {
+    setEditingActId(act.id);
+    setActTitle(act.title);
+    setActDate(act.date);
+    setActLocation(act.location);
+    setActSongId(act.songId === '해당없음' ? '' : act.songId);
+    setActRound(act.round);
+    setActPlan(act.plan || '');
+    setActCost(act.cost || 0);
+    setActBooker(act.booker || '');
+    setActStatus(act.status || '해당없음');
+    setShowAddActModal(true);
+  };
   
   // 곡 필터 상태
   const [filterSongId, setFilterSongId] = useState('');
@@ -130,17 +146,19 @@ export default function CalendarPage() {
     return true;
   };
 
-  const handleAddActivity = (e) => {
+  const handleAddActivity = async (e) => {
     e.preventDefault();
     if (!actTitle.trim() || !actDate || !actLocation.trim()) {
       return alert('필수 항목(일정명, 일시, 장소)을 입력해 주세요.');
     }
 
     // 네오관 대관 횟수 한도 체크
-    if (!checkNeoLimit(actDate, actLocation)) return;
+    if (!checkNeoLimit(actDate, actLocation, editingActId)) return;
+
+    setIsActSaving(true);
 
     const newAct = {
-      id: `act-${Date.now()}`,
+      id: editingActId || `act-${Date.now()}`,
       title: actTitle.trim(),
       date: actDate,
       location: actLocation.trim(),
@@ -152,9 +170,17 @@ export default function CalendarPage() {
       status: actStatus
     };
 
-    saveActivities([...activities, newAct].sort((a, b) => a.date.localeCompare(b.date)));
+    // 로딩 시뮬레이션 (UX 향상)
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    if (editingActId) {
+      saveActivities(activities.map(a => a.id === editingActId ? newAct : a).sort((a, b) => a.date.localeCompare(b.date)));
+    } else {
+      saveActivities([...activities, newAct].sort((a, b) => a.date.localeCompare(b.date)));
+    }
     
     // 상태 초기화
+    setEditingActId(null);
     setActTitle('');
     setActDate('');
     setActLocation('');
@@ -165,6 +191,7 @@ export default function CalendarPage() {
     setActBooker('');
     setActStatus('해당없음');
     setShowAddActModal(false);
+    setIsActSaving(false);
   };
 
   const handleDeleteActivity = (id) => {
@@ -269,7 +296,19 @@ export default function CalendarPage() {
                 ))}
               </select>
 
-              <button className="calendar-btn calendar-btn-primary" onClick={() => setShowAddActModal(true)}>
+              <button className="calendar-btn calendar-btn-primary" onClick={() => {
+                setEditingActId(null);
+                setActTitle('');
+                setActDate('');
+                setActLocation('');
+                setActSongId('');
+                setActRound(1);
+                setActPlan('');
+                setActCost(0);
+                setActBooker('');
+                setActStatus('해당없음');
+                setShowAddActModal(true);
+              }}>
                 + 일정 등록
               </button>
             </div>
@@ -360,7 +399,7 @@ export default function CalendarPage() {
             <div className="card card-pad calendar-right-card" style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title" style={{ fontSize: 16 }}>일정 리스트 ({calYear}년 {calMonth}월)</span>
               {/* ... (rest of the schedule listing) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {activities
                     .filter(a => {
                       const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
@@ -371,7 +410,7 @@ export default function CalendarPage() {
                       const linkedSong = songs.find(s => s.id === act.songId);
                       return (
                         <div key={act.id} style={{
-                          padding: 14,
+                          padding: 16,
                           borderRadius: 12,
                           border: '1px solid var(--slate-100)',
                           background: '#ffffff',
@@ -380,7 +419,7 @@ export default function CalendarPage() {
                           alignItems: 'center'
                         }}>
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                               <span style={{
                                 padding: '2px 8px',
                                 borderRadius: 4,
@@ -389,9 +428,9 @@ export default function CalendarPage() {
                                 backgroundColor: act.location.includes('네오관') ? '#fee2e2' : '#f0f9ff',
                                 color: act.location.includes('네오관') ? '#ef4444' : '#0284c7'
                               }}>{act.round}회차</span>
-                              <strong style={{ fontSize: 14, color: 'var(--slate-800)' }}>{act.title}</strong>
+                              <strong style={{ fontSize: 15, color: 'var(--slate-800)' }}>{act.title}</strong>
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ fontSize: 13, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                               <span>📅 <strong>일시:</strong> {act.date}</span>
                               <span>📍 <strong>장소:</strong> {act.location}</span>
                               {linkedSong && <span>🎼 <strong>관련 곡:</strong> {linkedSong.title}</span>}
@@ -399,9 +438,9 @@ export default function CalendarPage() {
                               {act.cost > 0 && <span>🪙 <strong>대여비:</strong> {(act.cost || 0).toLocaleString()}원 ({act.booker} 예약 / 정산: {act.status})</span>}
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button style={{ background: 'none', border: 'none', color: 'var(--blue-600)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>수정</button>
-                            <button onClick={() => handleDeleteActivity(act.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>삭제</button>
+                          <div style={{ display: 'flex', gap: 16, paddingLeft: 8 }}>
+                            <button onClick={() => handleEditActivity(act)} style={{ background: 'none', border: 'none', color: 'var(--blue-600)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '8px' }}>수정</button>
+                            <button onClick={() => handleDeleteActivity(act.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '8px' }}>삭제</button>
                           </div>
                         </div>
                       );
@@ -662,7 +701,7 @@ export default function CalendarPage() {
         <div className="modal-overlay" onClick={() => setShowAddActModal(false)}>
           <div className="modal-sheet" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
             <div className="modal-handle" />
-            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 0 }}>🗓️ 신규 연습/공연 일정 등록</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 0 }}>🗓️ {editingActId ? '연습/공연 일정 수정' : '신규 연습/공연 일정 등록'}</h3>
             <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '14px 0 16px 0' }} />
             <form onSubmit={handleAddActivity} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
@@ -713,8 +752,10 @@ export default function CalendarPage() {
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddActModal(false)}>취소</button>
-                <button type="submit" className="btn-primary" style={{ flex: 2 }}>일정 등록</button>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddActModal(false)} disabled={isActSaving}>취소</button>
+                <button type="submit" className="btn-primary" style={{ flex: 2 }} disabled={isActSaving}>
+                  {isActSaving ? '저장 중...' : editingActId ? '일정 수정하기' : '일정 등록'}
+                </button>
               </div>
             </form>
           </div>
