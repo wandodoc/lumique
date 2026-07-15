@@ -95,15 +95,53 @@
   box-sizing: border-box; margin: 0; padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
+/* ===== Typography Standards ===== */
 html { font-size: 16px; }
+
 body {
   font-family: 'Outfit', 'Noto Sans KR', -apple-system, sans-serif;
   background: var(--c-bg);
-  color: var(--c-black);
+  color: var(--slate-700); /* #374151 */
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  font-size: 15px; /* Body PC: 15px */
+  font-weight: 500; /* Body: Medium */
 }
-button { cursor: pointer; border: none; background: none; font-family: inherit; }
-input, select, textarea { font-family: inherit; outline: none; }
+
+h1, .h1 {
+  font-size: 24px; /* H1 PC: 24px */
+  font-weight: 800; /* Bold */
+  color: var(--slate-900); /* #111827 */
+  letter-spacing: -0.5px;
+}
+
+h2, .h2 {
+  font-size: 18px; /* H2 PC: 18px */
+  font-weight: 800; /* Bold */
+  color: var(--slate-900);
+}
+
+.caption {
+  font-size: 13px; /* Caption PC: 13px */
+  font-weight: 400; /* Regular */
+  color: var(--slate-500); /* #9ca3af */
+}
+
+/* Responsive Typography */
+@media (max-width: 600px) {
+  body { font-size: 14px; } /* Body Mobile: 14px */
+  h1, .h1 { font-size: 20px; } /* H1 Mobile: 20px */
+  h2, .h2 { font-size: 16px; } /* H2 Mobile: 16px */
+  .caption { font-size: 12px; } /* Caption Mobile: 12px */
+}
+
+/* Text Wrapping Control */
+.text-keep-all {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; }
+input, select, textarea { font-family: inherit; outline: none; font-size: inherit; }
 a { text-decoration: none; color: inherit; }

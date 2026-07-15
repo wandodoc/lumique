@@ -22,20 +22,31 @@
 .balance-hero {
   text-align: center;
   padding: 32px 20px 24px;
-  background: linear-gradient(135deg, #2b74e2 0%, #5a94eb 100%) !important;
+  background: linear-gradient(135deg, #111827 0%, #374151 100%) !important;
   color: white;
 }
+@media (max-width: 600px) {
+  .balance-hero { padding: 24px 16px 20px; }
+}
+
 .balance-label {
   display: block;
-  font-size: 13px;
+  font-size: 13px; /* Caption PC */
   opacity: 0.85;
   margin-bottom: 8px;
 }
+@media (max-width: 600px) {
+  .balance-label { font-size: 12px; }
+}
+
 .balance-amount {
-  font-size: 36px;
-  font-weight: 700;
+  font-size: 34px;
+  font-weight: 800;
   letter-spacing: -1.5px;
   margin-bottom: 8px;
+}
+@media (max-width: 600px) {
+  .balance-amount { font-size: 28px; }
 }
 .balance-sub {
   font-size: 12px;
@@ -43,12 +54,12 @@
 }
 
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--slate-500);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin: 4px 0 8px;
+  margin: 4px 0 10px;
 }
 
 .part-grid {
@@ -57,19 +68,25 @@
   gap: 12px;
 }
 .stat-card {
-  padding: 14px 16px;
+  padding: 16px;
   border-radius: 14px;
+}
+@media (max-width: 600px) {
+  .stat-card { padding: 12px; }
 }
 .stat-label {
   display: block;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 6px;
 }
 .stat-value {
   display: block;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 18px; /* H2 PC */
+  font-weight: 800;
+}
+@media (max-width: 600px) {
+  .stat-value { font-size: 16px; }
 }
 
 .card-content { padding: 20px; }

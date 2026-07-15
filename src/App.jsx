@@ -360,8 +360,8 @@ function AppInner() {
 
 export default function App() {
   const path = window.location.pathname;
-  const formMatch = path.match(/^\/form\/([^/]+)$/);
-  if (path === '/reservations') {
+  const formMatch = path.match(/^\/(?:form|events)\/([^/]+)$/);
+  if (path === '/reservations' || path === '/admin/reservations') {
     return (
       <AuthProvider>
         <AppProvider>
@@ -373,7 +373,13 @@ export default function App() {
   
   if (formMatch) {
     const showId = formMatch[1];
-    return <TicketOrderForm showId={showId} />;
+    return (
+      <AuthProvider>
+        <AppProvider>
+          <TicketOrderForm showId={showId} />
+        </AppProvider>
+      </AuthProvider>
+    );
   }
 
   return (

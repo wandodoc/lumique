@@ -1,42 +1,381 @@
-﻿import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useEffect, useMemo, useState } from 'react';
 import './PageStyles.css';
 
-const LS_SHOWS='lumique_concerts';
-const LS_SHOWS_LEGACY='lumique_performances';
-const LS_ORDERS='lumique_ticket_orders';
-const SUPPORT_ACCOUNT='토스뱅크 1001-7629-3105 강맥';
-const PRICE=5000;
-const OPEN='진행중';
-const CLOSED='종료';
-const DEPOSIT_WAIT='입금대기';
-const DEPOSIT_DONE='입금완료';
-const ATTEND_WAIT='미입장';
-const ATTEND_DONE='입장완료';
-const TYPES=['text','input_text','input_textarea','input_radio','input_checkbox','input_number'];
+const LS_SHOWS = 'lumique_concerts';
+const LS_SHOWS_LEGACY = 'lumique_performances';
+const LS_ORDERS = 'lumique_ticket_orders';
+const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
+const PRICE = 5000;
+const OPEN = '진행중';
+const CLOSED = '종료';
+const TYPES = ['text', 'input_text', 'input_textarea', 'input_radio', 'input_checkbox', 'input_number'];
 
-const blankShow={title:'',date:'',time:'19:00',location:'',price:PRICE,description:'',status:OPEN,imageUrl:'',customSections:[],supportAccount:SUPPORT_ACCOUNT};
-const id=(p)=>`${p}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-const lsGet=(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):[]}catch{return[]}};
-const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
-const migrate=(v)=>{const n=Array.isArray(v)?v:[]; lsSet(LS_SHOWS,n); try{localStorage.removeItem(LS_SHOWS_LEGACY)}catch{}; return n};
-const score=(d,t='19:00')=>{const n=new Date(`${d}T${t}`); return Number.isNaN(n.getTime())?0:n.getTime()};
-const fmtDT=(d,t='19:00')=>{if(!d)return'-'; const x=new Date(d); if(Number.isNaN(x.getTime())) return `${d} ${t}`.trim(); const w=['일','월','화','수','목','금','토']; const [y,m,day]=d.split('-'); return `${y}.${Number(m)}.${Number(day)} (${w[x.getDay()]}) ${t}`};
-const cleanSection=(s={})=>({id:String(s.id||'').trim()||id('sec'),type:TYPES.includes(s.type)?s.type:'text',title:String(s.title||'').trim(),content:String(s.content||'').trim(),options:Array.isArray(s.options)?s.options.map(v=>String(v||'').trim()).filter(Boolean):[],min:Number.isFinite(Number(s.min))?Number(s.min):1,max:Number.isFinite(Number(s.max))?Number(s.max):10,required:Boolean(s.required)});
-const cleanShow=(s)=>{if(!s||typeof s!=='object')return null; const title=String(s.title||'').trim(),date=String(s.date||'').trim(),location=String(s.location||'').trim(); if(!title||!date||!location)return null; return {...s,id:String(s.id||'').trim()||id('show'),title,date,time:String(s.time||'19:00').trim()||'19:00',location,price:Number(s.price)>0?Number(s.price):PRICE,description:String(s.description||'').trim(),status:s.status===CLOSED?CLOSED:OPEN,imageUrl:String(s.imageUrl||'').trim(),supportAccount:String(s.supportAccount||SUPPORT_ACCOUNT).trim()||SUPPORT_ACCOUNT,customSections:Array.isArray(s.customSections)?s.customSections.map(cleanSection):[],createdAt:String(s.createdAt||new Date().toISOString()),updatedAt:String(s.updatedAt||s.createdAt||new Date().toISOString())}};
-const normShows=(v)=>{const seen=new Set(); return (Array.isArray(v)?v:[]).map(cleanShow).filter(Boolean).filter(s=>{const k=s.id||`${s.title}|${s.date}|${s.time}|${s.location}`; if(seen.has(k)) return false; seen.add(k); return true;}).sort((a,b)=>score(b.createdAt)-score(a.createdAt)||score(b.date,b.time)-score(a.date,a.time));};
-const csvEscape=(v)=>`"${String(v??'').replaceAll('"','""')}"`;
-const downloadCsv=(name,rows)=>{const csv='\uFEFF'+rows.map(r=>r.map(csvEscape).join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url)};
-const openTab=(url)=>window.open(url,'_blank','noopener,noreferrer');
-const badge=(label,bg,color,border)=><span style={{display:'inline-flex',alignItems:'center',padding:'4px 10px',borderRadius:999,fontSize:12,fontWeight:800,background:bg,color,border:`1px solid ${border}`,whiteSpace:'nowrap'}}>{label}</span>;
-const card=(title,children)=><section className="card card-pad" style={{display:'grid',gap:14}}><h4 style={{margin:0,fontSize:16,fontWeight:900,color:'var(--slate-900)'}}>{title}</h4>{children}</section>;
+const blankShow = {
+  title: '',
+  date: '',
+  time: '19:00',
+  location: '',
+  price: PRICE,
+  description: '',
+  status: OPEN,
+  imageUrl: '',
+  customSections: [],
+  supportAccount: SUPPORT_ACCOUNT
+};
 
-function SectionEditor({section,index,onChange,onRemove,onAddOption,onChangeOption,onRemoveOption}){return <div style={{border:'1px solid var(--slate-200)',borderRadius:14,padding:14,background:'#fafafa',display:'grid',gap:10}}><div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'flex-start'}}><div style={{flex:1,display:'grid',gap:10}}><select value={section.type} onChange={(e)=>onChange(section.id,{type:e.target.value,options:e.target.value==='text'?[]:section.options})} className="search-input" style={{height:42,background:'#fff'}}><option value="text">안내 텍스트</option><option value="input_text">단답형 질문</option><option value="input_textarea">장문형 질문</option><option value="input_radio">단일 선택(라디오)</option><option value="input_checkbox">복수 선택(체크박스)</option><option value="input_number">수량(숫자) 질문</option></select><input value={section.title} onChange={(e)=>onChange(section.id,{title:e.target.value})} placeholder={`섹션 제목 ${index+1}`} className="search-input" style={{background:'#fff'}}/></div><button type="button" onClick={()=>onRemove(section.id)} className="btn-secondary" style={{height:42,padding:'0 12px'}}>삭제</button></div>{section.type==='text'?<textarea rows={3} value={section.content} onChange={(e)=>onChange(section.id,{content:e.target.value})} placeholder="안내 문구" className="search-input" style={{background:'#fff',minHeight:90}}/>:null}{section.type!=='text'?<><label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:700,color:'#374151'}}><input type="checkbox" checked={section.required} onChange={(e)=>onChange(section.id,{required:e.target.checked})}/>필수 입력</label>{section.type==='input_number'?<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}><input type="number" value={section.min} onChange={(e)=>onChange(section.id,{min:Number(e.target.value)})} className="search-input" style={{background:'#fff'}} placeholder="최소값"/><input type="number" value={section.max} onChange={(e)=>onChange(section.id,{max:Number(e.target.value)})} className="search-input" style={{background:'#fff'}} placeholder="최대값"/></div>:null}{(section.type==='input_radio'||section.type==='input_checkbox')?<div style={{display:'grid',gap:8}}>{section.options.map((option,oi)=><div key={`${section.id}-${oi}`} style={{display:'flex',gap:8}}><input value={option} onChange={(e)=>onChangeOption(section.id,oi,e.target.value)} className="search-input" style={{background:'#fff',flex:1}} placeholder={`옵션 ${oi+1}`}/><button type="button" onClick={()=>onRemoveOption(section.id,oi)} className="btn-secondary" style={{height:42,padding:'0 12px'}}>삭제</button></div>)}<button type="button" onClick={()=>onAddOption(section.id)} className="btn-secondary" style={{height:40,padding:'0 12px',justifySelf:'start'}}>+ 옵션 추가</button></div>:null}</>:null}</div>}
+const id = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
 
-function OrderList({orders,sections,onUpdate,onDelete}){const {isAdmin}=useAuth(); const [q,setQ]=useState(''); const list=useMemo(()=>{const s=q.trim().toLowerCase(); return s?orders.filter(o=>String(o.audienceName||'').toLowerCase().includes(s)||String(o.phone||'').includes(s)):orders},[orders,q]); const exportCsv=()=>downloadCsv('lumique_orders.csv',[['예매자명','신청 매수','입금 확인','뒤풀이 참여 여부','뒤풀이 참여자 수','입장 처리','신청 시간'],...list.map(o=>[o.audienceName||'',o.ticketCount||0,o.depositStatus===DEPOSIT_DONE?'입금완료':'입금대기',o.isAfterParty?'참여':'미참여',o.isAfterParty?o.afterPartyCount||1:'-',o.attendanceStatus===ATTEND_DONE?'입장완료':'미입장',o.createdAt?new Date(o.createdAt).toLocaleString('ko-KR'):''])]); return <div><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}><div style={{position:'relative',flex:1,minWidth:220}}><span style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}>🔎</span><input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="이름 또는 전화번호 검색" className="search-input" style={{width:'100%',paddingLeft:40,height:44,boxSizing:'border-box'}}/></div><button type="button" onClick={exportCsv} className="btn-secondary" style={{height:44,padding:'0 16px'}}>엑셀(CSV) 다운로드</button></div>{list.length===0?<div style={{textAlign:'center',padding:'30px 0',color:'var(--text-muted)'}}>예매 내역이 없습니다.</div>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:14}}><thead><tr style={{borderBottom:'2px solid var(--slate-100)',background:'var(--slate-50)'}}>{['예매자명','신청 매수','입금 확인','뒤풀이 참여 여부','뒤풀이 참여자 수','입장 처리','신청 시간'].map(h=><th key={h} style={{padding:'12px',textAlign:'left',fontWeight:800,color:'var(--text-muted)',fontSize:13,whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead><tbody>{list.map(o=>{const dep=o.depositStatus===DEPOSIT_DONE; const att=o.attendanceStatus===ATTEND_DONE; return <tr key={o.id} style={{borderBottom:'1px solid var(--slate-100)'}}><td style={{padding:'12px',fontWeight:800,color:'var(--slate-900)'}}><div>{o.audienceName}</div><div style={{marginTop:4,fontSize:12,color:'var(--slate-500)'}}>뒤풀이: {o.isAfterParty?`참여(${o.afterPartyCount||1}명)`:'미참여'}</div><div style={{marginTop:2,fontSize:12,color:'var(--slate-500)'}}>메시지: {o.comment||'-'}</div>{o.customResponses&&Object.keys(o.customResponses).length>0?<div style={{marginTop:6,display:'grid',gap:4}}>{sections.filter(s=>s.type!=='text').map(s=>{const v=o.customResponses?.[s.id]; const d=Array.isArray(v)?v.join(', '):String(v??'').trim(); return <div key={s.id} style={{fontSize:12,color:'var(--slate-500)'}}>응답 · {s.title}: {d||'-'}</div>})}</div>:null}</td><td style={{padding:'12px',fontWeight:800}}>{o.ticketCount}매</td><td style={{padding:'12px'}}>{badge(dep?'입금완료':'입금대기',dep?'#ecfdf5':'#fffbeb',dep?'#15803d':'#b45309',dep?'#bbf7d0':'#fde68a')}</td><td style={{padding:'12px'}}>{o.isAfterParty?'참여':'미참여'}</td><td style={{padding:'12px'}}>{o.isAfterParty?`${o.afterPartyCount||1}명`:'-'}</td><td style={{padding:'12px'}}>{badge(att?'입장완료':'미입장',att?'#dbeafe':'#f8fafc',att?'#1d4ed8':'#475569',att?'#bfdbfe':'#e2e8f0')}</td><td style={{padding:'12px',color:'var(--slate-600)'}}>{o.createdAt?new Date(o.createdAt).toLocaleString('ko-KR'):'-'}</td><td style={{padding:'12px',textAlign:'right'}}><div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}>{isAdmin?<><button type="button" onClick={()=>onUpdate(o.id,{depositStatus:dep?DEPOSIT_WAIT:DEPOSIT_DONE})} style={{padding:'7px 12px',borderRadius:10,border:'1px solid #bbf7d0',background:dep?'#ecfdf5':'#f0fdf4',color:'#15803d',fontSize:12,fontWeight:800}}>입금{dep?'대기':'완료'}</button><button type="button" onClick={()=>onUpdate(o.id,{attendanceStatus:att?ATTEND_WAIT:ATTEND_DONE})} style={{padding:'7px 12px',borderRadius:10,border:'1px solid #bfdbfe',background:att?'#dbeafe':'#eff6ff',color:'#1d4ed8',fontSize:12,fontWeight:800}}>입장{att?'미입장':'완료'}</button><button type="button" onClick={()=>onDelete(o.id)} style={{padding:'7px 10px',borderRadius:10,border:'1px solid #fecdd3',background:'#fff1f2',color:'#be123c',fontSize:12,fontWeight:800}}>삭제</button></>:<span style={{fontSize:12,color:'var(--text-muted)',fontWeight:700}}>조회 전용</span>}</div></td></tr>})}</tbody></table></div>}</div>}
+const migrate = (v) => {
+  const n = Array.isArray(v) ? v : [];
+  lsSet(LS_SHOWS, n);
+  try { localStorage.removeItem(LS_SHOWS_LEGACY); } catch { }
+  return n;
+};
 
-function ShowFormModal({show,onClose,onSave}){const [form,setForm]=useState(blankShow); useEffect(()=>{if(!show){setForm(blankShow);return} setForm({title:show.title||'',date:show.date||'',time:show.time||'19:00',location:show.location||'',price:Number(show.price)>0?Number(show.price):PRICE,description:show.description||'',status:show.status===CLOSED?CLOSED:OPEN,imageUrl:show.imageUrl||'',customSections:Array.isArray(show.customSections)?show.customSections.map(cleanSection):[],supportAccount:show.supportAccount||SUPPORT_ACCOUNT})},[show]); const update=(f,v)=>setForm(p=>({...p,[f]:v})); const sec=(id,patch)=>setForm(p=>({...p,customSections:p.customSections.map(s=>s.id===id?{...s,...patch}:s)})); const add=(type)=>setForm(p=>({...p,customSections:[...p.customSections,cleanSection({type})]})); const del=(id)=>setForm(p=>({...p,customSections:p.customSections.filter(s=>s.id!==id)})); const addOpt=(id)=>setForm(p=>({...p,customSections:p.customSections.map(s=>s.id===id?{...s,options:[...s.options,'']}:s)})); const chOpt=(id,i,v)=>setForm(p=>({...p,customSections:p.customSections.map(s=>s.id===id?{...s,options:s.options.map((o,idx)=>idx===i?v:o).map(o=>String(o||'').trim())}:s)})); const rmOpt=(id,i)=>setForm(p=>({...p,customSections:p.customSections.map(s=>s.id===id?{...s,options:s.options.filter((_,idx)=>idx!==i)}:s)})); const submit=(e)=>{e.preventDefault(); const clean=cleanShow(form); if(!clean)return alert('공연명, 날짜, 장소는 반드시 입력해야 합니다.'); onSave({...clean,id:show?.id||id('show'),createdAt:show?.createdAt||clean.createdAt,updatedAt:new Date().toISOString(),supportAccount:show?.supportAccount||SUPPORT_ACCOUNT}); onClose()}; const input={width:'100%',padding:'12px 14px',borderRadius:10,border:'1px solid var(--slate-200)',fontSize:14,boxSizing:'border-box',background:'#fff'}; return <div style={{position:'fixed',inset:0,zIndex:80,background:'rgba(15,23,42,.45)',display:'flex',justifyContent:'center',alignItems:'flex-start',padding:20,overflowY:'auto'}}><div style={{width:'min(980px,100%)',background:'#fff',borderRadius:20,marginTop:20,boxShadow:'0 24px 80px rgba(15,23,42,.18)',border:'1px solid #e2e8f0'}}><div style={{display:'flex',justifyContent:'space-between',gap:12,padding:'18px 20px',borderBottom:'1px solid #eef2f7',alignItems:'center'}}><div><h3 style={{margin:0,fontSize:20,fontWeight:950}}>{show?'공연 수정':'공연 추가'}</h3><p style={{margin:'4px 0 0',fontSize:13,color:'var(--text-muted)'}}>신청 폼 빌더와 공연 정보를 함께 관리합니다.</p></div><button type="button" onClick={onClose} className="btn-secondary" style={{height:40}}>닫기</button></div><form onSubmit={submit} style={{padding:20,display:'grid',gap:18}}><div style={{display:'grid',gap:14,gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))'}}><input value={form.title} onChange={(e)=>update('title',e.target.value)} placeholder="공연명" className="search-input" style={input}/><input type="date" value={form.date} onChange={(e)=>update('date',e.target.value)} className="search-input" style={input}/><input type="time" value={form.time} onChange={(e)=>update('time',e.target.value)} className="search-input" style={input}/><input type="number" value={form.price} onChange={(e)=>update('price',Number(e.target.value))} placeholder="가격" className="search-input" style={input}/></div><input value={form.location} onChange={(e)=>update('location',e.target.value)} placeholder="장소" className="search-input" style={input}/><textarea rows={4} value={form.description} onChange={(e)=>update('description',e.target.value)} placeholder="공연 소개" className="search-input" style={{...input,minHeight:110}}/><input value={form.supportAccount} onChange={(e)=>update('supportAccount',e.target.value)} placeholder="후원/입금 계좌" className="search-input" style={input}/><div><label className="btn-secondary" style={{display:'inline-flex',alignItems:'center',gap:8,cursor:'pointer'}}>포스터 업로드<input type="file" accept="image/*" onChange={(e)=>{const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=(ev)=>update('imageUrl',String(ev.target?.result||'')); r.readAsDataURL(f)}} style={{display:'none'}}/></label></div><section style={{display:'grid',gap:12,padding:16,borderRadius:16,border:'1px solid #e2e8f0',background:'#fafafa'}}><div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}><div><h4 style={{margin:0,fontSize:16,fontWeight:900}}>신청 폼 빌더</h4><p style={{margin:'4px 0 0',fontSize:13,color:'var(--text-muted)'}}>안내 텍스트와 관객 응답 질문을 추가합니다.</p></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{[['+ 안내 텍스트 추가','text'],['+ 단답형 질문 추가','input_text'],['+ 장문형 질문 추가','input_textarea'],['+ 단일 선택(라디오) 추가','input_radio'],['+ 복수 선택(체크박스) 추가','input_checkbox'],['+ 수량(숫자) 질문 추가','input_number']].map(([label,type])=><button key={type} type="button" onClick={()=>add(type)} className="btn-secondary" style={{height:40,padding:'0 14px'}}>{label}</button>)}</div></div><div style={{display:'grid',gap:12}}>{form.customSections.map((s,i)=><SectionEditor key={s.id} section={s} index={i} onChange={sec} onRemove={del} onAddOption={addOpt} onChangeOption={chOpt} onRemoveOption={rmOpt}/>)}</div></section><div style={{display:'flex',justifyContent:'flex-end',gap:10}}><button type="button" onClick={onClose} className="btn-secondary" style={{height:44,padding:'0 16px'}}>취소</button><button type="submit" className="btn-primary" style={{height:44,padding:'0 20px'}}>저장</button></div></form></div></div>}
+const score = (d, t = '19:00') => {
+  const n = new Date(`${d}T${t}`);
+  return Number.isNaN(n.getTime()) ? 0 : n.getTime();
+};
 
-function ShowDetailModal({show,orders,onClose,onUpdateOrder,onDeleteOrder}){if(!show)return null; const os=orders.filter(o=>o.concertId===show.id); return <div style={{position:'fixed',inset:0,zIndex:90,background:'rgba(15,23,42,.5)',display:'flex',justifyContent:'center',alignItems:'flex-start',padding:20,overflowY:'auto'}}><div style={{width:'min(1180px,100%)',background:'#fff',borderRadius:20,marginTop:20,boxShadow:'0 24px 80px rgba(15,23,42,.2)',border:'1px solid #e2e8f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'18px 20px',borderBottom:'1px solid #eef2f7',gap:12}}><div><h3 style={{margin:0,fontSize:20,fontWeight:950}}>{show.title}</h3><p style={{margin:'4px 0 0',fontSize:13,color:'var(--text-muted)'}}>{fmtDT(show.date,show.time)} · {show.location}</p></div><button type="button" onClick={onClose} className="btn-secondary" style={{height:40}}>닫기</button></div><div style={{display:'grid',gap:16,padding:20}}><div style={{display:'grid',gap:16,gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))'}}>{card('공연 정보',<div style={{display:'grid',gap:10,fontSize:14,color:'var(--slate-700)'}}><div><strong>상태:</strong> {show.status===CLOSED?CLOSED:OPEN}</div><div><strong>공연일:</strong> {fmtDT(show.date,show.time)}</div><div><strong>장소:</strong> {show.location}</div><div><strong>가격:</strong> {Number(show.price||0).toLocaleString()}원</div></div>)}{card('포스터',show.imageUrl?<img src={show.imageUrl} alt={show.title} style={{width:'100%',height:'auto',objectFit:'contain',borderRadius:16,background:'#fff'}}/>:<div style={{padding:24,borderRadius:16,background:'#f8fafc',color:'var(--text-muted)',textAlign:'center'}}>등록된 포스터가 없습니다.</div>)}</div>{show.description?card('공연 소개',<p style={{margin:0,whiteSpace:'pre-wrap',lineHeight:1.8,color:'var(--slate-700)'}}>{show.description}</p>):null}{show.customSections?.filter(s=>s.type==='text').length>0?card('공연 소개 / 안내',show.customSections.filter(s=>s.type==='text').map(s=><div key={s.id} style={{padding:14,borderRadius:14,background:'#f8fafc',border:'1px solid var(--slate-100)'}}><h4 style={{fontSize:15,fontWeight:900,color:'var(--slate-900)',margin:'0 0 6px'}}>{s.title||'안내'}</h4><p style={{fontSize:14,color:'var(--slate-600)',margin:0,lineHeight:1.8,whiteSpace:'pre-wrap'}}>{s.content}</p></div>)):null}{card('관객 신청 명단',<OrderList orders={os} sections={show.customSections||[]} onUpdate={onUpdateOrder} onDelete={onDeleteOrder}/>)}</div></div></div>}
+const fmtDT = (d, t = '19:00') => {
+  if (!d) return '-';
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return `${d} ${t}`.trim();
+  const w = ['일', '월', '화', '수', '목', '금', '토'];
+  const [y, m, day] = d.split('-');
+  return `${y}.${Number(m)}.${Number(day)} (${w[x.getDay()]}) ${t}`;
+};
 
-export default function PerformancePage(){const [shows,setShows]=useState(()=>normShows(lsGet(LS_SHOWS).length?lsGet(LS_SHOWS):migrate(lsGet(LS_SHOWS_LEGACY)))); const [orders,setOrders]=useState(()=>lsGet(LS_ORDERS)); const [editing,setEditing]=useState(null); const [detail,setDetail]=useState(null); const {isAdmin}=useAuth(); useEffect(()=>{lsSet(LS_SHOWS,shows)},[shows]); useEffect(()=>{lsSet(LS_ORDERS,orders)},[orders]); const sorted=useMemo(()=>[...shows].sort((a,b)=>score(b.createdAt)-score(a.createdAt)||score(b.date,b.time)-score(a.date,a.time)),[shows]); const active=detail||sorted[0]||null; const saveShow=(next)=>setShows(prev=>normShows(prev.some(s=>s.id===next.id)?prev.map(s=>s.id===next.id?next:s):[...prev,next])); const delShow=(id)=>{if(!confirm('공연을 삭제할까요?'))return; setShows(prev=>prev.filter(s=>s.id!==id)); setOrders(prev=>prev.filter(o=>o.concertId!==id)); if(detail?.id===id)setDetail(null)}; const upOrder=(id,patch)=>setOrders(prev=>prev.map(o=>o.id===id?{...o,...patch}:o)); const rmOrder=(id)=>{if(!confirm('예매 내역을 삭제할까요?'))return; setOrders(prev=>prev.filter(o=>o.id!==id))}; return <div className="page-shell"><div className="page-container"><div style={{display:'flex',justifyContent:'space-between',gap:14,alignItems:'flex-start',marginBottom:20,flexWrap:'wrap'}}><div><h2 style={{fontSize:22,fontWeight:950,margin:0,color:'var(--slate-900)'}}>공연 관리 · 관객 예매 관리</h2><p style={{fontSize:14,color:'var(--text-muted)',margin:'4px 0 0'}}>신규 등록 · 예매 신청 · 입금 확인 · 현장 입장 체크</p></div>{isAdmin?<button type="button" onClick={()=>setEditing(blankShow)} className="btn-primary" style={{width:'auto',padding:'0 18px',height:40}}>+ 공연 추가</button>:null}</div><div className="grid-layout" style={{gap:18}}>{card('공연 목록',<div style={{display:'grid',gap:10}}>{sorted.length===0?<div style={{padding:20,color:'var(--text-muted)'}}>등록된 공연이 없습니다.</div>:sorted.map(show=>{const cnt=orders.filter(o=>o.concertId===show.id).length; return <button key={show.id} type="button" onClick={()=>setDetail(show)} style={{display:'grid',gridTemplateColumns:'1fr auto',gap:12,textAlign:'left',padding:16,borderRadius:14,border:'1px solid var(--slate-200)',background:'#fff',cursor:'pointer',transition:'box-shadow .2s ease, transform .2s ease'}} onMouseEnter={(e)=>{e.currentTarget.style.boxShadow='0 8px 24px rgba(15,23,42,.08)';e.currentTarget.style.transform='translateY(-1px)'}} onMouseLeave={(e)=>{e.currentTarget.style.boxShadow='none';e.currentTarget.style.transform='translateY(0)'}}><div style={{display:'grid',gap:6}}><div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><h4 style={{margin:0,fontSize:16,fontWeight:900,color:'var(--slate-900)'}}>{show.title}</h4>{badge(show.status===CLOSED?CLOSED:OPEN,show.status===CLOSED?'#f8fafc':'#f0fdf4',show.status===CLOSED?'#475569':'#15803d',show.status===CLOSED?'#e2e8f0':'#bbf7d0')}</div><div style={{display:'flex',gap:10,flexWrap:'wrap',fontSize:13,color:'var(--slate-600)'}}><span>{fmtDT(show.date,show.time)}</span><span>·</span><span>{show.location}</span></div></div><div style={{display:'grid',gap:6,textAlign:'right'}}><div style={{fontSize:13,color:'var(--slate-500)'}}>예매 수</div><div style={{fontSize:18,fontWeight:900,color:'var(--slate-900)'}}>{cnt}</div></div></button>})}</div>) }{card('최근 공연',active?<div style={{display:'grid',gap:12}}><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><div style={{fontSize:18,fontWeight:900,color:'var(--slate-900)'}}>{active.title}</div><div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>{fmtDT(active.date,active.time)} · {active.location}</div></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" onClick={()=>openTab(`/ticket/${active.id}`)} className="btn-secondary" style={{height:40,padding:'0 14px'}}>새 창 열기</button><button type="button" onClick={()=>navigator.clipboard.writeText(`${window.location.origin}/ticket/${active.id}`)} className="btn-secondary" style={{height:40,padding:'0 14px'}}>링크 복사</button>{isAdmin?<button type="button" onClick={()=>setEditing(active)} className="btn-secondary" style={{height:40,padding:'0 14px'}}>수정</button>:null}{isAdmin?<button type="button" onClick={()=>delShow(active.id)} className="btn-secondary" style={{height:40,padding:'0 14px',color:'#be123c'}}>삭제</button>:null}</div></div>{active.imageUrl?<img src={active.imageUrl} alt={active.title} style={{width:'100%',maxHeight:280,objectFit:'contain',borderRadius:16,border:'1px solid var(--slate-100)'}}/>:null}<div style={{display:'grid',gap:8,fontSize:14,color:'var(--slate-700)'}}><div><strong>상태:</strong> {active.status===CLOSED?CLOSED:OPEN}</div><div><strong>설명:</strong> {active.description||'-'}</div></div></div>:<div style={{color:'var(--text-muted)'}}>표시할 공연이 없습니다.</div>)}</div></div>{editing?<ShowFormModal show={editing.id?editing:null} onClose={()=>setEditing(null)} onSave={saveShow}/>:null}{detail?<ShowDetailModal show={detail} orders={orders} onClose={()=>setDetail(null)} onUpdateOrder={upOrder} onDeleteOrder={rmOrder}/>:null}</div>}
+const cleanSection = (s = {}) => ({
+  id: String(s.id || '').trim() || id('sec'),
+  type: TYPES.includes(s.type) ? s.type : 'text',
+  title: String(s.title || '').trim(),
+  content: String(s.content || '').trim(),
+  options: Array.isArray(s.options) ? s.options.map(v => String(v || '').trim()).filter(Boolean) : [],
+  min: Number.isFinite(Number(s.min)) ? Number(s.min) : 1,
+  max: Number.isFinite(Number(s.max)) ? Number(s.max) : 10,
+  required: Boolean(s.required)
+});
+
+const cleanShow = (s) => {
+  if (!s || typeof s !== 'object') return null;
+  const title = String(s.title || '').trim(), date = String(s.date || '').trim(), location = String(s.location || '').trim();
+  if (!title || !date || !location) return null;
+  return {
+    ...s,
+    id: String(s.id || '').trim() || id('show'),
+    title, date, time: String(s.time || '19:00').trim() || '19:00',
+    location, price: Number(s.price) > 0 ? Number(s.price) : PRICE,
+    description: String(s.description || '').trim(),
+    status: s.status === CLOSED ? CLOSED : OPEN,
+    imageUrl: String(s.imageUrl || '').trim(),
+    supportAccount: String(s.supportAccount || SUPPORT_ACCOUNT).trim() || SUPPORT_ACCOUNT,
+    customSections: Array.isArray(s.customSections) ? s.customSections.map(cleanSection) : [],
+    createdAt: String(s.createdAt || new Date().toISOString()),
+    updatedAt: String(s.updatedAt || s.createdAt || new Date().toISOString())
+  };
+};
+
+const normShows = (v) => {
+  const seen = new Set();
+  return (Array.isArray(v) ? v : [])
+    .map(cleanShow)
+    .filter(Boolean)
+    .filter(s => {
+      const k = s.id || `${s.title}|${s.date}|${s.time}|${s.location}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a, b) => score(b.createdAt) - score(a.createdAt) || score(b.date, b.time) - score(a.date, a.time));
+};
+
+const card = (title, children) => (
+  <section className="card card-pad" style={{ display: 'grid', gap: 14 }}>
+    <h4 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: 'var(--slate-900)' }}>{title}</h4>
+    {children}
+  </section>
+);
+
+function SectionEditor({ section, index, onChange, onRemove }) {
+  return (
+    <div style={{ border: '1px solid var(--slate-200)', borderRadius: 14, padding: 14, background: '#fafafa', display: 'grid', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, display: 'grid', gap: 10 }}>
+          <select
+            value={section.type}
+            onChange={(e) => onChange(section.id, { type: e.target.value, options: e.target.value === 'text' ? [] : section.options })}
+            className="search-input"
+            style={{ height: 42, background: '#fff' }}
+          >
+            <option value="text">안내 텍스트</option>
+            <option value="input_text">단답형 질문</option>
+            <option value="input_textarea">장문형 질문</option>
+            <option value="input_radio">단일 선택(라디오)</option>
+            <option value="input_checkbox">복수 선택(체크박스)</option>
+            <option value="input_number">수량(숫자) 질문</option>
+          </select>
+          <input
+            value={section.title}
+            onChange={(e) => onChange(section.id, { title: e.target.value })}
+            placeholder={`섹션 제목 ${index + 1}`}
+            className="search-input"
+            style={{ background: '#fff' }}
+          />
+        </div>
+        <button type="button" onClick={() => onRemove(section.id)} className="btn-secondary" style={{ height: 42, padding: '0 12px' }}>삭제</button>
+      </div>
+      {section.type === 'text' ? (
+        <textarea
+          rows={3}
+          value={section.content}
+          onChange={(e) => onChange(section.id, { content: e.target.value })}
+          placeholder="안내 문구"
+          className="search-input"
+          style={{ background: '#fff', minHeight: 90 }}
+        />
+      ) : (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#374151' }}>
+          <input type="checkbox" checked={section.required} onChange={(e) => onChange(section.id, { required: e.target.checked })} />
+          필수 입력
+        </label>
+      )}
+    </div>
+  );
+}
+
+function ShowFormModal({ show, onClose, onSave }) {
+  const [form, setForm] = useState(blankShow);
+  useEffect(() => {
+    if (!show) { setForm(blankShow); return; }
+    setForm({
+      title: show.title || '',
+      date: show.date || '',
+      time: show.time || '19:00',
+      location: show.location || '',
+      price: Number(show.price) > 0 ? Number(show.price) : PRICE,
+      description: show.description || '',
+      status: show.status === CLOSED ? CLOSED : OPEN,
+      imageUrl: show.imageUrl || '',
+      customSections: Array.isArray(show.customSections) ? show.customSections.map(cleanSection) : [],
+      supportAccount: show.supportAccount || SUPPORT_ACCOUNT
+    });
+  }, [show]);
+
+  const update = (f, v) => setForm(p => ({ ...p, [f]: v }));
+  const sec = (id, patch) => setForm(p => ({ ...p, customSections: p.customSections.map(s => s.id === id ? { ...s, ...patch } : s) }));
+  const add = (type) => setForm(p => ({ ...p, customSections: [...p.customSections, cleanSection({ type })] }));
+  const del = (id) => setForm(p => ({ ...p, customSections: p.customSections.filter(s => s.id !== id) }));
+
+  const submit = (e) => {
+    e.preventDefault();
+    const clean = cleanShow(form);
+    if (!clean) return alert('공연명, 날짜, 장소는 반드시 입력해야 합니다.');
+    onSave({ ...clean, id: show?.id || id('show'), createdAt: show?.createdAt || clean.createdAt, updatedAt: new Date().toISOString() });
+    onClose();
+  };
+
+  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid var(--slate-200)', fontSize: 14, boxSizing: 'border-box', background: '#fff' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15,23,42,.45)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 20, overflowY: 'auto' }}>
+      <div style={{ width: 'min(640px, 100%)', background: '#fff', borderRadius: 20, padding: 24, boxShadow: '0 20px 50px rgba(0,0,0,0.15)', marginTop: 20 }}>
+        <h3 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 900 }}>공연 {show?.id ? '정보 수정' : '신규 등록'}</h3>
+        <form onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>공연명 *</label>
+            <input value={form.title} onChange={e => update('title', e.target.value)} style={inputStyle} placeholder="공연 제목을 입력하세요" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>날짜 *</label>
+              <input type="date" value={form.date} onChange={e => update('date', e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>시간</label>
+              <input type="time" value={form.time} onChange={e => update('time', e.target.value)} style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>장소 *</label>
+            <input value={form.location} onChange={e => update('location', e.target.value)} style={inputStyle} placeholder="공연 장소" />
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>티켓 가격 (원)</label>
+            <input type="number" value={form.price} onChange={e => update('price', e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>상태</label>
+            <select value={form.status} onChange={e => update('status', e.target.value)} style={inputStyle}>
+              <option value={OPEN}>예매 진행 중</option>
+              <option value={CLOSED}>예매 종료</option>
+            </select>
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>포스터 이미지 URL</label>
+            <input value={form.imageUrl} onChange={e => update('imageUrl', e.target.value)} style={inputStyle} placeholder="https://..." />
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#4b5563' }}>공연 상세 설명</label>
+            <textarea rows={4} value={form.description} onChange={e => update('description', e.target.value)} style={{ ...inputStyle, height: 100 }} placeholder="공연에 대한 설명을 입력하세요" />
+          </div>
+
+          <div style={{ borderTop: '1px solid #eef2f7', pt: 20, mt: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 12 }}>
+              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>커스텀 신청 항목</h4>
+              <button type="button" onClick={() => add('input_text')} className="btn-secondary" style={{ height: 32, padding: '0 10px', fontSize: 12 }}>+ 항목 추가</button>
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {form.customSections.map((s, idx) => (
+                <SectionEditor key={s.id} section={s} index={idx} onChange={sec} onRemove={del} />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, mt: 10 }}>
+            <button type="button" onClick={onClose} className="btn-secondary" style={{ flex: 1 }}>취소</button>
+            <button type="submit" className="btn-primary" style={{ flex: 2 }}>저장하기</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ShowDetailModal({ show, onClose }) {
+  if (!show) return null;
+  const formUrl = `${window.location.origin}/form/${show.id}`;
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(formUrl);
+    alert('신청 폼 링크가 복사되었습니다.');
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 20, overflowY: 'auto' }}>
+      <div style={{ width: 'min(800px, 100%)', background: '#fff', borderRadius: 20, marginTop: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px', borderBottom: '1px solid #eef2f7' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>{show.title}</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{fmtDT(show.date, show.time)} · {show.location}</p>
+          </div>
+          <button type="button" onClick={onClose} className="btn-secondary" style={{ height: 40 }}>닫기</button>
+        </div>
+        <div style={{ padding: 20, display: 'grid', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+            {card('공연 정보', (
+              <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
+                <div><strong>상태:</strong> {show.status === CLOSED ? '종료' : '진행 중'}</div>
+                <div><strong>장소:</strong> {show.location}</div>
+                <div><strong>가격:</strong> {Number(show.price || 0).toLocaleString()}원</div>
+                <div style={{ marginTop: 10 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', mb: 4 }}>관객용 신청 폼 링크</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input readOnly value={formUrl} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, background: '#f8fafc' }} />
+                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 34, fontSize: 12, px: 10 }}>복사</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {card('포스터', show.imageUrl ? <img src={show.imageUrl} style={{ width: '100%', borderRadius: 12 }} /> : <div style={{ height: 160, background: '#f1f5f9', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>포스터 없음</div>)}
+          </div>
+          
+          <div style={{ background: '#111827', borderRadius: 16, padding: 24, textAlign: 'center', color: '#fff' }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 900 }}>티켓 예매 현황 관리</h4>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: '#9ca3af' }}>이 공연의 예매자 명단 확인, 입금 처리 및 현장 입장 관리는 전용 페이지에서 가능합니다.</p>
+            <button 
+              onClick={() => window.location.assign('/admin/reservations')}
+              style={{ background: '#fff', color: '#111827', border: 'none', padding: '12px 24px', borderRadius: 12, fontWeight: 800, cursor: 'pointer' }}
+            >
+              티켓 신청 및 입장 관리로 이동 ➔
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function PerformancePage() {
+  const [shows, setShows] = useState(() => normShows(lsGet(LS_SHOWS).length ? lsGet(LS_SHOWS) : migrate(lsGet(LS_SHOWS_LEGACY))));
+  const [orders, setOrders] = useState(() => lsGet(LS_ORDERS));
+  const [editing, setEditing] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const { isAdmin } = useAuth();
+
+  useEffect(() => { lsSet(LS_SHOWS, shows); }, [shows]);
+  useEffect(() => { lsSet(LS_ORDERS, orders); }, [orders]);
+
+  const sorted = useMemo(() => [...shows].sort((a, b) => score(b.createdAt) - score(a.createdAt)), [shows]);
+
+  const saveShow = (next) => setShows(prev => normShows(prev.some(s => s.id === next.id) ? prev.map(s => s.id === next.id ? next : s) : [...prev, next]));
+  const delShow = (id) => {
+    if (!confirm('공연을 삭제할까요?')) return;
+    setShows(prev => prev.filter(s => s.id !== id));
+    setOrders(prev => prev.filter(o => o.concertId !== id));
+    if (detail?.id === id) setDetail(null);
+  };
+
+  return (
+    <div className="page-shell">
+      <div className="page-container">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={{ fontSize: 22, fontWeight: 950, margin: 0, color: 'var(--slate-900)' }}>공연 및 예매 폼 관리</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 0' }}>공연 일정을 등록하고 관객용 예매 폼을 생성합니다.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={() => window.location.assign('/admin/reservations')} className="btn-secondary" style={{ height: 40, px: 16 }}>
+              🎟️ 입장 관리 바로가기
+            </button>
+            {isAdmin && (
+              <button type="button" onClick={() => setEditing(blankShow)} className="btn-primary" style={{ height: 40, px: 18 }}>
+                + 공연 추가
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid-layout" style={{ gap: 20 }}>
+          {card('등록된 공연 목록', (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {sorted.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>등록된 공연이 없습니다.</div>
+              ) : (
+                sorted.map(show => {
+                  const cnt = orders.filter(o => o.concertId === show.id).length;
+                  return (
+                    <div key={show.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: 16, border: '1px solid #eef2f7', borderRadius: 16, background: '#fff' }}>
+                      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setDetail(show)}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, mb: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: show.status === CLOSED ? '#f1f5f9' : '#ecfdf5', color: show.status === CLOSED ? '#64748b' : '#10b981' }}>
+                            {show.status === CLOSED ? '종료' : '진행중'}
+                          </span>
+                          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{show.date}</span>
+                        </div>
+                        <h5 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{show.title}</h5>
+                        <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>{show.location} · 신청 {cnt}건</p>
+                      </div>
+                      {isAdmin && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={() => setEditing(show)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: 12 }}>수정</button>
+                          <button onClick={() => delShow(show.id)} className="btn-secondary" style={{ padding: '8px 12px', fontSize: 12, color: '#ef4444' }}>삭제</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ))}
+        </div>
+
+        {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
+        {detail && <ShowDetailModal show={detail} onClose={() => setDetail(null)} />}
+      </div>
+    </div>
+  );
+}
