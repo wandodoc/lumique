@@ -135,7 +135,7 @@ export default async function handler(req, res) {
 
   const host = req.headers.host || 'lumique-beta.vercel.app';
   const defaultLogo = `https://${host}/logo.png`;
-  const logo = img || defaultLogo;
+  const logo = (img && img.startsWith('data:image/')) ? `https://${host}/api/image?id=${showId}` : (img || defaultLogo);
 
   replaceMeta('description', desc, true);
   replaceMeta('og:title', title);
