@@ -205,6 +205,24 @@ function ShowFormModal({ show, onClose, onSave }) {
   const add = (type) => setForm(p => ({ ...p, customSections: [...p.customSections, cleanSection({ type })] }));
   const del = (id) => setForm(p => ({ ...p, customSections: p.customSections.filter(s => s.id !== id) }));
 
+  const handleImageUpload = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => update('imageUrl', e.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        handleImageUpload(items[i].getAsFile());
+        break;
+      }
+    }
+  };
+
   const submit = (e) => {
     e.preventDefault();
     const clean = cleanShow(form);
@@ -228,7 +246,7 @@ function ShowFormModal({ show, onClose, onSave }) {
           <h3 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--slate-900)' }}>공연 {show?.id ? '정보 수정' : '신규 등록'}</h3>
         </div>
         
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: 24, overflowY: 'auto', flex: 1 }} onPaste={handlePaste}>
           <form id="show-form" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <label style={labelStyle}>공연명 *</label>
@@ -266,8 +284,14 @@ function ShowFormModal({ show, onClose, onSave }) {
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={labelStyle}>포스터 이미지 URL</label>
-              <input value={form.imageUrl} onChange={e => update('imageUrl', e.target.value)} style={inputStyle} placeholder="https://..." />
+              <label style={labelStyle}>포스터 이미지 첨부 <span style={{ fontWeight: 400, color: 'var(--slate-500)', fontSize: 12 }}>(클립보드 이미지 붙여넣기 Ctrl+V 지원)</span></label>
+              <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files[0])} style={{ ...inputStyle, padding: '8px' }} />
+              {form.imageUrl && (
+                <div style={{ position: 'relative', marginTop: 8, width: 'max-content' }}>
+                  <img src={form.imageUrl} style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 8, objectFit: 'contain', border: '1px solid var(--slate-200)', background: '#f8fafc' }} />
+                  <button type="button" onClick={() => update('imageUrl', '')} style={{ position: 'absolute', top: -8, right: -8, background: 'var(--red-500)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>✕</button>
+                </div>
+              )}
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -328,24 +352,24 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
             <h3 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--slate-900)' }}>{show.title}</h3>
             <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--slate-500)' }}>{fmtDT(show.date, show.time)} · {show.location}</p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {isAdmin && (
-                <button type="button" onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--indigo-300)', background: '#f8fafc', color: 'var(--indigo-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  공연 수정
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {isAdmin && (
+                  <button type="button" onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--indigo-300)', background: '#f8fafc', color: 'var(--indigo-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    공연 수정
+                  </button>
+                )}
+                <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>닫기</button>
+                <button 
+                  onClick={() => window.open(`/manage/${show.id}`, '_blank')}
+                  className="btn-primary"
+                  style={{ background: 'var(--blue-600)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}
+                >
+                  티켓 관리로 이동 ➔
                 </button>
-              )}
-              <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>닫기</button>
-              <button 
-                onClick={() => window.open(`/manage/${show.id}`, '_blank')}
-                className="btn-primary"
-                style={{ background: '#111827', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}
-              >
-                티켓 관리로 이동 ➔
-              </button>
+              </div>
             </div>
           </div>
-        </div>
 
         <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'grid', gap: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
@@ -354,16 +378,17 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
                 <div><strong>상태:</strong> {show.status === CLOSED ? '종료' : '진행 중'}</div>
                 <div><strong>장소:</strong> {show.location}</div>
                 <div><strong>가격:</strong> {Number(show.price || 0).toLocaleString()}원</div>
-                <div style={{ marginTop: 10 }}>
-                  <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', mb: 4 }}>관객용 신청 폼 링크</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input readOnly value={formUrl} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, background: '#f8fafc' }} />
-                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 34, fontSize: 12, px: 10 }}>복사</button>
+                <div style={{ marginTop: 16 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>관객용 신청 폼 링크</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <a href={formUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, background: '#f8fafc', color: 'var(--blue-600)', textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {formUrl}
+                    </a>
+                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 36, fontSize: 13, padding: '0 12px', whiteSpace: 'nowrap' }}>복사</button>
                   </div>
                 </div>
               </div>
-            ))}
-            {card('포스터', show.imageUrl ? <img src={show.imageUrl} style={{ width: '100%', borderRadius: 12 }} /> : <div style={{ height: 160, background: '#f1f5f9', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>포스터 없음</div>)}
+            {card('포스터', show.imageUrl ? <img src={show.imageUrl} style={{ width: '100%', borderRadius: 8 }} /> : <div style={{ height: 160, background: '#f1f5f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>포스터 없음</div>)}
           </div>
         </div>
       </div>

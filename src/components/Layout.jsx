@@ -13,7 +13,7 @@ export default function Layout({ children }) {
   
   const currentPath = location.pathname;
   // Match path exactly, or handle cases if needed (e.g. default to '/')
-  const currentTab = Object.keys(PAGE_TITLES).includes(currentPath) ? currentPath : '/';
+  const currentTab = Object.keys(PAGE_TITLES).find(p => currentPath === p || (p !== '/' && currentPath.startsWith(p))) || '/';
 
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showPwdModal, setShowPwdModal] = useState(false);
