@@ -247,16 +247,16 @@ export default function ReservationManagementPage() {
             <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 15, fontWeight: 500 }}>표시할 예매 정보가 없습니다.</div>
           ) : (
             <div style={{ overflowX: 'auto', margin: '0 -24px' }}>
-              <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 14, minWidth: 700 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 800 }}>
                 <thead>
                   <tr style={{ background: 'var(--slate-50)', borderBottom: '2px solid var(--slate-100)' }}>
-                    <th style={{ width: '160px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>예매자명</th>
-                    <th style={{ width: '80px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 매수</th>
-                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>뒤풀이 참여자 수</th>
-                    <th style={{ width: '240px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>남기신 말씀</th>
-                    <th style={{ width: '140px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 시간</th>
-                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입금 여부</th>
-                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입장 여부</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>예매자명</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>신청 매수</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>뒤풀이 참여자 수</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>남기신 말씀</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>신청 시간</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>입금 여부</th>
+                    <th style={{ padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>입장 여부</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -268,7 +268,7 @@ export default function ReservationManagementPage() {
                     
                     return (
                       <tr key={o.id} style={{ borderBottom: '1px solid var(--slate-100)', transition: 'background 0.2s' }}>
-                        <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.audienceName}</td>
+                        <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>{o.audienceName}</td>
                         <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 700, color: 'var(--slate-700)' }}>{o.ticketCount}매</td>
                         <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                           <div style={{ fontWeight: 600 }}>{o.isAfterParty ? `${o.afterPartyCount || 1}명` : '0명'}</div>
@@ -276,7 +276,7 @@ export default function ReservationManagementPage() {
                             <div style={{ fontSize: 11, color: 'var(--slate-500)', marginTop: 4 }}>초대자: {o.inviterName}</div>
                           )}
                         </td>
-                        <td style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.comment || '-'}</td>
+                        <td style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 250 }}>{o.comment || '-'}</td>
                         <td style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {o.createdAt ? formatDate(o.createdAt) : '-'}
                         </td>
