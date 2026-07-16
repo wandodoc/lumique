@@ -557,8 +557,9 @@ export default function PerformancePage() {
       </div>
 
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', background: '#fff', borderRadius: 12, border: '1px solid var(--slate-200)' }}>
-          <p style={{ color: 'var(--slate-500)', fontSize: 15 }}>공연 정보를 불러오는 중입니다...</p>
+        <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', gap: 16 }}>
+          <div className="loading-spinner" style={{ width: 40, height: 40, borderWidth: 4 }}></div>
+          <p className="loading-text" style={{ color: 'var(--slate-500)', fontSize: 15, fontWeight: 600, margin: 0 }}>공연 정보를 불러오는 중입니다...</p>
         </div>
       ) : showsByYear.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', background: '#fff', borderRadius: 12, border: '1px solid var(--slate-200)' }}>

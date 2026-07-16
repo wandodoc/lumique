@@ -165,7 +165,12 @@ export default function ReservationManagementPage() {
   };
 
   if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>데이터를 불러오는 중입니다...</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', gap: 16, background: '#f8fafc' }}>
+        <div className="loading-spinner" style={{ width: 40, height: 40, borderWidth: 4 }}></div>
+        <div className="loading-text" style={{ color: 'var(--slate-500)', fontSize: 15, fontWeight: 600 }}>데이터를 불러오는 중입니다...</div>
+      </div>
+    );
   }
 
   return (
