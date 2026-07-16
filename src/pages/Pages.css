@@ -500,12 +500,14 @@
 .cat-pct { font-size: 11px; color: var(--slate-500); }
 
 /* ===== 설정 ===== */
-.reg-row  { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--slate-100); font-size: 16px; }
+.reg-row  { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--slate-100); font-size: 16px; }
 .reg-row:last-child { border-bottom: none; }
-.reg-label { color: var(--slate-500); font-weight: 500; min-width: 80px; font-size: 15px; }
-.reg-value { color: var(--slate-900); text-align: right; font-weight: 500; font-size: 16px; }
-.equip-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--slate-100); font-size: 16px; }
+.reg-label { color: var(--slate-500); font-weight: 500; flex-shrink: 0; min-width: 80px; font-size: 15px; }
+.reg-value { color: var(--slate-900); text-align: right; font-weight: 500; font-size: 15px; word-break: keep-all; line-height: 1.4; }
+.equip-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--slate-100); font-size: 16px; }
 .equip-row:last-child { border-bottom: none; }
+.equip-info { min-width: 0; flex: 1; word-break: keep-all; }
+.equip-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .equip-total { display: flex; justify-content: space-between; padding-top: 14px; margin-top: 4px; border-top: 2px solid var(--slate-200); font-size: 17px; font-weight: 700; }
 
 /* ===== 회원 관리 ===== */
