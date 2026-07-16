@@ -388,6 +388,7 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
                   </div>
                 </div>
               </div>
+            ))}
             {card('포스터', show.imageUrl ? <img src={show.imageUrl} style={{ width: '100%', borderRadius: 8 }} /> : <div style={{ height: 160, background: '#f1f5f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>포스터 없음</div>)}
           </div>
         </div>
