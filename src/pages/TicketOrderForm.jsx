@@ -75,6 +75,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
           <button type="button" onClick={() => fixed.setQty(Math.max(1, fixed.qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
           <div style={{ fontSize: 16, fontWeight: 700, minWidth: 40, textAlign: 'center' }}>{fixed.qty}매</div>
           <button type="button" onClick={() => fixed.setQty(Math.min(10, fixed.qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
+          <span style={{ fontSize: 14, color: '#64748b', marginLeft: 4 }}>x {Number(fixed.price || 0).toLocaleString()}원</span>
         </div>
       </div>
     );
@@ -288,7 +289,7 @@ export default function TicketOrderForm({ showId }) {
                 sections={show.customSections} 
                 values={customResponses} 
                 setValues={setCustomResponses} 
-                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount }} 
+                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, price }} 
               />
 
               <div>
