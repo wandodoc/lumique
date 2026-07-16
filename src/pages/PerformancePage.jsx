@@ -397,65 +397,135 @@ export default function PerformancePage() {
   useEffect(() => { lsSet(LS_SHOWS, shows); }, [shows]);
   useEffect(() => { lsSet(LS_ORDERS, orders); }, [orders]);
 
-  const sorted = useMemo(() => [...shows].sort((a, b) => score(b.createdAt) - score(a.createdAt)), [shows]);
+  const showsByYear = useMemo(() => {
+    const grouped = {};
+    const sortedShows = [...shows].sort((a, b) => score(b.date, b.time) - score(a.date, a.time));
+    sortedShows.forEach(show => {
+      const year = show.date ? show.date.slice(0, 4) : '기타';
+      if (!grouped[year]) grouped[year] = [];
+      grouped[year].push(show);
+    });
+    return Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(year => ({ year, shows: grouped[year] }));
+  }, [shows]);
 
   const saveShow = (next) => setShows(prev => normShows(prev.some(s => s.id === next.id) ? prev.map(s => s.id === next.id ? next : s) : [...prev, next]));
-  const delShow = (id) => {
-    if (!confirm('공연을 삭제할까요?')) return;
+  
+  const delShow = (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('공연을 삭제할까요?')) return;
     setShows(prev => prev.filter(s => s.id !== id));
     setOrders(prev => prev.filter(o => o.concertId !== id));
     if (detail?.id === id) setDetail(null);
   };
 
-  return (
-    <div className="page-shell">
-      <div className="page-container" style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold', margin: 0 }}>공연 목록</h1>
-          {isAdmin && (
-            <button className="btn-primary" onClick={() => setEditing(blankShow)} style={{ height: 40, padding: '0 20px', borderRadius: 10 }}>
-              + 새 공연 등록
-            </button>
-          )}
-        </div>
+  const editShow = (show, e) => {
+    if (e) e.stopPropagation();
+    setEditing(show);
+  };
 
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-          gap: '20px' 
-        }}>
-          {sorted.map(show => (
-            <div 
-              key={show.id}
-              onClick={() => setDetail(show)}
-              style={{ 
-                border: '1px solid #e5e7eb', 
-                borderRadius: '12px', 
-                padding: '16px', 
-                cursor: 'pointer', 
-                backgroundColor: '#fff',
-                display: 'flex',
-                flexDirection: 'column'
-              }}
-            >
+  return (
+    <div className="page fade-in">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: 'var(--slate-900)' }}>공연 관리</h1>
+        {isAdmin && (
+          <button className="btn-primary" onClick={() => setEditing(blankShow)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            + 새 공연 등록
+          </button>
+        )}
+      </div>
+
+      {showsByYear.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', background: '#fff', borderRadius: 12, border: '1px solid var(--slate-200)' }}>
+          <p style={{ color: 'var(--slate-500)', fontSize: 15 }}>등록된 공연이 없습니다.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+          {showsByYear.map(({ year, shows }) => (
+            <div key={year}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--slate-800)', marginBottom: 16, paddingBottom: 8, borderBottom: '2px solid var(--slate-100)' }}>
+                {year}년 <span style={{ fontSize: 14, color: 'var(--slate-400)', fontWeight: 600, marginLeft: 8 }}>총 {shows.length}건</span>
+              </h2>
               <div style={{ 
-                width: '100%', 
-                height: '160px', 
-                background: show.imageUrl ? `url(${show.imageUrl}) center/cover` : '#f3f4f6', 
-                borderRadius: '8px', 
-                marginBottom: '16px' 
-              }} />
-              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>{show.title}</h2>
-              <p style={{ fontSize: '14px', color: '#6b7280' }}>
-                {show.date} | {show.status === CLOSED ? '종료' : '예매 중'}
-              </p>
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+                gap: 20 
+              }}>
+                {shows.map(show => (
+                  <div 
+                    key={show.id}
+                    onClick={() => setDetail(show)}
+                    style={{ 
+                      position: 'relative',
+                      border: '1px solid var(--slate-200)', 
+                      borderRadius: 16, 
+                      padding: 16, 
+                      cursor: 'pointer', 
+                      backgroundColor: '#fff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.transform = 'translateY(-4px)';
+                      e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)';
+                    }}
+                  >
+                    <div style={{ 
+                      width: '100%', 
+                      aspectRatio: '16/9', 
+                      background: show.imageUrl ? `url(${show.imageUrl}) center/cover` : '#f1f5f9', 
+                      borderRadius: 12, 
+                      marginBottom: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--slate-400)',
+                      fontSize: 14,
+                      fontWeight: 600
+                    }}>
+                      {!show.imageUrl && '포스터 없음'}
+                    </div>
+
+                    {isAdmin && (
+                      <div style={{ position: 'absolute', top: 24, right: 24, display: 'flex', gap: 6 }}>
+                        <button 
+                          onClick={(e) => editShow(show, e)} 
+                          style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid var(--slate-200)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--blue-600)', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+                        >수정</button>
+                        <button 
+                          onClick={(e) => delShow(show.id, e)} 
+                          style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid var(--slate-200)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--red-500)', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+                        >삭제</button>
+                      </div>
+                    )}
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--slate-900)', lineHeight: 1.3, wordBreak: 'keep-all' }}>{show.title}</h3>
+                        <span className={`badge ${show.status === CLOSED ? 'badge-gray-light' : 'badge-success-light'}`} style={{ whiteSpace: 'nowrap' }}>
+                          {show.status === CLOSED ? '종료' : '예매 중'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: 'var(--slate-500)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>🗓️ {fmtDT(show.date, show.time)}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>📍 {show.location}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
+      )}
 
-        {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
-        {detail && <ShowDetailModal show={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail); setDetail(null); }} isAdmin={isAdmin} />}
-      </div>
+      {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
+      {detail && <ShowDetailModal show={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail); setDetail(null); }} isAdmin={isAdmin} />}
     </div>
   );
 }
