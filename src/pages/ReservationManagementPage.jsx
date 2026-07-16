@@ -253,7 +253,7 @@ export default function ReservationManagementPage() {
                     <th style={{ width: '160px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>예매자명</th>
                     <th style={{ width: '80px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 매수</th>
                     <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>뒤풀이 참여자 수</th>
-                    <th style={{ width: 'auto', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>남기신 말씀</th>
+                    <th style={{ width: '240px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>남기신 말씀</th>
                     <th style={{ width: '140px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 시간</th>
                     <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입금 여부</th>
                     <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입장 여부</th>
