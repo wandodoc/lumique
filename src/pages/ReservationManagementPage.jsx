@@ -131,6 +131,16 @@ export default function ReservationManagementPage() {
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  const formatShowDT = (dStr, tStr) => {
+    if (!dStr) return '';
+    const dateObj = new Date(dStr);
+    if (isNaN(dateObj.getTime())) return `${dStr} ${tStr}`.trim();
+    const w = ['일', '월', '화', '수', '목', '금', '토'];
+    const [y, m, day] = dStr.split('-');
+    const dayOfWeek = w[dateObj.getDay()];
+    return `${y}.${Number(m)}.${Number(day)} (${dayOfWeek}) ${tStr}`.trim();
+  };
+
   const updateOrder = async (id, patch) => {
     const nextOrders = orders.map((o) => (o.id === id ? { ...o, ...patch } : o));
     setOrders(nextOrders);
@@ -178,13 +188,29 @@ export default function ReservationManagementPage() {
       <div className="page-container" style={{ display: 'grid', gap: 20, padding: '32px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 28, letterSpacing: '-0.5px' }}>🎟️ 티켓 관리</h1>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'var(--indigo-50)', color: 'var(--indigo-600)', fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
+              🎟️ 티켓 관리 대시보드
+            </div>
             {currentShow ? (
-              <p className="caption" style={{ margin: '8px 0 0', fontWeight: 600, color: 'var(--slate-600)', fontSize: 14 }}>
-                <strong style={{ color: 'var(--slate-900)' }}>{currentShow.title}</strong> · {currentShow.date} · {currentShow.location}
-              </p>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <h1 style={{ margin: 0, fontSize: 32, fontWeight: 950, color: 'var(--slate-900)', letterSpacing: '-0.8px', lineHeight: 1.2 }}>
+                  {currentShow.title}
+                </h1>
+                <div style={{ display: 'grid', gap: 4, fontSize: 14, color: 'var(--slate-600)', fontWeight: 500, borderLeft: '3px solid var(--indigo-300)', paddingLeft: 12, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <span style={{ color: 'var(--slate-400)', minWidth: 40 }}>일정</span>
+                    <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{formatShowDT(currentShow.date, currentShow.time)}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <span style={{ color: 'var(--slate-400)', minWidth: 40 }}>장소</span>
+                    <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{currentShow.location}</span>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <p className="caption" style={{ margin: '6px 0 0', fontWeight: 500 }}>전체 공연의 예매 데이터를 조회 중입니다.</p>
+              <h1 style={{ margin: 0, fontSize: 32, fontWeight: 950, color: 'var(--slate-900)', letterSpacing: '-0.8px', lineHeight: 1.2 }}>
+                전체 공연 예매 관리
+              </h1>
             )}
           </div>
           <button type="button" className="btn-secondary" style={{ height: 44, padding: '0 20px', borderRadius: 12, fontWeight: 700 }} onClick={() => navigate('/concerts')}>

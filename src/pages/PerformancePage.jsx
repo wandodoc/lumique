@@ -418,18 +418,28 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
           </div>
           <div className="perf-modal-header-actions">
             <div className="perf-modal-btn-row">
+              <button 
+                type="button"
+                onClick={() => window.open(`/manage/${show.id}`, '_blank')}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 0px', minWidth: '80px', maxWidth: '120px', height: 38, borderRadius: 8, border: 'none', background: 'var(--blue-600)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+              >
+                티켓 관리
+              </button>
               {isAdmin && (
-                <button type="button" onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--indigo-300)', background: '#f8fafc', color: 'var(--indigo-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  공연 수정
+                <button 
+                  type="button" 
+                  onClick={onEdit} 
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 0px', minWidth: '80px', maxWidth: '120px', height: 38, borderRadius: 8, border: 'none', background: 'var(--indigo-600)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+                >
+                  수정
                 </button>
               )}
-              <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>닫기</button>
               <button 
-                onClick={() => window.open(`/manage/${show.id}`, '_blank')}
-                className="btn-primary"
-                style={{ background: 'var(--blue-600)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}
+                type="button" 
+                onClick={onClose} 
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 0px', minWidth: '80px', maxWidth: '120px', height: 38, borderRadius: 8, border: '1px solid var(--slate-300)', background: '#fff', color: 'var(--slate-600)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
               >
-                티켓 관리로 이동 ➔
+                닫기
               </button>
             </div>
           </div>
