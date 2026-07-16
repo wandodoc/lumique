@@ -14,6 +14,7 @@ import ReservationManagementPage from './pages/ReservationManagementPage';
 import TicketOrderForm from './pages/TicketOrderForm';
 import { TABS } from './utils/navigation';
 import './App.css';
+import './loading.css';
 
 function TransactionPageWrapper() {
   return <TransactionPage openExcelImport={() => {}} />;

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import './PageStyles.css';
 
 const LS_SHOWS = 'lumique_concerts';
-const LS_SHOWS_LEGACY = 'lumique_performances';
 const LS_ORDERS = 'lumique_ticket_orders';
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;

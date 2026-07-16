@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import './PageStyles.css';
 
 const LS_SHOWS = 'lumique_concerts';
-const LS_SHOWS_LEGACY = 'lumique_performances';
 const LS_ORDERS = 'lumique_ticket_orders';
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
@@ -30,12 +29,6 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 
-const migrate = (v) => {
-  const n = Array.isArray(v) ? v : [];
-  lsSet(LS_SHOWS, n);
-  try { localStorage.removeItem(LS_SHOWS_LEGACY); } catch { }
-  return n;
-};
 
 const score = (d, t = '19:00') => {
   const n = new Date(`${d}T${t}`);
@@ -492,9 +485,8 @@ export default function PerformancePage() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
 
-      // Migration fallback from localStorage if Firebase is empty
+      // Fallback from localStorage if Firebase is empty
       let localShows = lsGet(LS_SHOWS);
-      if (localShows.length === 0) localShows = migrate(lsGet(LS_SHOWS_LEGACY));
       
       if (fbConcerts.length === 0 && localShows.length > 0) {
         fbConcerts = normShows(localShows);
