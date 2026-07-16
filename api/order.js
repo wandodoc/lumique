@@ -133,12 +133,14 @@ export default async function handler(req, res) {
     }
   };
 
+  const host = req.headers.host || 'lumique-beta.vercel.app';
+  const defaultLogo = `https://${host}/logo.png`;
+  const logo = img || defaultLogo;
+
   replaceMeta('description', desc, true);
   replaceMeta('og:title', title);
   replaceMeta('og:description', desc);
-  if (img) {
-    replaceMeta('og:image', img);
-  }
+  replaceMeta('og:image', logo);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).send(html);
