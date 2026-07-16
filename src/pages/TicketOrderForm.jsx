@@ -88,11 +88,23 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
         </label>
         {fixed.isAfterParty && (
           <div style={{ marginTop: 16, pt: 16, borderTop: '1px dotted #e2e8f0' }}>
-            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>뒤풀이 참여 인원 (본인 포함)</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button type="button" onClick={() => fixed.setAfterPartyCount(Math.max(1, fixed.afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>-</button>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>{fixed.afterPartyCount}명</span>
-              <button type="button" onClick={() => fixed.setAfterPartyCount(fixed.afterPartyCount + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>뒤풀이 참여 인원 (본인 포함)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button type="button" onClick={() => fixed.setAfterPartyCount(Math.max(1, fixed.afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>-</button>
+                <span style={{ fontSize: 15, fontWeight: 700 }}>{fixed.afterPartyCount}명</span>
+                <button type="button" onClick={() => fixed.setAfterPartyCount(fixed.afterPartyCount + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>초대자 이름 (테이블 배치를 위해 필요합니다)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input type="text" value={fixed.inviterName} onChange={e => fixed.setInviterName(e.target.value)} disabled={fixed.noInviter} style={{ ...FIELD_STYLE, flex: 1, opacity: fixed.noInviter ? 0.5 : 1 }} placeholder="초대자 이름을 적어주세요" />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={fixed.noInviter} onChange={e => { fixed.setNoInviter(e.target.checked); if (e.target.checked) fixed.setInviterName(''); }} style={{ width: 16, height: 16 }} />
+                  없음
+                </label>
+              </div>
             </div>
           </div>
         )}
@@ -181,6 +193,8 @@ export default function TicketOrderForm({ showId }) {
   const [qty, setQty] = useState(1);
   const [isAfterParty, setIsAfterParty] = useState(false);
   const [afterPartyCount, setAfterPartyCount] = useState(1);
+  const [inviterName, setInviterName] = useState('');
+  const [noInviter, setNoInviter] = useState(false);
   const [comment, setComment] = useState('');
   const [customResponses, setCustomResponses] = useState({});
 
@@ -238,6 +252,7 @@ export default function TicketOrderForm({ showId }) {
       attendanceStatus: '미입장',
       isAfterParty,
       afterPartyCount: isAfterParty ? Number(afterPartyCount) : 0,
+      inviterName: isAfterParty ? (noInviter ? '없음' : inviterName.trim()) : '',
       comment: comment.trim(),
       customResponses,
       createdAt: new Date().toISOString()
@@ -296,7 +311,7 @@ export default function TicketOrderForm({ showId }) {
                 sections={show.customSections} 
                 values={customResponses} 
                 setValues={setCustomResponses} 
-                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, price, comment, setComment }} 
+                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment }} 
               />
 
               <div style={{ marginTop: 20, padding: 24, background: '#111827', borderRadius: 20, color: '#fff' }}>
