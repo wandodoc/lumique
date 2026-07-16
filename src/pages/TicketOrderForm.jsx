@@ -33,6 +33,13 @@ const fmtDT = (d, t = DEFAULT_TIME) => {
   return `${y}.${Number(m)}.${Number(day)} (${w[x.getDay()]}) ${t}`;
 };
 
+const formatPhone = (val) => {
+  const raw = val.replace(/[^0-9]/g, '');
+  if (raw.length <= 3) return raw;
+  if (raw.length <= 7) return `${raw.slice(0,3)}-${raw.slice(3)}`;
+  return `${raw.slice(0,3)}-${raw.slice(3,7)}-${raw.slice(7,11)}`;
+};
+
 // TextSections is removed as we will render everything inline.
 
 function RenderSections({ sections = [], values, setValues, fixed }) {
@@ -57,7 +64,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
     if (s.type === 'fixed_phone') return (
       <div key={s.id}>
         {label}
-        <input value={fixed.phone} onChange={e => fixed.setPhone(e.target.value)} style={FIELD_STYLE} placeholder="010-0000-0000" />
+        <input value={fixed.phone} onChange={e => fixed.setPhone(formatPhone(e.target.value))} style={FIELD_STYLE} placeholder="010-0000-0000" maxLength={13} />
       </div>
     );
 
