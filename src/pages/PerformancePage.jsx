@@ -9,7 +9,7 @@ const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
 const OPEN = '진행중';
 const CLOSED = '종료';
-const TYPES = ['text', 'input_text', 'input_textarea', 'input_radio', 'input_checkbox', 'input_number', 'fixed_name', 'fixed_phone', 'fixed_qty', 'fixed_afterparty'];
+const TYPES = ['text', 'input_text', 'input_textarea', 'input_radio', 'input_checkbox', 'input_number', 'fixed_name', 'fixed_phone', 'fixed_qty', 'fixed_afterparty', 'fixed_comment'];
 
 const blankShow = {
   title: '',
@@ -55,6 +55,7 @@ const cleanSection = (s = {}) => {
   if (s.id === '__fixed_phone') type = 'fixed_phone';
   if (s.id === '__fixed_qty') type = 'fixed_qty';
   if (s.id === '__fixed_afterparty') type = 'fixed_afterparty';
+  if (s.id === '__fixed_comment') type = 'fixed_comment';
 
   return {
     id: String(s.id || '').trim() || id('sec'),
@@ -123,7 +124,7 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: isFixed ? 'var(--blue-600)' : 'var(--indigo-600)' }}>
-              {isFixed ? (section.type === 'fixed_qty' ? '고정 예매 항목 (수량 질문)' : section.type === 'fixed_afterparty' ? '고정 예매 항목 (체크박스)' : '고정 예매 항목 (단답형)') : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
+              {isFixed ? (section.type === 'fixed_qty' ? '고정 예매 항목 (수량 질문)' : section.type === 'fixed_afterparty' ? '고정 예매 항목 (체크박스)' : section.type === 'fixed_comment' ? '고정 예매 항목 (장문형)' : '고정 예매 항목 (단답형)') : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
               {section.required && isActive && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
               {!isActive && <span style={{ color: 'var(--slate-500)', marginLeft: 8 }}>(비활성화됨)</span>}
             </span>
@@ -229,6 +230,7 @@ function ShowFormModal({ show, onClose, onSave }) {
     if (!s.some(x => x.type === 'fixed_phone')) s.push({ id: '__fixed_phone', type: 'fixed_phone', title: '연락처', required: true, active: true });
     if (!s.some(x => x.type === 'fixed_qty')) s.push({ id: '__fixed_qty', type: 'fixed_qty', title: '신청 매수', required: true, active: true });
     if (!s.some(x => x.type === 'fixed_afterparty')) s.push({ id: '__fixed_afterparty', type: 'fixed_afterparty', title: '뒤풀이 참여 여부', required: false, active: true });
+    if (!s.some(x => x.type === 'fixed_comment')) s.push({ id: '__fixed_comment', type: 'fixed_comment', title: '기타 남기실 말씀', content: '추가 문의사항이 있다면 적어주세요', required: false, active: true });
     return s;
   };
 

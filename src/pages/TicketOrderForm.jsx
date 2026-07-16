@@ -99,6 +99,13 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
       </div>
     );
 
+    if (s.type === 'fixed_comment') return (
+      <div key={s.id}>
+        {label}
+        <textarea value={fixed.comment} onChange={e => fixed.setComment(e.target.value)} style={{ ...FIELD_STYLE, height: 80 }} placeholder={s.content || "추가 문의사항이 있다면 적어주세요"} />
+      </div>
+    );
+
     if (s.type === 'input_text') return <div key={s.id}>{label}<input type="text" value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
     if (s.type === 'input_textarea') return <div key={s.id}>{label}<textarea rows={4} value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
     
@@ -289,13 +296,8 @@ export default function TicketOrderForm({ showId }) {
                 sections={show.customSections} 
                 values={customResponses} 
                 setValues={setCustomResponses} 
-                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, price }} 
+                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, price, comment, setComment }} 
               />
-
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>기타 남기실 말씀</label>
-                <textarea value={comment} onChange={e => setComment(e.target.value)} style={{ ...FIELD_STYLE, height: 80 }} placeholder="추가 문의사항이 있다면 적어주세요" />
-              </div>
 
               <div style={{ marginTop: 20, padding: 24, background: '#111827', borderRadius: 20, color: '#fff' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

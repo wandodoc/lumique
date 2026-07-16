@@ -98,13 +98,14 @@ export default function ReservationManagementPage() {
   }, [visibleOrders]);
 
   const exportCsv = () => {
-    const headers = ['예매자명', '신청 매수', '뒤풀이 참여자 수', '신청 시간', '입금 여부', '입장 여부'];
+    const headers = ['예매자명', '신청 매수', '뒤풀이 참여자 수', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
       headers,
       ...visibleOrders.map((o) => [
         o.audienceName || '',
         o.ticketCount || 0,
         o.isAfterParty ? o.afterPartyCount || 1 : 0,
+        o.comment || '',
         o.createdAt ? formatDate(o.createdAt) : '',
         o.depositStatus === DEPOSIT_DONE ? '입금 완료' : '입금 대기',
         o.attendanceStatus === ATTEND_DONE ? '입장 완료' : '미입장',
@@ -231,6 +232,7 @@ export default function ReservationManagementPage() {
                     <th style={{ width: 'auto', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>예매자명</th>
                     <th style={{ width: '80px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 매수</th>
                     <th style={{ width: '120px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>뒤풀이 참여자 수</th>
+                    <th style={{ width: '160px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>남기신 말씀</th>
                     <th style={{ width: '140px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 시간</th>
                     <th style={{ width: '120px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입금 여부</th>
                     <th style={{ width: '120px', padding: '14px 12px', textAlign: 'left', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입장 여부</th>
@@ -248,6 +250,7 @@ export default function ReservationManagementPage() {
                         <td style={{ padding: '16px 12px', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.audienceName}</td>
                         <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--slate-700)' }}>{o.ticketCount}매</td>
                         <td style={{ padding: '16px 12px', fontWeight: 600 }}>{o.isAfterParty ? `${o.afterPartyCount || 1}명` : '0명'}</td>
+                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.comment || '-'}</td>
                         <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {o.createdAt ? formatDate(o.createdAt) : '-'}
                         </td>
