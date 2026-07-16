@@ -28,6 +28,8 @@ const id = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
 
+import { firebaseStorage } from '../utils/firebaseStorage';
+
 const migrate = (v) => {
   const n = Array.isArray(v) ? v : [];
   lsSet(LS_SHOWS, n);
@@ -463,9 +465,10 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
 import { useParams, useNavigate } from 'react-router-dom';
 
 export default function PerformancePage() {
-  const [shows, setShows] = useState(() => normShows(lsGet(LS_SHOWS).length ? lsGet(LS_SHOWS) : migrate(lsGet(LS_SHOWS_LEGACY))));
-  const [orders, setOrders] = useState(() => lsGet(LS_ORDERS));
+  const [shows, setShows] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { isAdmin } = useAuth();
   
   const { id: paramId } = useParams();
@@ -483,8 +486,28 @@ export default function PerformancePage() {
     }
   };
 
-  useEffect(() => { lsSet(LS_SHOWS, shows); }, [shows]);
-  useEffect(() => { lsSet(LS_ORDERS, orders); }, [orders]);
+  useEffect(() => {
+    async function loadData() {
+      // First try to load from Firebase
+      let fbConcerts = await firebaseStorage.loadConcerts();
+      let fbOrders = await firebaseStorage.loadOrders();
+
+      // Migration fallback from localStorage if Firebase is empty
+      if (fbConcerts.length === 0 && lsGet(LS_SHOWS).length > 0) {
+        fbConcerts = normShows(lsGet(LS_SHOWS));
+        await firebaseStorage.saveConcerts(fbConcerts);
+      }
+      if (fbOrders.length === 0 && lsGet(LS_ORDERS).length > 0) {
+        fbOrders = lsGet(LS_ORDERS);
+        await firebaseStorage.saveOrders(fbOrders);
+      }
+      
+      setShows(normShows(fbConcerts));
+      setOrders(fbOrders);
+      setIsLoading(false);
+    }
+    loadData();
+  }, []);
 
   const showsByYear = useMemo(() => {
     const grouped = {};
@@ -497,14 +520,22 @@ export default function PerformancePage() {
     return Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(year => ({ year, shows: grouped[year] }));
   }, [shows]);
 
-  const saveShow = (next) => setShows(prev => normShows(prev.some(s => s.id === next.id) ? prev.map(s => s.id === next.id ? next : s) : [...prev, next]));
+  const saveShow = async (next) => {
+    const nextShows = normShows(shows.some(s => s.id === next.id) ? shows.map(s => s.id === next.id ? next : s) : [...shows, next]);
+    setShows(nextShows);
+    await firebaseStorage.saveConcerts(nextShows);
+  };
   
-  const delShow = (id, e) => {
+  const delShow = async (id, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('공연을 삭제할까요?')) return;
-    setShows(prev => prev.filter(s => s.id !== id));
-    setOrders(prev => prev.filter(o => o.concertId !== id));
+    const nextShows = shows.filter(s => s.id !== id);
+    const nextOrders = orders.filter(o => o.concertId !== id);
+    setShows(nextShows);
+    setOrders(nextOrders);
     if (detail?.id === id) setDetail(null);
+    await firebaseStorage.saveConcerts(nextShows);
+    await firebaseStorage.saveOrders(nextOrders);
   };
 
   const editShow = (show, e) => {
@@ -522,7 +553,11 @@ export default function PerformancePage() {
         )}
       </div>
 
-      {showsByYear.length === 0 ? (
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', background: '#fff', borderRadius: 12, border: '1px solid var(--slate-200)' }}>
+          <p style={{ color: 'var(--slate-500)', fontSize: 15 }}>공연 정보를 불러오는 중입니다...</p>
+        </div>
+      ) : showsByYear.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', background: '#fff', borderRadius: 12, border: '1px solid var(--slate-200)' }}>
           <p style={{ color: 'var(--slate-500)', fontSize: 15 }}>등록된 공연이 없습니다.</p>
         </div>

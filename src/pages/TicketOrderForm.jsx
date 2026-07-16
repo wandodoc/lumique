@@ -10,8 +10,8 @@ const DEFAULT_TIME = '19:00';
 const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff', fontFamily: 'inherit' };
 
 const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
-const migrate = (v) => { const n = Array.isArray(v) ? v : []; lsSet(LS_SHOWS, n); try { localStorage.removeItem(LS_SHOWS_LEGACY); } catch { } return n; };
+
+import { firebaseStorage } from '../utils/firebaseStorage';
 
 const section = (s = {}) => ({
   id: String(s.id || '').trim(),
@@ -186,6 +186,7 @@ const toast = (msg) => window.alert(msg);
 export default function TicketOrderForm({ showId }) {
   const [show, setShow] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   
   const [name, setName] = useState('');
@@ -200,13 +201,15 @@ export default function TicketOrderForm({ showId }) {
 
   useEffect(() => {
     document.title = 'Lumique 공연 신청 폼';
-    const primary = lsGet(LS_SHOWS);
-    const shows = primary.length ? primary : migrate(lsGet(LS_SHOWS_LEGACY));
-    const found = shows.find(s => s.id === showId);
-    if (found) {
-      setShow({ ...found, customSections: (found.customSections || []).map(section) });
+    async function fetchShow() {
+      const shows = await firebaseStorage.loadConcerts();
+      const found = shows.find(s => s.id === showId);
+      if (found) {
+        setShow({ ...found, customSections: (found.customSections || []).map(section) });
+      }
+      setLoading(false);
     }
-    setLoading(false);
+    fetchShow();
   }, [showId]);
 
   // UI Polishing: Quantity selection UI
@@ -240,27 +243,39 @@ export default function TicketOrderForm({ showId }) {
       }
     }
 
-    const orders = lsGet(LS_ORDERS);
-    const newOrder = {
-      id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      concertId: showId,
-      audienceName: name.trim(),
-      phone: phone.trim(),
-      ticketCount: Number(qty),
-      totalPrice: total,
+    submitOrderAsync();
+  };
+
+  const submitOrderAsync = async () => {
+    setSubmitting(true);
+    try {
+      const orders = await firebaseStorage.loadOrders();
+      const newOrder = {
+        id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        concertId: showId,
+        audienceName: name.trim(),
+        phone: phone.trim(),
+        ticketCount: Number(qty),
+        totalPrice: total,
       depositStatus: '입금대기',
       attendanceStatus: '미입장',
       isAfterParty,
       afterPartyCount: isAfterParty ? Number(afterPartyCount) : 0,
       inviterName: isAfterParty ? (noInviter ? '없음' : inviterName.trim()) : '',
       comment: comment.trim(),
-      customResponses,
-      createdAt: new Date().toISOString()
-    };
-    
-    lsSet(LS_ORDERS, [...orders, newOrder]);
-    setDone(true);
-    window.scrollTo(0, 0);
+        customResponses,
+        createdAt: new Date().toISOString()
+      };
+      
+      await firebaseStorage.saveOrders([...orders, newOrder]);
+      setDone(true);
+      window.scrollTo(0, 0);
+    } catch (e) {
+      console.error(e);
+      toast('예매 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>불러오는 중...</div>;
@@ -323,9 +338,12 @@ export default function TicketOrderForm({ showId }) {
                   무통장 입금: {SUPPORT_ACCOUNT} <br />
                   * 신청 후 24시간 이내 입금 부탁드립니다.
                 </div>
+                <div style={{ marginTop: 32 }}>
+                  <button type="submit" disabled={submitting} style={{ width: '100%', height: 56, borderRadius: 16, background: submitting ? 'var(--slate-400)' : 'var(--blue-600)', color: '#fff', fontSize: 16, fontWeight: 800, border: 'none', cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                    {submitting ? '제출 중...' : '예매 신청하기'}
+                  </button>
+                </div>
               </div>
-
-              <button type="submit" className="btn-primary" style={{ height: 56, fontSize: 16, fontWeight: 800 }}>신청 완료하기</button>
             </div>
           </form>
         </div>

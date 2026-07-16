@@ -11,6 +11,8 @@ const DEPOSIT_DONE = '입금완료';
 const ATTEND_WAIT = '미입장';
 const ATTEND_DONE = '입장완료';
 
+import { firebaseStorage } from '../utils/firebaseStorage';
+
 const loadLS = (key) => {
   try {
     const raw = localStorage.getItem(key);
@@ -20,12 +22,6 @@ const loadLS = (key) => {
   } catch {
     return [];
   }
-};
-
-const saveLS = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
 };
 
 const csvEscape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
@@ -54,20 +50,33 @@ export default function ReservationManagementPage() {
   const { id: concertId } = useParams();
   const navigate = useNavigate();
 
-  const [orders, setOrders] = useState(() => loadLS(LS_ORDERS));
-  const [shows] = useState(() => loadLS(LS_SHOWS));
+  const [orders, setOrders] = useState([]);
+  const [shows, setShows] = useState([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
   useEffect(() => {
     document.title = '🎟️ 티켓 신청 및 입장 관리';
-  }, []);
+    async function loadData() {
+      let fbConcerts = await firebaseStorage.loadConcerts();
+      let fbOrders = await firebaseStorage.loadOrders();
 
-  useEffect(() => {
-    saveLS(LS_ORDERS, orders);
-  }, [orders]);
+      if (fbConcerts.length === 0 && loadLS(LS_SHOWS).length > 0) {
+        fbConcerts = loadLS(LS_SHOWS);
+      }
+      if (fbOrders.length === 0 && loadLS(LS_ORDERS).length > 0) {
+        fbOrders = loadLS(LS_ORDERS);
+      }
+
+      setShows(fbConcerts);
+      setOrders(fbOrders);
+      setLoading(false);
+    }
+    loadData();
+  }, []);
 
   const visibleOrders = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -122,8 +131,10 @@ export default function ReservationManagementPage() {
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  const updateOrder = (id, patch) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  const updateOrder = async (id, patch) => {
+    const nextOrders = orders.map((o) => (o.id === id ? { ...o, ...patch } : o));
+    setOrders(nextOrders);
+    await firebaseStorage.saveOrders(nextOrders);
   };
 
   const toggleDeposit = (order) => {
@@ -153,8 +164,12 @@ export default function ReservationManagementPage() {
     });
   };
 
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>데이터를 불러오는 중입니다...</div>;
+  }
+
   return (
-    <div className="page-shell" style={{ background: '#f8fafc', minHeight: '100dvh' }}>
+    <div className="page fade-in" style={{ background: '#f8fafc', minHeight: '100dvh' }}>
       <div className="page-container" style={{ display: 'grid', gap: 20, padding: '32px 16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div>
