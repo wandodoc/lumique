@@ -39,7 +39,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
   const set = (id, v) => setValues(p => ({ ...p, [id]: v }));
   return sections.filter(s => s.active !== false).map(s => {
     if (s.type === 'text') return (
-      <div key={s.id} style={{ marginTop: 20, padding: '14px 16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+      <div key={s.id} style={{ padding: '14px 16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
         <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>{s.title}</h3>
         <p style={{ fontSize: 14, color: '#4b5563', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s.content}</p>
       </div>
@@ -48,21 +48,21 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
     const label = <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>{s.title}{s.required ? ' *' : ''}</label>;
     
     if (s.type === 'fixed_name') return (
-      <div key={s.id} style={{ marginTop: 20 }}>
+      <div key={s.id}>
         {label}
         <input value={fixed.name} onChange={e => fixed.setName(e.target.value)} style={FIELD_STYLE} placeholder="실명을 입력해주세요" />
       </div>
     );
 
     if (s.type === 'fixed_phone') return (
-      <div key={s.id} style={{ marginTop: 20 }}>
+      <div key={s.id}>
         {label}
         <input value={fixed.phone} onChange={e => fixed.setPhone(e.target.value)} style={FIELD_STYLE} placeholder="010-0000-0000" />
       </div>
     );
 
     if (s.type === 'fixed_qty') return (
-      <div key={s.id} style={{ marginTop: 20 }}>
+      <div key={s.id}>
         {label}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button type="button" onClick={() => fixed.setQty(Math.max(1, fixed.qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
@@ -73,7 +73,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
     );
 
     if (s.type === 'fixed_afterparty') return (
-      <div key={s.id} style={{ marginTop: 20, padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+      <div key={s.id} style={{ padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
           <input type="checkbox" checked={fixed.isAfterParty} onChange={e => fixed.setIsAfterParty(e.target.checked)} style={{ width: 18, height: 18 }} />
           <span style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</span>
@@ -91,15 +91,15 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
       </div>
     );
 
-    if (s.type === 'input_text') return <div key={s.id} style={{ marginTop: 20 }}>{label}<input type="text" value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
-    if (s.type === 'input_textarea') return <div key={s.id} style={{ marginTop: 20 }}>{label}<textarea rows={4} value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
+    if (s.type === 'input_text') return <div key={s.id}>{label}<input type="text" value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
+    if (s.type === 'input_textarea') return <div key={s.id}>{label}<textarea rows={4} value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
     
     if (s.type === 'input_number') {
       const min = s.min ?? 1;
       const max = s.max ?? 10;
       const val = Number(values[s.id] ?? min);
       return (
-        <div key={s.id} style={{ marginTop: 20 }}>
+        <div key={s.id}>
           {label}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button type="button" onClick={() => set(s.id, Math.max(min, val - 1))} style={{ width: 40, height: 40, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 18, cursor: 'pointer' }}>-</button>
@@ -114,7 +114,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
       const isMulti = s.type === 'input_checkbox';
       const cur = isMulti ? (values[s.id] || []) : values[s.id];
       return (
-        <div key={s.id} style={{ marginTop: 20 }}>
+        <div key={s.id}>
           {label}
           <div style={{ display: 'grid', gap: 8 }}>
             {(s.options || []).map(opt => {
@@ -270,7 +270,7 @@ export default function TicketOrderForm({ showId }) {
           </div>
 
           <form onSubmit={submit} style={{ marginTop: 32 }}>
-            <div style={{ display: 'grid', gap: 0 }}>
+            <div style={{ display: 'grid', gap: 24 }}>
               {show.description && (
                 <div style={{ fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6, paddingBottom: 16 }}>
                   {show.description}

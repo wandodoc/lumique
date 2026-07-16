@@ -112,12 +112,20 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
         style={{ border: '1px solid var(--slate-200)', borderRadius: 8, padding: 16, background: isActive ? '#fafafa' : '#f1f5f9', cursor: 'pointer', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', gap: 8, opacity: isActive ? 1 : 0.6 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: isFixed ? 'var(--blue-600)' : 'var(--indigo-600)' }}>
-            {isFixed ? '고정 예매 항목' : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
-            {section.required && isActive && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
-            {!isActive && <span style={{ color: 'var(--slate-500)', marginLeft: 8 }}>(비활성화됨)</span>}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>클릭하여 수정</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: isFixed ? 'var(--blue-600)' : 'var(--indigo-600)' }}>
+              {isFixed ? (section.type === 'fixed_qty' ? '고정 예매 항목 (수량 질문)' : section.type === 'fixed_afterparty' ? '고정 예매 항목 (체크박스)' : '고정 예매 항목 (단답형)') : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
+              {section.required && isActive && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
+              {!isActive && <span style={{ color: 'var(--slate-500)', marginLeft: 8 }}>(비활성화됨)</span>}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onMove(index, -1); }} disabled={index === 0} style={{ background: '#e2e8f0', border: 'none', borderRadius: 4, width: 26, height: 26, cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬆️</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onMove(index, 1); }} disabled={index === totalLength - 1} style={{ background: '#e2e8f0', border: 'none', borderRadius: 4, width: 26, height: 26, cursor: index === totalLength - 1 ? 'not-allowed' : 'pointer', opacity: index === totalLength - 1 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬇️</button>
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>클릭하여 수정</span>
+          </div>
         </div>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--slate-900)' }}>
           {section.title || '(제목 없음)'}
