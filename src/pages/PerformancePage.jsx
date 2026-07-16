@@ -425,8 +425,7 @@ export default function PerformancePage() {
 
   return (
     <div className="page fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: 'var(--slate-900)' }}>공연 목록</h1>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 24 }}>
         {isAdmin && (
           <button className="btn-primary" onClick={() => setEditing(blankShow)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
             + 새 공연 등록
