@@ -224,7 +224,13 @@ function ShowFormModal({ show, onClose, onSave }) {
   };
 
   useEffect(() => {
-    if (!show) { setForm(blankShow); return; }
+    if (!show) { 
+      setForm({
+        ...blankShow,
+        customSections: ensureFixedFields([])
+      }); 
+      return; 
+    }
     const loadedSections = Array.isArray(show.customSections) ? show.customSections.map(cleanSection) : [];
     setForm({
       title: show.title || '',
