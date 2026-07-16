@@ -9,7 +9,7 @@ const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
 const OPEN = '진행중';
 const CLOSED = '종료';
-const TYPES = ['text', 'input_text', 'input_textarea', 'input_radio', 'input_checkbox', 'input_number'];
+const TYPES = ['text', 'input_text', 'input_textarea', 'input_radio', 'input_checkbox', 'input_number', 'fixed_name', 'fixed_phone', 'fixed_qty', 'fixed_afterparty'];
 
 const blankShow = {
   title: '',
@@ -49,16 +49,25 @@ const fmtDT = (d, t = '19:00') => {
   return `${y}.${Number(m)}.${Number(day)} (${w[x.getDay()]}) ${t}`;
 };
 
-const cleanSection = (s = {}) => ({
-  id: String(s.id || '').trim() || id('sec'),
-  type: TYPES.includes(s.type) ? s.type : 'text',
-  title: String(s.title || '').trim(),
-  content: String(s.content || '').trim(),
-  options: Array.isArray(s.options) ? s.options.map(v => String(v || '').trim()).filter(Boolean) : [],
-  min: Number.isFinite(Number(s.min)) ? Number(s.min) : 1,
-  max: Number.isFinite(Number(s.max)) ? Number(s.max) : 10,
-  required: Boolean(s.required)
-});
+const cleanSection = (s = {}) => {
+  let type = s.type;
+  if (s.id === '__fixed_name') type = 'fixed_name';
+  if (s.id === '__fixed_phone') type = 'fixed_phone';
+  if (s.id === '__fixed_qty') type = 'fixed_qty';
+  if (s.id === '__fixed_afterparty') type = 'fixed_afterparty';
+
+  return {
+    id: String(s.id || '').trim() || id('sec'),
+    type: TYPES.includes(type) ? type : 'text',
+    title: String(s.title || '').trim(),
+    content: String(s.content || '').trim(),
+    options: Array.isArray(s.options) ? s.options.map(v => String(v || '').trim()).filter(Boolean) : [],
+    min: Number.isFinite(Number(s.min)) ? Number(s.min) : 1,
+    max: Number.isFinite(Number(s.max)) ? Number(s.max) : 10,
+    required: Boolean(s.required),
+    active: s.active !== false
+  };
+};
 
 const cleanShow = (s) => {
   if (!s || typeof s !== 'object') return null;
