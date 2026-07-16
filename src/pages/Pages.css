@@ -1115,6 +1115,51 @@
   letter-spacing: -0.2px;
 }
 
+.perf-modal-body-split {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 24px;
+}
+
+.mock-phone-container {
+  width: 100%;
+  max-width: 340px;
+  border: 8px solid var(--slate-800);
+  border-radius: 32px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  background: var(--white);
+  height: 520px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mock-phone-screen {
+  overflow-y: auto;
+  flex: 1;
+  font-size: 13px;
+  background: var(--slate-50);
+}
+
+.mock-phone-screen::-webkit-scrollbar {
+  width: 4px;
+}
+.mock-phone-screen::-webkit-scrollbar-thumb {
+  background: var(--slate-300);
+  border-radius: 2px;
+}
+
+@media (max-width: 768px) {
+  .perf-modal-body-split {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .mock-phone-container {
+    margin: 0 auto;
+    height: 480px;
+  }
+}
+
 .perf-modal-header {
   display: flex;
   justify-content: space-between;

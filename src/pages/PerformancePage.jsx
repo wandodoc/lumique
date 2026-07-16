@@ -392,7 +392,7 @@ function ShowFormModal({ show, onClose, onSave }) {
   );
 }
 
-function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
+function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
   if (!show) return null;
   const formUrl = `${window.location.origin}/form/${show.id}`;
 
@@ -401,9 +401,15 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
     alert('신청 폼 링크가 복사되었습니다.');
   };
 
+  const totalTickets = orders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0);
+  const paidTickets = orders.reduce((sum, o) => sum + (o.depositStatus === '입금완료' ? (Number(o.ticketCount) || 0) : 0), 0);
+  const unpaidTickets = totalTickets - paidTickets;
+  const expectedRevenue = totalTickets * (Number(show.price || 0));
+  const paidRevenue = paidTickets * (Number(show.price || 0));
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: '800px', background: '#fff', borderRadius: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+      <div style={{ width: '100%', maxWidth: '880px', background: '#fff', borderRadius: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
         
         <div className="perf-modal-header">
           <div>
@@ -429,25 +435,125 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
           </div>
         </div>
 
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'grid', gap: 24 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
-            {card('공연 정보', (
-              <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
-                <div><strong>상태:</strong> {show.status === CLOSED ? '종료' : '진행 중'}</div>
-                <div><strong>장소:</strong> {show.location}</div>
-                <div><strong>티켓 금액:</strong> {Number(show.price || 0).toLocaleString()}원</div>
-                <div style={{ marginTop: 16 }}>
-                  <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>관객용 신청 폼 링크</label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <a href={formUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, background: '#f8fafc', color: 'var(--blue-600)', textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {formUrl}
-                    </a>
-                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 36, fontSize: 13, padding: '0 12px', whiteSpace: 'nowrap' }}>복사</button>
+        <div style={{ padding: '24px 30px 30px', overflowY: 'auto', flex: 1 }}>
+          <div className="perf-modal-body-split">
+            {/* 좌측: 예매 신청 폼 스마트폰 미리보기 */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📱 예매 폼 미리보기 (모바일 환경)</span>
+              <div className="mock-phone-container">
+                <div className="mock-phone-screen">
+                  {show.imageUrl ? (
+                    <img src={show.imageUrl} style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }} alt="Poster" />
+                  ) : (
+                    <div style={{ height: 120, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>포스터 이미지 없음</div>
+                  )}
+                  <div style={{ padding: 16 }}>
+                    <h4 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 900, color: 'var(--slate-900)', lineHeight: 1.3 }}>{show.title}</h4>
+                    <div style={{ background: '#fff', borderRadius: 10, padding: 12, display: 'grid', gap: 6, border: '1px solid #e2e8f0', fontSize: 11, marginBottom: 16 }}>
+                      <div style={{ display: 'flex', gap: 6 }}><span style={{ color: '#64748b', minWidth: 44 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
+                      <div style={{ display: 'flex', gap: 6 }}><span style={{ color: '#64748b', minWidth: 44 }}>장소</span><span style={{ fontWeight: 700 }}>{show.location}</span></div>
+                      <div style={{ display: 'flex', gap: 6 }}><span style={{ color: '#64748b', minWidth: 44 }}>금액</span><span style={{ fontWeight: 700 }}>{Number(show.price || 0).toLocaleString()}원 / 1매</span></div>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: 12, opacity: 0.75, pointerEvents: 'none' }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>신청자 성함 *</label>
+                        <input type="text" placeholder="실명을 입력해주세요" disabled style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>연락처 *</label>
+                        <input type="text" placeholder="010-0000-0000" disabled style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, background: '#f8fafc' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 4 }}>신청 매수 *</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button type="button" disabled style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', fontSize: 14 }}>-</button>
+                          <div style={{ fontSize: 13, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>1매</div>
+                          <button type="button" disabled style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', fontSize: 14 }}>+</button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button type="button" disabled style={{ width: '100%', marginTop: 24, padding: '10px 0', background: '#94a3b8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13 }}>예매 신청하기 (미리보기)</button>
                   </div>
                 </div>
               </div>
-            ))}
-            {card('포스터', show.imageUrl ? <img src={show.imageUrl} style={{ width: '100%', borderRadius: 8 }} /> : <div style={{ height: 160, background: '#f1f5f9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>포스터 없음</div>)}
+            </div>
+
+            {/* 우측: 관리용 대시보드 통계 카드 */}
+            <div style={{ display: 'grid', gap: 20, alignContent: 'start' }}>
+              
+              {/* 공연 기본 정보 및 링크 카드 */}
+              {card('🔗 공연 신청 링크 공유', (
+                <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={formUrl} 
+                      style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13, background: '#f8fafc', color: 'var(--slate-800)', outline: 'none' }} 
+                    />
+                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 38, fontSize: 13, padding: '0 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>링크 복사</button>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-400)' }}>
+                    ※ 위 링크를 관객들에게 SNS나 메시지로 공유하면 예매를 접수받을 수 있습니다.
+                  </p>
+                </div>
+              ))}
+
+              {/* 예매 현황 카드 */}
+              {card('📊 실시간 예매 신청 및 입금 현황', (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {/* 주요 숫자 요약 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, background: 'var(--slate-50)', padding: 14, borderRadius: 12, border: '1px solid var(--slate-100)' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--slate-400)', fontWeight: 600, marginBottom: 4 }}>총 신청 수량</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--slate-800)' }}>{totalTickets}매</div>
+                    </div>
+                    <div style={{ textAlign: 'center', borderLeft: '1px solid var(--slate-200)', borderRight: '1px solid var(--slate-200)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--emerald-500)', fontWeight: 600, marginBottom: 4 }}>입금 완료</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--emerald-600)' }}>{paidTickets}매</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--amber-500)', fontWeight: 600, marginBottom: 4 }}>미입금 대기</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--amber-600)' }}>{unpaidTickets}매</div>
+                    </div>
+                  </div>
+
+                  {/* 정산 요약 */}
+                  <div style={{ display: 'grid', gap: 8, fontSize: 14, padding: '4px 8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--slate-500)' }}>티켓 단가</span>
+                      <span style={{ fontWeight: 600 }}>{Number(show.price || 0).toLocaleString()}원</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dotted var(--slate-200)', paddingTop: 8 }}>
+                      <span style={{ color: 'var(--slate-500)' }}>입금 완료액</span>
+                      <span style={{ fontWeight: 800, color: 'var(--emerald-600)' }}>{paidRevenue.toLocaleString()}원</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--slate-500)' }}>미입금액 (대기)</span>
+                      <span style={{ fontWeight: 800, color: 'var(--amber-600)' }}>{((unpaidTickets) * (Number(show.price || 0))).toLocaleString()}원</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--slate-200)', paddingTop: 8, fontSize: 15 }}>
+                      <span style={{ fontWeight: 800, color: 'var(--slate-800)' }}>예상 총 매출액</span>
+                      <span style={{ fontWeight: 900, color: 'var(--blue-600)' }}>{expectedRevenue.toLocaleString()}원</span>
+                    </div>
+                  </div>
+
+                  {/* 모바일 화면용 포스터 미리보기 추가 */}
+                  {show.imageUrl && (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', borderTop: '1px solid var(--slate-100)', paddingTop: 14 }}>
+                      <img src={show.imageUrl} style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover' }} alt="Poster Thumbnail" />
+                      <div style={{ fontSize: 12, color: 'var(--slate-500)' }}>
+                        <strong>포스터 등록 완료</strong><br/>
+                        예매 화면 최상단과 SNS 링크 공유 카드에 노출됩니다.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
       </div>
@@ -647,7 +753,7 @@ export default function PerformancePage() {
       )}
 
       {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
-      {detail && <ShowDetailModal show={detail} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail); setDetail(null); }} isAdmin={isAdmin} />}
+      {detail && <ShowDetailModal show={detail} orders={orders.filter(o => o.concertId === detail.id)} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail); setDetail(null); }} isAdmin={isAdmin} />}
     </div>
   );
 }
