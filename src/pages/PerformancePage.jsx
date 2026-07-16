@@ -100,19 +100,22 @@ const card = (title, children) => (
   </section>
 );
 
-function SectionEditor({ section, index, onChange, onRemove }) {
+function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove }) {
   const [isEditing, setIsEditing] = useState(!section.title);
+  const isFixed = section.type?.startsWith('fixed_');
+  const isActive = section.active !== false;
 
   if (!isEditing) {
     return (
       <div 
         onClick={() => setIsEditing(true)}
-        style={{ border: '1px solid var(--slate-200)', borderRadius: 8, padding: 16, background: '#fafafa', cursor: 'pointer', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', gap: 8 }}
+        style={{ border: '1px solid var(--slate-200)', borderRadius: 8, padding: 16, background: isActive ? '#fafafa' : '#f1f5f9', cursor: 'pointer', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', gap: 8, opacity: isActive ? 1 : 0.6 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--indigo-600)' }}>
-            {section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
-            {section.required && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
+          <span style={{ fontSize: 13, fontWeight: 700, color: isFixed ? 'var(--blue-600)' : 'var(--indigo-600)' }}>
+            {isFixed ? '고정 예매 항목' : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
+            {section.required && isActive && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
+            {!isActive && <span style={{ color: 'var(--slate-500)', marginLeft: 8 }}>(비활성화됨)</span>}
           </span>
           <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>클릭하여 수정</span>
         </div>
@@ -125,22 +128,32 @@ function SectionEditor({ section, index, onChange, onRemove }) {
   }
 
   return (
-    <div style={{ border: '1px solid var(--indigo-300)', borderRadius: 8, padding: 16, background: '#fff', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+    <div style={{ border: `1px solid ${isFixed ? 'var(--blue-300)' : 'var(--indigo-300)'}`, borderRadius: 8, padding: 16, background: '#fff', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
-        <select
-          value={section.type}
-          onChange={(e) => onChange(section.id, { type: e.target.value, options: e.target.value === 'text' ? [] : section.options })}
-          className="search-input"
-          style={{ height: 40, flex: 1, background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8 }}
-        >
-          <option value="text">안내 텍스트</option>
-          <option value="input_text">단답형 질문</option>
-          <option value="input_textarea">장문형 질문</option>
-          <option value="input_radio">단일 선택(라디오)</option>
-          <option value="input_checkbox">복수 선택(체크박스)</option>
-          <option value="input_number">수량(숫자) 질문</option>
-        </select>
-        <button type="button" onClick={() => onRemove(section.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '8px 4px' }}>항목 삭제</button>
+        {isFixed ? (
+          <div style={{ height: 40, flex: 1, background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8, display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 14, fontWeight: 700, color: 'var(--slate-700)' }}>
+            고정 항목: {section.title}
+          </div>
+        ) : (
+          <select
+            value={section.type}
+            onChange={(e) => onChange(section.id, { type: e.target.value, options: e.target.value === 'text' ? [] : section.options })}
+            className="search-input"
+            style={{ height: 40, flex: 1, background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8 }}
+          >
+            <option value="text">안내 텍스트</option>
+            <option value="input_text">단답형 질문</option>
+            <option value="input_textarea">장문형 질문</option>
+            <option value="input_radio">단일 선택(라디오)</option>
+            <option value="input_checkbox">복수 선택(체크박스)</option>
+            <option value="input_number">수량(숫자) 질문</option>
+          </select>
+        )}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button type="button" onClick={() => onMove(index, -1)} disabled={index === 0} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬆️</button>
+          <button type="button" onClick={() => onMove(index, 1)} disabled={index === totalLength - 1} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: index === totalLength - 1 ? 'not-allowed' : 'pointer', opacity: index === totalLength - 1 ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬇️</button>
+        </div>
+        {!isFixed && <button type="button" onClick={() => onRemove(section.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '8px 4px' }}>항목 삭제</button>}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -173,6 +186,15 @@ function SectionEditor({ section, index, onChange, onRemove }) {
         </label>
       )}
 
+      {isFixed && (
+        <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 16, marginTop: 4 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#374151' }}>
+            <input type="checkbox" checked={isActive} onChange={(e) => onChange(section.id, { active: e.target.checked })} style={{ width: 16, height: 16 }} />
+            이 항목 사용하기 (폼에 노출)
+          </label>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
         <button type="button" onClick={() => setIsEditing(false)} className="btn-primary" style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>편집 완료</button>
       </div>
@@ -184,8 +206,18 @@ function ShowFormModal({ show, onClose, onSave }) {
   const [form, setForm] = useState(blankShow);
   const [isSaving, setIsSaving] = useState(false);
 
+  const ensureFixedFields = (sections = []) => {
+    let s = [...sections];
+    if (!s.some(x => x.type === 'fixed_name')) s.push({ id: '__fixed_name', type: 'fixed_name', title: '신청자 성함', required: true, active: true });
+    if (!s.some(x => x.type === 'fixed_phone')) s.push({ id: '__fixed_phone', type: 'fixed_phone', title: '연락처', required: true, active: true });
+    if (!s.some(x => x.type === 'fixed_qty')) s.push({ id: '__fixed_qty', type: 'fixed_qty', title: '신청 매수', required: true, active: true });
+    if (!s.some(x => x.type === 'fixed_afterparty')) s.push({ id: '__fixed_afterparty', type: 'fixed_afterparty', title: '뒤풀이 참여 여부', required: false, active: true });
+    return s;
+  };
+
   useEffect(() => {
     if (!show) { setForm(blankShow); return; }
+    const loadedSections = Array.isArray(show.customSections) ? show.customSections.map(cleanSection) : [];
     setForm({
       title: show.title || '',
       date: show.date || '',
@@ -195,7 +227,7 @@ function ShowFormModal({ show, onClose, onSave }) {
       description: show.description || '',
       status: show.status === CLOSED ? CLOSED : OPEN,
       imageUrl: show.imageUrl || '',
-      customSections: Array.isArray(show.customSections) ? show.customSections.map(cleanSection) : [],
+      customSections: ensureFixedFields(loadedSections),
       supportAccount: show.supportAccount || SUPPORT_ACCOUNT
     });
   }, [show]);
@@ -204,6 +236,12 @@ function ShowFormModal({ show, onClose, onSave }) {
   const sec = (id, patch) => setForm(p => ({ ...p, customSections: p.customSections.map(s => s.id === id ? { ...s, ...patch } : s) }));
   const add = (type) => setForm(p => ({ ...p, customSections: [...p.customSections, cleanSection({ type })] }));
   const del = (id) => setForm(p => ({ ...p, customSections: p.customSections.filter(s => s.id !== id) }));
+  const move = (idx, dir) => setForm(p => {
+    const copy = [...p.customSections];
+    if (idx + dir < 0 || idx + dir >= copy.length) return p;
+    [copy[idx], copy[idx + dir]] = [copy[idx + dir], copy[idx]];
+    return { ...p, customSections: copy };
+  });
 
   const handleImageUpload = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -271,7 +309,7 @@ function ShowFormModal({ show, onClose, onSave }) {
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={labelStyle}>티켓 가격 (원)</label>
+                <label style={labelStyle}>티켓 금액 (원)</label>
                 <input type="number" value={form.price} onChange={e => update('price', e.target.value)} style={inputStyle} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -315,7 +353,7 @@ function ShowFormModal({ show, onClose, onSave }) {
                   </div>
                 ) : (
                   form.customSections.map((s, idx) => (
-                    <SectionEditor key={s.id} section={s} index={idx} onChange={sec} onRemove={del} />
+                    <SectionEditor key={s.id} section={s} index={idx} totalLength={form.customSections.length} onChange={sec} onRemove={del} onMove={move} />
                   ))
                 )}
               </div>
@@ -377,7 +415,7 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
               <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
                 <div><strong>상태:</strong> {show.status === CLOSED ? '종료' : '진행 중'}</div>
                 <div><strong>장소:</strong> {show.location}</div>
-                <div><strong>가격:</strong> {Number(show.price || 0).toLocaleString()}원</div>
+                <div><strong>티켓 금액:</strong> {Number(show.price || 0).toLocaleString()}원</div>
                 <div style={{ marginTop: 16 }}>
                   <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>관객용 신청 폼 링크</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

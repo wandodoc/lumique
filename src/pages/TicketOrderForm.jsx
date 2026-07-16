@@ -33,21 +33,64 @@ const fmtDT = (d, t = DEFAULT_TIME) => {
   return `${y}.${Number(m)}.${Number(day)} (${w[x.getDay()]}) ${t}`;
 };
 
-function TextSections({ sections = [] }) {
-  return sections.filter(s => s.type === 'text').map(s => (
-    <div key={s.id} style={{ marginTop: 20, padding: '14px 16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-      <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>{s.title}</h3>
-      <p style={{ fontSize: 14, color: '#4b5563', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s.content}</p>
-    </div>
-  ));
-}
+// TextSections is removed as we will render everything inline.
 
-function RenderSections({ sections = [], values, setValues }) {
+function RenderSections({ sections = [], values, setValues, fixed }) {
   const set = (id, v) => setValues(p => ({ ...p, [id]: v }));
-  return sections.map(s => {
-    if (s.type === 'text') return null;
+  return sections.filter(s => s.active !== false).map(s => {
+    if (s.type === 'text') return (
+      <div key={s.id} style={{ marginTop: 20, padding: '14px 16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>{s.title}</h3>
+        <p style={{ fontSize: 14, color: '#4b5563', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s.content}</p>
+      </div>
+    );
+    
     const label = <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 7 }}>{s.title}{s.required ? ' *' : ''}</label>;
     
+    if (s.type === 'fixed_name') return (
+      <div key={s.id} style={{ marginTop: 20 }}>
+        {label}
+        <input value={fixed.name} onChange={e => fixed.setName(e.target.value)} style={FIELD_STYLE} placeholder="실명을 입력해주세요" />
+      </div>
+    );
+
+    if (s.type === 'fixed_phone') return (
+      <div key={s.id} style={{ marginTop: 20 }}>
+        {label}
+        <input value={fixed.phone} onChange={e => fixed.setPhone(e.target.value)} style={FIELD_STYLE} placeholder="010-0000-0000" />
+      </div>
+    );
+
+    if (s.type === 'fixed_qty') return (
+      <div key={s.id} style={{ marginTop: 20 }}>
+        {label}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="button" onClick={() => fixed.setQty(Math.max(1, fixed.qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
+          <div style={{ fontSize: 16, fontWeight: 700, minWidth: 40, textAlign: 'center' }}>{fixed.qty}매</div>
+          <button type="button" onClick={() => fixed.setQty(Math.min(10, fixed.qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
+        </div>
+      </div>
+    );
+
+    if (s.type === 'fixed_afterparty') return (
+      <div key={s.id} style={{ marginTop: 20, padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <input type="checkbox" checked={fixed.isAfterParty} onChange={e => fixed.setIsAfterParty(e.target.checked)} style={{ width: 18, height: 18 }} />
+          <span style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</span>
+        </label>
+        {fixed.isAfterParty && (
+          <div style={{ marginTop: 16, pt: 16, borderTop: '1px dotted #e2e8f0' }}>
+            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>뒤풀이 참여 인원 (본인 포함)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button type="button" onClick={() => fixed.setAfterPartyCount(Math.max(1, fixed.afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>-</button>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{fixed.afterPartyCount}명</span>
+              <button type="button" onClick={() => fixed.setAfterPartyCount(fixed.afterPartyCount + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
     if (s.type === 'input_text') return <div key={s.id} style={{ marginTop: 20 }}>{label}<input type="text" value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
     if (s.type === 'input_textarea') return <div key={s.id} style={{ marginTop: 20 }}>{label}<textarea rows={4} value={values[s.id] || ''} onChange={(e) => set(s.id, e.target.value)} style={FIELD_STYLE} placeholder={s.content || '답변을 입력해주세요.'} /></div>;
     
@@ -149,13 +192,18 @@ export default function TicketOrderForm({ showId }) {
 
   const submit = (e) => {
     e.preventDefault();
-    if (!name.trim()) return toast('신청자명을 입력해주세요.');
-    if (!phone.trim()) return toast('연락처를 입력해주세요.');
-    if (qty < 1) return toast('신청 매수는 1매 이상이어야 합니다.');
+    // Validate required fields explicitly if they are active
+    const activeFixedName = show?.customSections?.find(s => s.type === 'fixed_name' && s.active !== false);
+    const activeFixedPhone = show?.customSections?.find(s => s.type === 'fixed_phone' && s.active !== false);
+    const activeFixedQty = show?.customSections?.find(s => s.type === 'fixed_qty' && s.active !== false);
+
+    if (activeFixedName && activeFixedName.required && !name.trim()) return toast(`${activeFixedName.title}을(를) 입력해주세요.`);
+    if (activeFixedPhone && activeFixedPhone.required && !phone.trim()) return toast(`${activeFixedPhone.title}을(를) 입력해주세요.`);
+    if (activeFixedQty && activeFixedQty.required && qty < 1) return toast(`${activeFixedQty.title}은(는) 1매 이상이어야 합니다.`);
     
     // Validate custom sections using optional chaining
     for (const s of (show?.customSections || [])) {
-      if (s.type === 'text') continue;
+      if (s.type === 'text' || s.type.startsWith('fixed_') || s.active === false) continue;
       const v = customResponses[s.id];
       if (s.required) {
         if (s.type === 'input_checkbox' && (!v || v.length === 0)) return toast(`${s.title}을(를) 선택해주세요.`);
@@ -214,52 +262,27 @@ export default function TicketOrderForm({ showId }) {
       <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         {show.imageUrl && <img src={show.imageUrl} style={{ width: '100%', display: 'block' }} />}
         <div style={{ padding: 28 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title} 예매 신청</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title}</h1>
           <div style={{ background: '#f8fafc', borderRadius: 16, padding: 16, display: 'grid', gap: 8, border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
             <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>장소</span><span style={{ fontWeight: 700 }}>{show.location}</span></div>
-            <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>가격</span><span style={{ fontWeight: 700 }}>{price.toLocaleString()}원 / 1매</span></div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>티켓 금액</span><span style={{ fontWeight: 700 }}>{price.toLocaleString()}원 / 1매</span></div>
           </div>
 
           <form onSubmit={submit} style={{ marginTop: 32 }}>
-            <div style={{ display: 'grid', gap: 24 }}>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>신청자 성함 *</label>
-                <input value={name} onChange={e => setName(e.target.value)} style={FIELD_STYLE} placeholder="실명을 입력해주세요" />
-              </div>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>연락처 *</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} style={FIELD_STYLE} placeholder="010-0000-0000" />
-              </div>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>신청 매수 *</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button type="button" onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
-                  <div style={{ fontSize: 16, fontWeight: 700, minWidth: 40, textAlign: 'center' }}>{qty}매</div>
-                  <button type="button" onClick={() => setQty(Math.min(10, qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
+            <div style={{ display: 'grid', gap: 0 }}>
+              {show.description && (
+                <div style={{ fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6, paddingBottom: 16 }}>
+                  {show.description}
                 </div>
-              </div>
+              )}
 
-
-              <div style={{ padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={isAfterParty} onChange={e => setIsAfterParty(e.target.checked)} style={{ width: 18, height: 18 }} />
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>뒤풀이 참여 여부</span>
-                </label>
-                {isAfterParty && (
-                  <div style={{ marginTop: 16, pt: 16, borderTop: '1px dotted #e2e8f0' }}>
-                    <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>뒤풀이 참여 인원 (본인 포함)</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <button type="button" onClick={() => setAfterPartyCount(Math.max(1, afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>-</button>
-                      <span style={{ fontSize: 15, fontWeight: 700 }}>{afterPartyCount}명</span>
-                      <button type="button" onClick={() => setAfterPartyCount(afterPartyCount + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <RenderSections sections={show.customSections} values={customResponses} setValues={setCustomResponses} />
-              <TextSections sections={show.customSections} />
+              <RenderSections 
+                sections={show.customSections} 
+                values={customResponses} 
+                setValues={setCustomResponses} 
+                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount }} 
+              />
 
               <div>
                 <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>기타 남기실 말씀</label>
