@@ -208,7 +208,7 @@ export default function Layout({ children }) {
 
         {activeSubmenu === 'activity_group' && [
           { id: 'members', label: '회원 관리', icon: '👥', path: '/members' },
-          { id: 'perf', label: '공연 목록', icon: '🎭', path: '/concerts' },
+          { id: 'perf', label: '공연 관리', icon: '🎭', path: '/concerts' },
           { id: 'calendar', label: '연습 일정', icon: '📅', path: '/calendar' },
         ].map(item => (
           <button key={item.id} 
