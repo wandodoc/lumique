@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 
   try {
     if (showId) {
-      const url = 'https://firestore.googleapis.com/v1/projects/lumique-3a380/databases/(default)/documents/club_ledger/concerts_state';
+      const url = 'https://firestore.googleapis.com/v1/projects/lumique-3a380/databases/(default)/documents/club_ledger/main_state';
       const fbRes = await fetch(url);
       
       if (fbRes.ok) {
