@@ -186,80 +186,74 @@ export default function ReservationManagementPage() {
   return (
     <div className="page fade-in" style={{ background: '#f8fafc', minHeight: '100dvh' }}>
       <div className="page-container" style={{ display: 'grid', gap: 20, padding: '32px 16px' }}>
+        {/* ── 페이지 헤더 ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: 'var(--indigo-50)', color: 'var(--indigo-600)', fontSize: 12, fontWeight: 800, marginBottom: 12 }}>
-              🎟️ 티켓 관리 대시보드
-            </div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#6366f1', letterSpacing: '0.05em', textTransform: 'uppercase' }}>🎟️ 티켓 관리</span>
             {currentShow ? (
-              <div style={{ display: 'grid', gap: 10 }}>
-                <h1 style={{ margin: 0, fontSize: 32, fontWeight: 950, color: 'var(--slate-900)', letterSpacing: '-0.8px', lineHeight: 1.2 }}>
+              <>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.4px', lineHeight: 1.3 }}>
                   {currentShow.title}
                 </h1>
-                <div style={{ display: 'grid', gap: 4, fontSize: 14, color: 'var(--slate-600)', fontWeight: 500, borderLeft: '3px solid var(--indigo-300)', paddingLeft: 12, marginTop: 4 }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <span style={{ color: 'var(--slate-400)', minWidth: 40 }}>일정</span>
-                    <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{formatShowDT(currentShow.date, currentShow.time)}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <span style={{ color: 'var(--slate-400)', minWidth: 40 }}>장소</span>
-                    <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{currentShow.location}</span>
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                  <span>🗓️ {formatShowDT(currentShow.date, currentShow.time)}</span>
+                  <span>📍 {currentShow.location}</span>
                 </div>
-              </div>
+              </>
             ) : (
-              <h1 style={{ margin: 0, fontSize: 32, fontWeight: 950, color: 'var(--slate-900)', letterSpacing: '-0.8px', lineHeight: 1.2 }}>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.4px', lineHeight: 1.3 }}>
                 전체 공연 예매 관리
               </h1>
             )}
           </div>
-          <button type="button" className="btn-secondary" style={{ height: 44, padding: '0 20px', borderRadius: 12, fontWeight: 700 }} onClick={() => navigate('/concerts')}>
-            공연 목록으로 돌아가기
+          <button type="button" className="btn-secondary" style={{ height: 38, padding: '0 16px', borderRadius: 10, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => navigate('/concerts')}>
+            ← 공연 목록
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-          <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="var(--indigo-600)" />
-          <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="var(--blue-600)" />
-          <StatCard label="입금 완료" value={`${totals.paidTickets}명`} color="var(--emerald-600)" />
-          <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="var(--slate-600)" />
+        {/* ── 통계 카드 ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+          <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="#4f46e5" />
+          <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="#2563eb" />
+          <StatCard label="입금 완료" value={`${totals.paidTickets}매`} color="#059669" />
+          <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="#64748b" />
         </div>
 
-        <div className="card card-pad" style={{ display: 'grid', gap: 18, borderRadius: 20, border: '1px solid var(--slate-100)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: 16 }}>🔎</span>
+        <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: 15 }}>🔎</span>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="예매자명 또는 연락처 검색"
                 className="search-input"
-                style={{ width: '100%', paddingLeft: 42, height: 48, boxSizing: 'border-box', borderRadius: 14, fontSize: 15 }}
+                style={{ width: '100%', paddingLeft: 38, height: 42, boxSizing: 'border-box', borderRadius: 12, fontSize: 14 }}
               />
             </div>
-            <button type="button" className="btn-secondary" style={{ height: 48, padding: '0 18px', borderRadius: 14, fontWeight: 700 }} onClick={exportCsv}>CSV 내보내기</button>
+            <button type="button" className="btn-secondary" style={{ height: 42, padding: '0 14px', borderRadius: 12, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }} onClick={exportCsv}>CSV 내보내기</button>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
-              ['전체 보기', 'all'],
-              ['입금대기자만 보기', 'deposit-wait'],
-              ['미입장자만 보기', 'attend-wait'],
+              ['전체', 'all'],
+              ['입금대기', 'deposit-wait'],
+              ['미입장', 'attend-wait'],
             ].map(([label, value]) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setFilter(value)}
                 style={{
-                  height: 38,
-                  padding: '0 16px',
-                  borderRadius: 10,
+                  height: 34,
+                  padding: '0 14px',
+                  borderRadius: 8,
                   border: '1.5px solid',
-                  borderColor: filter === value ? '#111827' : 'var(--slate-200)',
+                  borderColor: filter === value ? '#111827' : '#e2e8f0',
                   background: filter === value ? '#111827' : '#fff',
-                  color: filter === value ? '#fff' : 'var(--slate-700)',
-                  fontSize: 14,
-                  fontWeight: 800,
+                  color: filter === value ? '#fff' : '#475569',
+                  fontSize: 13,
+                  fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'all 0.2s'
                 }}
