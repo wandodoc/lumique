@@ -347,7 +347,7 @@ export default function CalendarPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
                 {calendarCells.map((day, index) => {
                   if (day === null) {
-                    return <div key={`empty-${index}`} style={{ aspectRatio: '1', background: '#f8fafc', borderRadius: 8 }} />;
+                    return <div key={`empty-${index}`} style={{ aspectRatio: '1', background: '#f8fafc', borderRadius: 8, boxSizing: 'border-box' }} />;
                   }
 
                   const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -363,14 +363,19 @@ export default function CalendarPage() {
 
                   return (
                     <div key={`day-${day}`} style={{
-                      height: '80px',
+                      aspectRatio: '1 / 1',
                       background: isToday ? '#eff6ff' : '#ffffff',
-                      border: isToday ? '2px solid #3b82f6' : '1px solid var(--slate-100)',
+                      border: '1px solid',
+                      borderColor: isToday ? '#3b82f6' : 'var(--slate-100)',
+                      boxShadow: isToday ? 'inset 0 0 0 1px #3b82f6' : 'none',
+                      boxSizing: 'border-box',
                       borderRadius: 8,
-                      padding: 4,
+                      padding: 6,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 4
+                      gap: 4,
+                      overflow: 'hidden',
+                      alignItems: 'flex-start'
                     }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? '#1d4ed8' : 'var(--slate-600)' }}>{day}</span>
                       {dayActs.length > 0 && (
