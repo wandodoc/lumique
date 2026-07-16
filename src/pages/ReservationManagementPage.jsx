@@ -245,13 +245,13 @@ export default function ReservationManagementPage() {
               <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 14, minWidth: 700 }}>
                 <thead>
                   <tr style={{ background: 'var(--slate-50)', borderBottom: '2px solid var(--slate-100)' }}>
-                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>예매자명</th>
-                    <th style={{ width: '90px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 매수</th>
-                    <th style={{ width: '130px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>뒤풀이 참여자 수</th>
+                    <th style={{ width: '160px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>예매자명</th>
+                    <th style={{ width: '80px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 매수</th>
+                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>뒤풀이 참여자 수</th>
                     <th style={{ width: 'auto', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>남기신 말씀</th>
                     <th style={{ width: '140px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>신청 시간</th>
-                    <th style={{ width: '110px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입금 여부</th>
-                    <th style={{ width: '110px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입장 여부</th>
+                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입금 여부</th>
+                    <th style={{ width: '120px', padding: '14px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)' }}>입장 여부</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -262,20 +262,20 @@ export default function ReservationManagementPage() {
                     const isEntered = currentEntered === totalTickets;
                     
                     return (
-                      <tr key={o.id} style={{ borderBottom: '1px solid var(--slate-100)', transition: 'background 0.2s', textAlign: 'center' }}>
-                        <td style={{ padding: '16px 12px', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.audienceName}</td>
-                        <td style={{ padding: '16px 12px', fontWeight: 700, color: 'var(--slate-700)' }}>{o.ticketCount}매</td>
-                        <td style={{ padding: '16px 12px' }}>
+                      <tr key={o.id} style={{ borderBottom: '1px solid var(--slate-100)', transition: 'background 0.2s' }}>
+                        <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.audienceName}</td>
+                        <td style={{ padding: '16px 12px', textAlign: 'center', fontWeight: 700, color: 'var(--slate-700)' }}>{o.ticketCount}매</td>
+                        <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                           <div style={{ fontWeight: 600 }}>{o.isAfterParty ? `${o.afterPartyCount || 1}명` : '0명'}</div>
                           {o.isAfterParty && o.inviterName && (
                             <div style={{ fontSize: 11, color: 'var(--slate-500)', marginTop: 4 }}>초대자: {o.inviterName}</div>
                           )}
                         </td>
-                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.comment || '-'}</td>
-                        <td style={{ padding: '16px 12px', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <td style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.comment || '-'}</td>
+                        <td style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {o.createdAt ? formatDate(o.createdAt) : '-'}
                         </td>
-                        <td style={{ padding: '16px 12px' }}>
+                        <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                           <button
                             type="button"
                             onClick={() => toggleDeposit(o)}
@@ -296,7 +296,7 @@ export default function ReservationManagementPage() {
                             {isPaid ? '입금 완료' : '입금 대기'}
                           </button>
                         </td>
-                        <td style={{ padding: '16px 12px' }}>
+                        <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                           <button
                             type="button"
                             onClick={() => toggleAttendance(o)}
@@ -334,7 +334,7 @@ export default function ReservationManagementPage() {
           )}
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0', fontWeight: 500 }}>
-          관리자만 상태 토글이 가능합니다. 모든 데이터는 클라우드(Firebase)에 실시간으로 안전하게 보관됩니다.
+          관리자만 상태 토글이 가능합니다. 모든 데이터는 브라우저 로컬 스토리지에 안전하게 보관됩니다.
         </div>
       </div>
     </div>
