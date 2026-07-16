@@ -405,29 +405,29 @@ function ShowDetailModal({ show, onClose, onEdit, isAdmin }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(15,23,42,.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
       <div style={{ width: '100%', maxWidth: '800px', background: '#fff', borderRadius: 20, boxShadow: '0 24px 80px rgba(15,23,42,.2)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '24px', borderBottom: '1px solid var(--slate-100)' }}>
+        <div className="perf-modal-header">
           <div>
             <h3 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--slate-900)' }}>{show.title}</h3>
             <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--slate-500)' }}>{fmtDT(show.date, show.time)} · {show.location}</p>
           </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {isAdmin && (
-                  <button type="button" onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--indigo-300)', background: '#f8fafc', color: 'var(--indigo-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    공연 수정
-                  </button>
-                )}
-                <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>닫기</button>
-                <button 
-                  onClick={() => window.open(`/manage/${show.id}`, '_blank')}
-                  className="btn-primary"
-                  style={{ background: 'var(--blue-600)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}
-                >
-                  티켓 관리로 이동 ➔
+          <div className="perf-modal-header-actions">
+            <div className="perf-modal-btn-row">
+              {isAdmin && (
+                <button type="button" onClick={onEdit} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--indigo-300)', background: '#f8fafc', color: 'var(--indigo-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  공연 수정
                 </button>
-              </div>
+              )}
+              <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--slate-300)', background: 'transparent', color: 'var(--slate-600)', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>닫기</button>
+              <button 
+                onClick={() => window.open(`/manage/${show.id}`, '_blank')}
+                className="btn-primary"
+                style={{ background: 'var(--blue-600)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 14, whiteSpace: 'nowrap' }}
+              >
+                티켓 관리로 이동 ➔
+              </button>
             </div>
           </div>
+        </div>
 
         <div style={{ padding: 24, overflowY: 'auto', flex: 1, display: 'grid', gap: 24 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
