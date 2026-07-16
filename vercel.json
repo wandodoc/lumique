@@ -1,7 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/order/:id",
+      "source": "/form/:id",
+      "destination": "/api/order?id=:id"
+    },
+    {
+      "source": "/events/:id",
       "destination": "/api/order?id=:id"
     },
     {

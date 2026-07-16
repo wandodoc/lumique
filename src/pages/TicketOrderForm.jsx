@@ -317,7 +317,7 @@ export default function TicketOrderForm({ showId }) {
           <form onSubmit={submit} style={{ marginTop: 32 }}>
             <div style={{ display: 'grid', gap: 24 }}>
               {show.description && (
-                <div style={{ fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6, paddingBottom: 16 }}>
+                <div style={{ padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                   {show.description}
                 </div>
               )}
