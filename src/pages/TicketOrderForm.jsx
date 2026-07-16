@@ -278,7 +278,12 @@ export default function TicketOrderForm({ showId }) {
     }
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh' }}>불러오는 중...</div>;
+  if (loading) return (
+    <div className="loading-container" style={{ height: '100dvh' }}>
+      <div className="loading-spinner"></div>
+      <div className="loading-text">공연 정보를 불러오는 중입니다...</div>
+    </div>
+  );
   if (!show) return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 찾을 수 없습니다.</div>;
 
   if (done) return (
