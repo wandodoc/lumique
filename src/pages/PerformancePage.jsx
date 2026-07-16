@@ -493,8 +493,11 @@ export default function PerformancePage() {
       let fbOrders = await firebaseStorage.loadOrders();
 
       // Migration fallback from localStorage if Firebase is empty
-      if (fbConcerts.length === 0 && lsGet(LS_SHOWS).length > 0) {
-        fbConcerts = normShows(lsGet(LS_SHOWS));
+      let localShows = lsGet(LS_SHOWS);
+      if (localShows.length === 0) localShows = migrate(lsGet(LS_SHOWS_LEGACY));
+      
+      if (fbConcerts.length === 0 && localShows.length > 0) {
+        fbConcerts = normShows(localShows);
         await firebaseStorage.saveConcerts(fbConcerts);
       }
       if (fbOrders.length === 0 && lsGet(LS_ORDERS).length > 0) {
