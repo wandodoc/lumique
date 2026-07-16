@@ -640,6 +640,25 @@
   .split-item-selects select:last-child {
     flex: 1 1 100%;
   }
+  .reg-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .reg-value {
+    text-align: left;
+  }
+  .equip-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .equip-right {
+    align-items: flex-start;
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
 }
 
 @media (min-width: 640px) {

@@ -526,6 +526,7 @@ export default function PerformancePage() {
   const saveShow = async (next) => {
     const nextShows = normShows(shows.some(s => s.id === next.id) ? shows.map(s => s.id === next.id ? next : s) : [...shows, next]);
     setShows(nextShows);
+    lsSet(LS_SHOWS, nextShows);
     await firebaseStorage.saveConcerts(nextShows);
   };
   
@@ -536,6 +537,8 @@ export default function PerformancePage() {
     const nextOrders = orders.filter(o => o.concertId !== id);
     setShows(nextShows);
     setOrders(nextOrders);
+    lsSet(LS_SHOWS, nextShows);
+    lsSet(LS_ORDERS, nextOrders);
     if (detail?.id === id) setDetail(null);
     await firebaseStorage.saveConcerts(nextShows);
     await firebaseStorage.saveOrders(nextOrders);

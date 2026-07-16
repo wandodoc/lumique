@@ -359,6 +359,10 @@
   transform: scale(0.95);
 }
 
+.nav-item span {
+  white-space: nowrap;
+}
+
 .nav-item.active {
   color: #ffffff;
 }
