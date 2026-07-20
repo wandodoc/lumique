@@ -496,25 +496,26 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
               {/* 공연 기본 정보 및 링크 카드 */}
               {card('🔗 공연 신청 링크 공유', (
                 <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input 
-                      type="text" 
-                      readOnly 
-                      value={formUrl} 
-                      style={{ flex: 1, minWidth: 200, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13, background: '#f8fafc', color: 'var(--slate-800)', outline: 'none' }} 
-                    />
-                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 38, fontSize: 13, padding: '0 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>링크 복사</button>
-                    <a
-                      href={formUrl}
-                      target="_blank"
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <a 
+                      href={formUrl} 
+                      target="_blank" 
                       rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 38, padding: '0 16px', borderRadius: 8, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                      title="클릭하여 새 탭에서 예매 신청 폼 열기"
+                      style={{
+                        flex: 1, minWidth: 0, padding: '9px 14px', borderRadius: 8,
+                        border: '1px solid var(--slate-200)', fontSize: 13, background: '#f8fafc',
+                        color: '#2563eb', fontWeight: 600, textDecoration: 'underline',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        display: 'block'
+                      }}
                     >
-                      새 탭으로 열기 ↗
+                      {formUrl} ↗
                     </a>
+                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 38, fontSize: 13, padding: '0 16px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>링크 복사</button>
                   </div>
                   <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-400)' }}>
-                    ※ 위 링크를 관객들에게 SNS나 메시지로 공유하면 예매를 접수받을 수 있습니다. (클릭 시 새 탭에서 열립니다)
+                    ※ URL을 클릭하면 새 탭에서 예매자 신청 폼이 바로 열립니다.
                   </p>
                 </div>
               ))}

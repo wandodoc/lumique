@@ -760,7 +760,7 @@ export default function ReservationManagementPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>후원금 관리</div>
-              <div style={{ fontSize: 28, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2 }}>
                 총 모금액 {totals.totalFund.toLocaleString()}원
               </div>
               <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, lineHeight: 1.5 }}>
