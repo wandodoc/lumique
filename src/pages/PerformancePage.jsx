@@ -512,10 +512,33 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
                     >
                       {formUrl} ↗
                     </a>
-                    <button onClick={copyUrl} className="btn-secondary" style={{ height: 38, fontSize: 13, padding: '0 16px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>링크 복사</button>
+                    <button
+                      type="button"
+                      onClick={copyUrl}
+                      style={{
+                        height: 38,
+                        fontSize: 13,
+                        padding: '0 18px',
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        background: '#111827',
+                        color: '#ffffff',
+                        borderRadius: 8,
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+                        transition: 'opacity 0.2s'
+                      }}
+                    >
+                      📋 링크 복사
+                    </button>
                   </div>
-                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-400)' }}>
-                    ※ URL을 클릭하면 새 탭에서 예매자 신청 폼이 바로 열립니다.
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-500)', fontWeight: 500 }}>
+                    ※ URL 클릭 시 새 탭에서 열리며, <b>'📋 링크 복사'</b> 버튼으로 주소를 클립보드에 복사할 수 있습니다.
                   </p>
                 </div>
               ))}
