@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './PageStyles.css';
 
 const LS_SHOWS = 'lumique_concerts';
@@ -182,12 +182,135 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
 
 const toast = (msg) => window.alert(msg);
 
+// ── Bottom Sheet ──────────────────────────────────────────────────────────────
+function BottomSheet({ isOpen, onClose, show, price, total, qty,
+  name, setName, phone, setPhone, setQty,
+  isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount,
+  inviterName, setInviterName, noInviter, setNoInviter,
+  comment, setComment, customResponses, setCustomResponses,
+  submitting, onSubmit }) {
+
+  const sheetRef = useRef(null);
+
+  // 키보드 활성화 시 스크롤 보정
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleResize = () => {
+      if (sheetRef.current) sheetRef.current.scrollTop = 0;
+    };
+    window.visualViewport?.addEventListener('resize', handleResize);
+    return () => window.visualViewport?.removeEventListener('resize', handleResize);
+  }, [isOpen]);
+
+  // body 스크롤 잠금
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 900,
+          background: 'rgba(0,0,0,0.5)',
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? 'auto' : 'none',
+          transition: 'opacity 0.3s ease',
+        }}
+      />
+
+      {/* Sheet */}
+      <div
+        ref={sheetRef}
+        style={{
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 901,
+          background: '#fff',
+          borderRadius: '24px 24px 0 0',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+          maxHeight: '82dvh',
+          overflowY: 'auto',
+          transform: isOpen ? 'translateY(0)' : 'translateY(105%)',
+          transition: 'transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 'env(safe-area-inset-bottom, 16px)',
+        }}
+      >
+        {/* Handle bar */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 4px' }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: '#d1d5db' }} />
+        </div>
+
+        {/* Sheet header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 20px 16px' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 900, margin: 0, color: '#111827' }}>예매 신청</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#f1f5f9', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+          >✕</button>
+        </div>
+
+        {/* Form body */}
+        <form onSubmit={onSubmit}>
+          <div style={{ padding: '0 20px', display: 'grid', gap: 20 }}>
+            {show?.description && (
+              <div style={{ padding: '14px 16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                {show.description}
+              </div>
+            )}
+
+            <RenderSections
+              sections={show?.customSections || []}
+              values={customResponses}
+              setValues={setCustomResponses}
+              fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment }}
+            />
+
+            {/* 결제 요약 */}
+            <div style={{ padding: '20px', background: '#111827', borderRadius: 20, color: '#fff', marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 13, color: '#9ca3af' }}>총 결제 금액</span>
+                <span style={{ fontSize: 22, fontWeight: 950 }}>{total.toLocaleString()}원</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.7 }}>
+                무통장 입금: {SUPPORT_ACCOUNT}<br />
+                * 신청 후 24시간 이내 입금 부탁드립니다.
+              </div>
+            </div>
+
+            {/* 제출 버튼 */}
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                width: '100%', height: 56, borderRadius: 16,
+                background: submitting ? '#94a3b8' : '#2563eb',
+                color: '#fff', fontSize: 16, fontWeight: 800,
+                border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                marginBottom: 8,
+                transition: 'background 0.2s',
+              }}
+            >
+              {submitting ? '처리 중...' : `${total.toLocaleString()}원 결제 신청`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function TicketOrderForm({ showId }) {
   const [show, setShow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [qty, setQty] = useState(1);
@@ -199,7 +322,7 @@ export default function TicketOrderForm({ showId }) {
   const [customResponses, setCustomResponses] = useState({});
 
   useEffect(() => {
-    document.title = 'Lumique 공연 신청 폼';
+    document.title = 'Lumique 공연 예매';
     async function fetchShow() {
       const shows = await firebaseStorage.loadConcerts();
       const found = shows.find(s => s.id === showId);
@@ -211,8 +334,6 @@ export default function TicketOrderForm({ showId }) {
     fetchShow();
   }, [showId]);
 
-  // UI Polishing: Quantity selection UI
-  // Reliability: Use optional chaining when accessing show data
   const price = show?.price ?? PRICE;
   const total = qty * price;
 
@@ -223,7 +344,6 @@ export default function TicketOrderForm({ showId }) {
 
   const submit = (e) => {
     e.preventDefault();
-    // Validate required fields explicitly if they are active
     const activeFixedName = show?.customSections?.find(s => s.type === 'fixed_name' && s.active !== false);
     const activeFixedPhone = show?.customSections?.find(s => s.type === 'fixed_phone' && s.active !== false);
     const activeFixedQty = show?.customSections?.find(s => s.type === 'fixed_qty' && s.active !== false);
@@ -231,8 +351,7 @@ export default function TicketOrderForm({ showId }) {
     if (activeFixedName && activeFixedName.required && !name.trim()) return toast(`${activeFixedName.title}을(를) 입력해주세요.`);
     if (activeFixedPhone && activeFixedPhone.required && !phone.trim()) return toast(`${activeFixedPhone.title}을(를) 입력해주세요.`);
     if (activeFixedQty && activeFixedQty.required && qty < 1) return toast(`${activeFixedQty.title}은(는) 1매 이상이어야 합니다.`);
-    
-    // Validate custom sections using optional chaining
+
     for (const s of (show?.customSections || [])) {
       if (s.type === 'text' || s.type.startsWith('fixed_') || s.active === false) continue;
       const v = customResponses[s.id];
@@ -256,33 +375,36 @@ export default function TicketOrderForm({ showId }) {
         phone: phone.trim(),
         ticketCount: Number(qty),
         totalPrice: total,
-      depositStatus: '입금대기',
-      attendanceStatus: '미입장',
-      isAfterParty,
-      afterPartyCount: isAfterParty ? Number(afterPartyCount) : 0,
-      inviterName: isAfterParty ? (noInviter ? '없음' : inviterName.trim()) : '',
-      comment: comment.trim(),
+        depositStatus: '입금대기',
+        attendanceStatus: '미입장',
+        isAfterParty,
+        afterPartyCount: isAfterParty ? Number(afterPartyCount) : 0,
+        inviterName: isAfterParty ? (noInviter ? '없음' : inviterName.trim()) : '',
+        comment: comment.trim(),
         customResponses,
         createdAt: new Date().toISOString()
       };
-      
+
       await firebaseStorage.saveOrders([...orders, newOrder]);
+      setIsSheetOpen(false);
       setDone(true);
       window.scrollTo(0, 0);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
       toast('예매 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
   };
 
+  // ── 로딩 / 에러 / 완료 화면 ──────────────────────────────────────────────────
   if (loading) return (
     <div className="loading-container" style={{ height: '100dvh' }}>
       <div className="loading-spinner"></div>
       <div className="loading-text">공연 정보를 불러오는 중입니다...</div>
     </div>
   );
+
   if (!show) return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 찾을 수 없습니다.</div>;
 
   if (done) return (
@@ -290,14 +412,14 @@ export default function TicketOrderForm({ showId }) {
       <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, padding: 40, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', textAlign: 'center' }}>
         <div style={{ fontSize: 50, marginBottom: 20 }}>🎉</div>
         <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 10px' }}>예매 신청 완료!</h2>
-        <p style={{ color: '#64748b', fontSize: 14, mb: 30 }}>입금 확인 후 최종 확정됩니다.</p>
+        <p style={{ color: '#64748b', fontSize: 14, marginBottom: 30 }}>입금 확인 후 최종 확정됩니다.</p>
         <div style={{ background: '#111827', borderRadius: 20, padding: 24, margin: '24px 0' }}>
           <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, marginBottom: 8 }}>입금 계좌 정보</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <span style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>{SUPPORT_ACCOUNT}</span>
             <button onClick={copyAccount} style={{ background: '#374151', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>복사</button>
           </div>
-          <div style={{ marginTop: 16, pt: 16, borderTop: '1px solid #374151', color: '#fff', fontSize: 15 }}>
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #374151', color: '#fff', fontSize: 15 }}>
             입금 금액: <strong>{total.toLocaleString()}원</strong>
           </div>
         </div>
@@ -306,52 +428,102 @@ export default function TicketOrderForm({ showId }) {
     </div>
   );
 
+  // ── 메인 페이지 (공연 정보 표시) ──────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '100dvh', background: '#f8fafc', padding: '40px 16px' }}>
-      <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-        {show.imageUrl && <img src={show.imageUrl} style={{ width: '100%', display: 'block' }} />}
-        <div style={{ padding: 28 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title}</h1>
-          <div style={{ background: '#f8fafc', borderRadius: 16, padding: 16, display: 'grid', gap: 8, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
-            <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>장소</span><span style={{ fontWeight: 700 }}>{show.location}</span></div>
-            <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>티켓 금액</span><span style={{ fontWeight: 700 }}>{price.toLocaleString()}원 / 1매</span></div>
-          </div>
-
-          <form onSubmit={submit} style={{ marginTop: 32 }}>
-            <div style={{ display: 'grid', gap: 24 }}>
-              {show.description && (
-                <div style={{ padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                  {show.description}
-                </div>
-              )}
-
-              <RenderSections 
-                sections={show.customSections} 
-                values={customResponses} 
-                setValues={setCustomResponses} 
-                fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment }} 
-              />
-
-              <div style={{ marginTop: 20, padding: 24, background: '#111827', borderRadius: 20, color: '#fff' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: 14, color: '#9ca3af' }}>총 결제 금액</span>
-                  <span style={{ fontSize: 22, fontWeight: 950 }}>{total.toLocaleString()}원</span>
-                </div>
-                <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.6 }}>
-                  무통장 입금: {SUPPORT_ACCOUNT} <br />
-                  * 신청 후 24시간 이내 입금 부탁드립니다.
-                </div>
-                <div style={{ marginTop: 32 }}>
-                  <button type="submit" disabled={submitting} style={{ width: '100%', height: 56, borderRadius: 16, background: submitting ? 'var(--slate-400)' : 'var(--blue-600)', color: '#fff', fontSize: 16, fontWeight: 800, border: 'none', cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                    {submitting ? '제출 중...' : '예매 신청하기'}
-                  </button>
-                </div>
-              </div>
+    <>
+      <div style={{
+        display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
+        minHeight: '100dvh', background: '#f8fafc',
+        padding: '40px 16px 120px',
+      }}>
+        <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          {show.imageUrl && <img src={show.imageUrl} alt={show.title} style={{ width: '100%', display: 'block' }} />}
+          <div style={{ padding: 28 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title}</h1>
+            <div style={{ background: '#f8fafc', borderRadius: 16, padding: 16, display: 'grid', gap: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>장소</span><span style={{ fontWeight: 700 }}>{show.location}</span></div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>티켓 금액</span><span style={{ fontWeight: 700 }}>{price.toLocaleString()}원 / 1매</span></div>
             </div>
-          </form>
+
+            {show.description && (
+              <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                {show.description}
+              </div>
+            )}
+
+            <div style={{ marginTop: 24, padding: '14px 18px', borderRadius: 14, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 13, color: '#1d4ed8', lineHeight: 1.7 }}>
+              💡 아래 <strong>지금 예매하기</strong> 버튼을 눌러 예매를 신청하세요.
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* ── 고정 하단 바 ─────────────────────────────────────────────────── */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 800,
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderTop: '1px solid #e2e8f0',
+        padding: '12px 20px',
+        paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>티켓 금액</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#111827' }}>
+            {price.toLocaleString()}원
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#64748b' }}> / 1매</span>
+          </div>
+        </div>
+        <button
+          id="open-reservation-sheet"
+          onClick={() => setIsSheetOpen(true)}
+          style={{
+            flex: 2,
+            height: 52,
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 800,
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(37,99,235,0.35)',
+            transition: 'transform 0.15s',
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+          onMouseUp={e => { e.currentTarget.style.transform = ''; }}
+          onTouchStart={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+          onTouchEnd={e => { e.currentTarget.style.transform = ''; }}
+        >
+          지금 예매하기 🎟
+        </button>
+      </div>
+
+      {/* ── Bottom Sheet ─────────────────────────────────────────────────── */}
+      <BottomSheet
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        show={show}
+        price={price}
+        total={total}
+        qty={qty}
+        name={name} setName={setName}
+        phone={phone} setPhone={setPhone}
+        setQty={setQty}
+        isAfterParty={isAfterParty} setIsAfterParty={setIsAfterParty}
+        afterPartyCount={afterPartyCount} setAfterPartyCount={setAfterPartyCount}
+        inviterName={inviterName} setInviterName={setInviterName}
+        noInviter={noInviter} setNoInviter={setNoInviter}
+        comment={comment} setComment={setComment}
+        customResponses={customResponses} setCustomResponses={setCustomResponses}
+        submitting={submitting}
+        onSubmit={submit}
+      />
+    </>
   );
 }
