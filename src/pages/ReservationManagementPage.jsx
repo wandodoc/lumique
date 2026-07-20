@@ -199,6 +199,7 @@ export default function ReservationManagementPage() {
   const [donationAmount, setDonationAmount] = useState('');
   const [donationDate, setDonationDate] = useState(new Date().toISOString().slice(0, 10));
   const [savingDonation, setSavingDonation] = useState(false);
+  const [showDonationAccordion, setShowDonationAccordion] = useState(false);
 
   // 당일 현장 입장 관리 모드
   const [checkinMode, setCheckinMode] = useState(false);
@@ -260,7 +261,7 @@ export default function ReservationManagementPage() {
     return colOrder.filter(id => !hiddenCols.includes(id));
   }, [colOrder, hiddenCols, checkinMode]);
 
-  // 연락처 하이픈 무관 검색 필터링
+  // 연락처 하이픈 무관 검색 필터링 & 입장 완료 건 자동 하단 정렬
   const visibleOrders = useMemo(() => {
     const q = query.trim().toLowerCase();
     const qStripped = stripHyphens(q);
@@ -275,6 +276,7 @@ export default function ReservationManagementPage() {
         filter === 'all' ||
         (filter === 'deposit-wait' && order.depositStatus !== DEPOSIT_DONE) ||
         (filter === 'attend-wait' && order.attendanceStatus !== ATTEND_DONE);
+      return matchesSearch && matchesFilter;
     }).sort((a, b) => {
       const aTotal = Number(a.ticketCount) || 0;
       const aEntered = Number(a.enteredCount) || 0;
@@ -590,7 +592,9 @@ export default function ReservationManagementPage() {
           </button>
         </div>
 
-        {/* ── 통계 카드 (합계 요약 영역) ── */}
+        {/* ── [섹션 1] 상단 요약 카드 및 '입장 관리 모드(당일 모드)' 토글 + 예매자 관리 내역(테이블) ── */}
+        
+        {/* 1-1. 상단 통계 요약 카드 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="#111827" />
           <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="#111827" />
@@ -598,90 +602,10 @@ export default function ReservationManagementPage() {
           <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="#64748b" />
         </div>
 
-        {/* ── 총 모금액 카드 & 건별 후원금 관리 ── */}
-        {concertId && (
-          <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>총 모금액</div>
-                <div style={{ fontSize: 34, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-                  {totals.totalFund.toLocaleString()}원
-                </div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 6, lineHeight: 1.6 }}>
-                  입금완료 {totals.paidTickets}매 × {totals.ticketPrice.toLocaleString()}원
-                  {totals.extraDonation > 0 && <span style={{ color: '#10b981' }}> + 후원금 총 {totals.extraDonation.toLocaleString()}원 ({donationList.length}건)</span>}
-                </div>
-              </div>
-            </div>
-
-            {isAdmin && (
-              <div style={{ borderTop: '1px solid #374151', paddingTop: 16, display: 'grid', gap: 14 }}>
-                <div style={{ fontSize: 13, color: '#f3f4f6', fontWeight: 800 }}>
-                  건별 후원금 기록 관리 (총 {donationList.length}건 · {extraDonationSum.toLocaleString()}원)
-                </div>
-
-                {/* 후원금 입력 폼 */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-                  <input
-                    type="text"
-                    value={donorName}
-                    onChange={e => setDonorName(e.target.value)}
-                    placeholder="후원자명 (예: 홍길동)"
-                    style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, outline: 'none' }}
-                  />
-                  <input
-                    type="number"
-                    value={donationAmount}
-                    onChange={e => setDonationAmount(e.target.value)}
-                    placeholder="금액 (예: 50000)"
-                    style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, outline: 'none' }}
-                  />
-                  <input
-                    type="date"
-                    value={donationDate}
-                    onChange={e => setDonationDate(e.target.value)}
-                    style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, outline: 'none' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={addDonationItem}
-                    disabled={savingDonation}
-                    style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: savingDonation ? '#374151' : '#10b981', color: '#fff', fontWeight: 800, fontSize: 13, cursor: savingDonation ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
-                  >
-                    {savingDonation ? '저장 중...' : '+ 후원금 기록'}
-                  </button>
-                </div>
-
-                {/* 입력된 후원 내역 목록 (날짜 최신순 정렬) */}
-                {donationList.length > 0 && (
-                  <div style={{ display: 'grid', gap: 6, marginTop: 4, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-                    {donationList.map((item) => (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 10, background: '#1f2937', border: '1px solid #374151' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                          <span style={{ fontWeight: 800, color: '#fff' }}>{item.donorName}</span>
-                          <span style={{ color: '#10b981', fontWeight: 700 }}>{Number(item.amount).toLocaleString()}원</span>
-                          <span style={{ color: '#9ca3af', fontSize: 12 }}>({item.date || '-'})</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => deleteDonationItem(item.id)}
-                          disabled={savingDonation}
-                          style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 14, cursor: 'pointer', padding: '2px 6px', fontWeight: 800 }}
-                          title="삭제"
-                        >✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── 예매자 테이블 영역 ── */}
+        {/* 1-2. 예매자 관리 내역 (테이블) 카드 */}
         <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
 
-          {/* ── [이동 완료] 입장 관리 모드 (당일 모드) 토글 영역 ── */}
+          {/* 입장 관리 모드 (당일 모드) 토글 */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
             padding: '14px 18px', borderRadius: 14,
@@ -822,7 +746,108 @@ export default function ReservationManagementPage() {
           )}
         </div>
 
-        {/* ── 초대자별 뒤풀이 집계 (예매자 목록 확장 UI) ── */}
+        {/* ── [섹션 2] 후원금 관리 섹션 (개별 내역 아코디언/토글 UI) ── */}
+        <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>후원금 관리</div>
+              <div style={{ fontSize: 28, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                총 모금액 {totals.totalFund.toLocaleString()}원
+              </div>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, lineHeight: 1.5 }}>
+                입금완료 {totals.paidTickets}매 × {totals.ticketPrice.toLocaleString()}원
+                {totals.extraDonation > 0 && <span style={{ color: '#10b981' }}> + 후원금 총 {totals.extraDonation.toLocaleString()}원 ({donationList.length}건)</span>}
+              </div>
+            </div>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowDonationAccordion(prev => !prev)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '9px 16px', borderRadius: 12, border: '1px solid #374151',
+                  background: showDonationAccordion ? '#1f2937' : 'transparent',
+                  color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+                }}
+              >
+                <span>{showDonationAccordion ? '▲ 내역 접기' : '▼ 후원금 내역 관리'}</span>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#374151', fontSize: 12, color: '#10b981', fontWeight: 800 }}>
+                  {donationList.length}건
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* 접기/펼치기 (Accordion) 입력 및 내역 영역 */}
+          {isAdmin && showDonationAccordion && (
+            <div style={{ borderTop: '1px solid #374151', paddingTop: 16, display: 'grid', gap: 14 }} className="fade-in">
+              <div style={{ fontSize: 13, color: '#f3f4f6', fontWeight: 800 }}>
+                건별 후원금 기록 추가 및 삭제 (날짜 최신순 정렬)
+              </div>
+
+              {/* 후원금 입력 폼 */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                <input
+                  type="text"
+                  value={donorName}
+                  onChange={e => setDonorName(e.target.value)}
+                  placeholder="후원자명 (예: 홍길동)"
+                  style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, outline: 'none' }}
+                />
+                <input
+                  type="number"
+                  value={donationAmount}
+                  onChange={e => setDonationAmount(e.target.value)}
+                  placeholder="금액 (예: 50000)"
+                  style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, outline: 'none' }}
+                />
+                <input
+                  type="date"
+                  value={donationDate}
+                  onChange={e => setDonationDate(e.target.value)}
+                  style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 600, outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={addDonationItem}
+                  disabled={savingDonation}
+                  style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: savingDonation ? '#374151' : '#10b981', color: '#fff', fontWeight: 800, fontSize: 13, cursor: savingDonation ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                >
+                  {savingDonation ? '저장 중...' : '+ 후원금 기록'}
+                </button>
+              </div>
+
+              {/* 입력된 후원 내역 목록 (날짜 최신순 정렬) */}
+              {donationList.length > 0 ? (
+                <div style={{ display: 'grid', gap: 6, marginTop: 4, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                  {donationList.map((item) => (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: '#1f2937', border: '1px solid #374151' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
+                        <span style={{ fontWeight: 800, color: '#fff' }}>{item.donorName}</span>
+                        <span style={{ color: '#10b981', fontWeight: 700 }}>{Number(item.amount).toLocaleString()}원</span>
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}>({item.date || '-'})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteDonationItem(item.id)}
+                        disabled={savingDonation}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 14, cursor: 'pointer', padding: '2px 8px', fontWeight: 800 }}
+                        title="삭제"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: '12px 0' }}>
+                  등록된 개별 후원 내역이 없습니다. 위에서 입력하여 추가하세요.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── [섹션 3] 초대자별 뒤풀이 현황 섹션 ── */}
         {inviterStats.length > 0 && (
           <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
             <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 14 }}>초대자별 뒤풀이 현황</div>
