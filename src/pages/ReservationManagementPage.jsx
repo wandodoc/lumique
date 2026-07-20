@@ -275,8 +275,22 @@ export default function ReservationManagementPage() {
         filter === 'all' ||
         (filter === 'deposit-wait' && order.depositStatus !== DEPOSIT_DONE) ||
         (filter === 'attend-wait' && order.attendanceStatus !== ATTEND_DONE);
-      return matchesSearch && matchesFilter;
-    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }).sort((a, b) => {
+      const aTotal = Number(a.ticketCount) || 0;
+      const aEntered = Number(a.enteredCount) || 0;
+      const aIsDone = a.attendanceStatus === ATTEND_DONE || (aTotal > 0 && aEntered >= aTotal);
+
+      const bTotal = Number(b.ticketCount) || 0;
+      const bEntered = Number(b.enteredCount) || 0;
+      const bIsDone = b.attendanceStatus === ATTEND_DONE || (bTotal > 0 && bEntered >= bTotal);
+
+      // 입장 완료 건은 아래로, 미입장 건은 상단으로 우선 배치
+      if (aIsDone !== bIsDone) {
+        return aIsDone ? 1 : -1;
+      }
+      // 동일 그룹 내에서는 최신 신청 순서로 정렬
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
   }, [orders, query, filter, concertId]);
 
   const totals = useMemo(() => {
