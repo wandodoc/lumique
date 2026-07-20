@@ -60,7 +60,7 @@ export default async function handler(req, res) {
   };
 
   let title = 'Lumique';
-  let desc = '루미크 동아리의 통합 운영 관리 시스템입니다. 회비, 회원, 일정, 공연 예매 및 회계를 효율적으로 관리합니다.';
+  let desc = '루미크 동아리의 통합 운영 관리 시스템입니다.';
   let img = '';
 
   let matchedMeta = null;
