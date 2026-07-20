@@ -232,20 +232,20 @@ export default function ReservationManagementPage() {
     loadData();
   }, []);
 
-  // 건별 후원금 리스트 계산 (호환성 처리 포함)
+  // 건별 후원금 리스트 계산 (날짜 내림차순 최신순 자동 정렬)
   const donationList = useMemo(() => {
+    let list = [];
     if (Array.isArray(currentShow?.extraDonationList)) {
-      return currentShow.extraDonationList;
-    }
-    if (Number(currentShow?.extraDonation || 0) > 0) {
-      return [{
+      list = [...currentShow.extraDonationList];
+    } else if (Number(currentShow?.extraDonation || 0) > 0) {
+      list = [{
         id: 'legacy-1',
         donorName: '기타 후원',
         amount: Number(currentShow.extraDonation),
         date: currentShow.date || new Date().toISOString().slice(0, 10)
       }];
     }
-    return [];
+    return list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   }, [currentShow]);
 
   const extraDonationSum = useMemo(() => {
@@ -294,7 +294,7 @@ export default function ReservationManagementPage() {
     };
   }, [visibleOrders, orders, concertId, currentShow, extraDonationSum]);
 
-  // 초대자별 뒤풀이 집계 (예매자 상세 목록 포함, 폭죽 아이콘 완전 제거)
+  // 초대자별 뒤풀이 집계
   const inviterStats = useMemo(() => {
     const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
     const map = {};
@@ -434,7 +434,7 @@ export default function ReservationManagementPage() {
     setExpandedInviters(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
-  // 셀 렌더링 함수
+  // 셀 렌더링 함수 (단위 제거: 매수/인원수는 오직 숫자만 표기)
   const renderCell = useCallback((o, colId) => {
     const isPaid = o.depositStatus === DEPOSIT_DONE;
     const totalTickets = Number(o.ticketCount) || 0;
@@ -474,7 +474,7 @@ export default function ReservationManagementPage() {
       case 'ticketCount':
         return (
           <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap' }}>
-            {o.ticketCount}매
+            {o.ticketCount}
           </td>
         );
       case 'inviterName':
@@ -487,7 +487,7 @@ export default function ReservationManagementPage() {
         return (
           <td key={colId} style={{ padding: '14px 10px', textAlign: 'center' }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: o.isAfterParty ? '#111827' : '#94a3b8' }}>
-              {o.isAfterParty ? `참여 (${o.afterPartyCount || 1}명)` : '미참여'}
+              {o.isAfterParty ? (o.afterPartyCount || 1) : 0}
             </div>
           </td>
         );
@@ -611,7 +611,7 @@ export default function ReservationManagementPage() {
           </button>
         </div>
 
-        {/* ── 통계 카드 ── */}
+        {/* ── 통계 카드 (합계 요약 영역에는 단위 노출) ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="#111827" />
           <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="#111827" />
@@ -619,7 +619,7 @@ export default function ReservationManagementPage() {
           <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="#64748b" />
         </div>
 
-        {/* ── 총 모금액 카드 & 건별 후원금 관리 ── */}
+        {/* ── 총 모금액 카드 & 건별 후원금 관리 (날짜 최신순 정렬 적용) ── */}
         {concertId && (
           <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
@@ -673,7 +673,7 @@ export default function ReservationManagementPage() {
                   </button>
                 </div>
 
-                {/* 입력된 후원 내역 목록 */}
+                {/* 입력된 후원 내역 목록 (날짜 최신순 정렬 노출) */}
                 {donationList.length > 0 && (
                   <div style={{ display: 'grid', gap: 6, marginTop: 4, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                     {donationList.map((item) => (
@@ -803,7 +803,7 @@ export default function ReservationManagementPage() {
           )}
         </div>
 
-        {/* ── 초대자별 뒤풀이 집계 (예매자 목록 확장 UI, 폭죽 없는 깔끔한 디자인) ── */}
+        {/* ── 초대자별 뒤풀이 집계 (예매자 목록 확장 UI) ── */}
         {inviterStats.length > 0 && (
           <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
             <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 14 }}>초대자별 뒤풀이 현황</div>
