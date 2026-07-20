@@ -421,23 +421,23 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
               <button 
                 type="button"
                 onClick={() => window.open(`/manage/${show.id}`, '_blank')}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 0px', minWidth: '80px', maxWidth: '120px', height: 38, borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+                className="perf-btn-dark-primary"
               >
-                티켓 관리
+                🎟️ 티켓 관리
               </button>
               {isAdmin && (
                 <button 
                   type="button" 
                   onClick={onEdit} 
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 0px', minWidth: '80px', maxWidth: '120px', height: 38, borderRadius: 8, border: 'none', background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+                  className="perf-btn-dark-secondary"
                 >
-                  수정
+                  ✏️ 수정
                 </button>
               )}
               <button 
                 type="button" 
                 onClick={onClose} 
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 0px', minWidth: '80px', maxWidth: '120px', height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', background: '#f8fafc', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+                className="perf-btn-outline"
               >
                 닫기
               </button>
