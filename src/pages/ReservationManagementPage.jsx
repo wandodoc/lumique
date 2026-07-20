@@ -55,6 +55,8 @@ export default function ReservationManagementPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [donationInput, setDonationInput] = useState('');
+  const [savingDonation, setSavingDonation] = useState(false);
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
@@ -98,13 +100,41 @@ export default function ReservationManagementPage() {
   }, [orders, query, filter, concertId]);
 
   const totals = useMemo(() => {
+    const allConcertOrders = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    const paidCount = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? (Number(o.ticketCount) || 0) : 0), 0);
+    const ticketPrice = currentShow?.price ?? 5000;
+    const extraDonation = Number(currentShow?.extraDonation || 0);
     return {
       tickets: visibleOrders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0),
       enteredTotal: visibleOrders.reduce((sum, o) => sum + (Number(o.enteredCount) || 0), 0),
       paidTickets: visibleOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? (Number(o.ticketCount) || 0) : 0), 0),
       afterParties: visibleOrders.reduce((sum, o) => sum + (o.isAfterParty ? (Number(o.afterPartyCount) || 1) : 0), 0),
+      totalFund: paidCount * ticketPrice + extraDonation,
+      extraDonation,
+      ticketPrice,
     };
-  }, [visibleOrders]);
+  }, [visibleOrders, orders, concertId, currentShow]);
+
+  // 초대자별 뒤풀이 집계
+  const inviterStats = useMemo(() => {
+    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    const map = {};
+    for (const o of src) {
+      if (!o.isAfterParty || !o.inviterName) continue;
+      const names = o.inviterName.split(',').map(n => n.trim()).filter(Boolean);
+      if (names.length === 0) continue;
+      const perInviter = (Number(o.afterPartyCount) || 1) / names.length;
+      for (const name of names) {
+        if (!map[name]) map[name] = { count: 0, orders: 0 };
+        map[name].count += perInviter;
+        map[name].orders += 1;
+      }
+    }
+    return Object.entries(map)
+      .map(([name, v]) => [name, { count: Math.round(v.count), orders: v.orders }])
+      .sort((a, b) => b[1].count - a[1].count);
+  }, [orders, concertId]);
+
 
   const exportCsv = () => {
     const headers = ['예매자명', '신청 매수', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
@@ -146,6 +176,23 @@ export default function ReservationManagementPage() {
     setOrders(nextOrders);
     await firebaseStorage.saveOrders(nextOrders);
   };
+
+  const saveDonation = async () => {
+    if (!currentShow || !concertId) return;
+    const amount = Number(String(donationInput).replace(/[^0-9]/g, ''));
+    if (isNaN(amount)) return;
+    setSavingDonation(true);
+    try {
+      const concerts = await firebaseStorage.loadConcerts();
+      const updated = concerts.map(c => c.id === concertId ? { ...c, extraDonation: amount } : c);
+      await firebaseStorage.saveConcerts(updated);
+      setShows(updated);
+      setDonationInput('');
+    } finally {
+      setSavingDonation(false);
+    }
+  };
+
 
   const toggleDeposit = (order) => {
     if (!isAdmin) return;
@@ -218,6 +265,50 @@ export default function ReservationManagementPage() {
           <StatCard label="입금 완료" value={`${totals.paidTickets}매`} color="#059669" />
           <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="#64748b" />
         </div>
+
+        {/* ── 총 모금액 카드 ── */}
+        {concertId && (
+          <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, marginBottom: 6, letterSpacing: '0.08em', textTransform: 'uppercase' }}>총 모금액</div>
+                <div style={{ fontSize: 34, fontWeight: 950, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                  {totals.totalFund.toLocaleString()}원
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6, lineHeight: 1.6 }}>
+                  입금완료 {totals.paidTickets}매 × {totals.ticketPrice.toLocaleString()}원
+                  {totals.extraDonation > 0 && <span style={{ color: '#10b981' }}> + 후원금 {totals.extraDonation.toLocaleString()}원</span>}
+                </div>
+              </div>
+            </div>
+            {isAdmin && (
+              <div style={{ borderTop: '1px solid #374151', paddingTop: 14 }}>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 8, fontWeight: 600 }}>
+                  추가 후원금 입력 (현재: {totals.extraDonation.toLocaleString()}원)
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="number"
+                    value={donationInput}
+                    onChange={e => setDonationInput(e.target.value)}
+                    placeholder="금액 입력 (예: 50000)"
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #374151', background: '#1f2937', color: '#fff', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 0 }}
+                    onKeyDown={e => e.key === 'Enter' && saveDonation()}
+                  />
+                  <button
+                    type="button"
+                    onClick={saveDonation}
+                    disabled={savingDonation}
+                    style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: savingDonation ? '#374151' : '#10b981', color: '#fff', fontWeight: 800, fontSize: 14, cursor: savingDonation ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                  >
+                    {savingDonation ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
 
         <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -358,6 +449,31 @@ export default function ReservationManagementPage() {
             </div>
           )}
         </div>
+        {/* ── 초대자별 뒤풀이 집계 ── */}
+        {inviterStats.length > 0 && (
+          <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 14 }}>🎉 초대자별 뒤풀이 현황</div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {inviterStats.map(([name, stat]) => (
+                <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{name}</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{stat.orders}건 예매 연결</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 14, fontWeight: 800 }}>
+                      {stat.count}명
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 6, fontSize: 13, color: '#64748b', fontWeight: 700 }}>
+                합계: {inviterStats.reduce((s, [, v]) => s + v.count, 0)}명
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0', fontWeight: 500 }}>
           관리자만 상태 토글이 가능합니다. 모든 데이터는 브라우저 로컬 스토리지에 안전하게 보관됩니다.
         </div>

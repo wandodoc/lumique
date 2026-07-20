@@ -112,14 +112,63 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
               </div>
             </div>
             <div>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>초대자 이름 (테이블 배치를 위해 필요합니다)</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input type="text" value={fixed.inviterName} onChange={e => fixed.setInviterName(e.target.value)} disabled={fixed.noInviter} style={{ ...FIELD_STYLE, flex: 1, opacity: fixed.noInviter ? 0.5 : 1 }} placeholder="초대자 이름을 적어주세요" />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <label style={{ fontSize: 12, color: '#64748b' }}>초대자 이름 (테이블 배치를 위해 필요합니다)</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   <input type="checkbox" checked={fixed.noInviter} onChange={e => { fixed.setNoInviter(e.target.checked); if (e.target.checked) fixed.setInviterName(''); }} style={{ width: 16, height: 16 }} />
                   없음
                 </label>
               </div>
+              {!fixed.noInviter && (() => {
+                const names = fixed.inviterName ? fixed.inviterName.split(',') : [''];
+                const updateNames = (arr) => fixed.setInviterName(arr.join(','));
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {names.map((name, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="text"
+                          value={name}
+                          onChange={e => {
+                            const next = [...names];
+                            next[idx] = e.target.value;
+                            updateNames(next);
+                          }}
+                          style={{ ...FIELD_STYLE, flex: 1 }}
+                          placeholder={`초대자 이름 ${idx + 1}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (names.length <= 1) return;
+                            const next = names.filter((_, i) => i !== idx);
+                            updateNames(next);
+                          }}
+                          disabled={names.length <= 1}
+                          style={{
+                            width: 28, height: 28, borderRadius: 6,
+                            border: '1px solid #cbd5e1', background: '#f1f5f9',
+                            color: '#64748b', cursor: names.length <= 1 ? 'not-allowed' : 'pointer',
+                            fontSize: 14, fontWeight: 700, lineHeight: 1,
+                            opacity: names.length <= 1 ? 0.4 : 1,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}
+                          title="삭제"
+                        >×</button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => updateNames([...names, ''])}
+                      style={{
+                        width: '100%', padding: '7px 0', borderRadius: 8,
+                        border: '1.5px dashed #cbd5e1', background: 'transparent',
+                        color: '#94a3b8', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      }}
+                    >+ 초대자 추가</button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
