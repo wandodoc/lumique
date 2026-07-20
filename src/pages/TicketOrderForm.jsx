@@ -507,7 +507,7 @@ export default function TicketOrderForm({ showId }) {
   if (done) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', background: '#f8fafc', padding: 20 }}>
       <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, padding: 40, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-        <div style={{ fontSize: 50, marginBottom: 20 }}>🎉</div>
+        <div style={{ fontSize: 50, marginBottom: 20 }}>🎟️</div>
         <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 10px' }}>예매 신청 완료!</h2>
         <p style={{ color: '#64748b', fontSize: 14, marginBottom: 30 }}>입금 확인 후 최종 확정됩니다.</p>
         <div style={{ margin: '24px 0', textAlign: 'left' }}>
