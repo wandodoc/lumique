@@ -495,19 +495,19 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
               
               {/* 공연 기본 정보 및 링크 카드 */}
               {card('🔗 공연 신청 링크 공유', (
-                <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'grid', gap: 12, fontSize: 14, padding: '2px 0' }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <a 
                       href={formUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       title="클릭하여 새 탭에서 예매 신청 폼 열기"
                       style={{
-                        flex: 1, minWidth: 0, padding: '9px 14px', borderRadius: 8,
-                        border: '1px solid var(--slate-200)', fontSize: 13, background: '#f8fafc',
-                        color: '#2563eb', fontWeight: 600, textDecoration: 'underline',
+                        flex: 1, minWidth: 220, padding: '10px 14px', borderRadius: 10,
+                        border: '1.5px solid #e2e8f0', fontSize: 13, background: '#f8fafc',
+                        color: '#2563eb', fontWeight: 700, textDecoration: 'underline',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        display: 'block'
+                        display: 'block', boxSizing: 'border-box'
                       }}
                     >
                       {formUrl} ↗
@@ -515,31 +515,27 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
                     <button
                       type="button"
                       onClick={copyUrl}
+                      className="btn-secondary"
                       style={{
-                        height: 38,
+                        height: 42,
                         fontSize: 13,
                         padding: '0 18px',
                         fontWeight: 800,
                         whiteSpace: 'nowrap',
                         flexShrink: 0,
-                        background: '#111827',
-                        color: '#ffffff',
-                        borderRadius: 8,
-                        border: 'none',
+                        borderRadius: 10,
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 6,
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-                        transition: 'opacity 0.2s'
+                        gap: 6
                       }}
                     >
                       📋 링크 복사
                     </button>
                   </div>
-                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-500)', fontWeight: 500 }}>
-                    ※ URL 클릭 시 새 탭에서 열리며, <b>'📋 링크 복사'</b> 버튼으로 주소를 클립보드에 복사할 수 있습니다.
-                  </p>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)', lineHeight: 1.6, fontWeight: 500, wordBreak: 'keep-all', marginTop: 2 }}>
+                    ※ URL 클릭 시 새 탭에서 예매 폼이 바로 열리며, 우측 <b>'📋 링크 복사'</b> 버튼으로 주소를 클립보드에 간편하게 복사할 수 있습니다.
+                  </div>
                 </div>
               ))}
 
