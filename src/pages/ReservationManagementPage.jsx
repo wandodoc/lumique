@@ -47,17 +47,17 @@ function StatCard({ label, value, color = '#111827' }) {
   );
 }
 
-// ── 컬럼 정의 ──
+// ── 컬럼 고정 너비 정의 (레이아웃 흔들림 완벽 방지) ──
 const ALL_COLUMNS = [
-  { id: 'depositStatus', label: '입금 상태', required: false },
-  { id: 'audienceName',  label: '예매자명',  required: false },
-  { id: 'phone',         label: '연락처',    required: false },
-  { id: 'ticketCount',   label: '티켓 매수', required: false },
-  { id: 'inviterName',   label: '초대자',    required: false },
-  { id: 'afterParty',    label: '뒤풀이 참여', required: false },
-  { id: 'comment',       label: '추가 입력 정보', required: false },
-  { id: 'createdAt',     label: '신청 시간', required: false },
-  { id: 'attendStatus',  label: '입장 여부', required: false },
+  { id: 'depositStatus', label: '입금 상태', width: 110, required: false },
+  { id: 'audienceName',  label: '예매자명',  width: 120, required: false },
+  { id: 'phone',         label: '연락처',    width: 140, required: false },
+  { id: 'ticketCount',   label: '티켓 매수', width: 90,  required: false },
+  { id: 'inviterName',   label: '초대자',    width: 110, required: false },
+  { id: 'afterParty',    label: '뒤풀이 참여', width: 90,  required: false },
+  { id: 'comment',       label: '추가 입력 정보', width: 180, required: false },
+  { id: 'createdAt',     label: '신청 시간', width: 140, required: false },
+  { id: 'attendStatus',  label: '입장 여부', width: 130, required: false },
 ];
 
 const DEFAULT_COLUMN_ORDER = ALL_COLUMNS.map(c => c.id);
@@ -194,7 +194,7 @@ export default function ReservationManagementPage() {
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
-  // 건별 후원금 폼 입력값 상태
+  // 건별 후원금 폼 입력값 및 아코디언 토글 상태
   const [donorName, setDonorName] = useState('');
   const [donationAmount, setDonationAmount] = useState('');
   const [donationDate, setDonationDate] = useState(new Date().toISOString().slice(0, 10));
@@ -450,58 +450,63 @@ export default function ReservationManagementPage() {
     setExpandedInviters(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
-  // 셀 렌더링 함수 (단위 제거: 매수/인원수는 오직 숫자만 표기)
+  const colMap = Object.fromEntries(ALL_COLUMNS.map(c => [c.id, c]));
+
+  // 셀 렌더링 함수 (고정 너비 및 border-box 적용으로 상태 변경 시 컬럼 흔들림 방지)
   const renderCell = useCallback((o, colId) => {
     const isPaid = o.depositStatus === DEPOSIT_DONE;
     const totalTickets = Number(o.ticketCount) || 0;
     const currentEntered = Number(o.enteredCount) || 0;
     const isEntered = currentEntered === totalTickets && totalTickets > 0;
+    const colDef = colMap[colId];
+    const cellWidth = colDef?.width ? `${colDef.width}px` : undefined;
 
     switch (colId) {
       case 'depositStatus':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
             <button
               type="button"
               onClick={() => toggleDeposit(o)}
               style={{
-                width: '100%', padding: '7px 10px', borderRadius: 9,
+                width: '100%', padding: '7px 8px', borderRadius: 9,
                 border: `1.5px solid ${isPaid ? '#10b981' : 'var(--slate-200)'}`,
                 background: isPaid ? '#10b981' : '#fff',
                 color: isPaid ? '#fff' : '#64748b',
                 fontSize: 12, fontWeight: 800, cursor: isAdmin ? 'pointer' : 'default',
-                whiteSpace: 'nowrap', transition: 'all 0.2s'
+                whiteSpace: 'nowrap', transition: 'all 0.2s', boxSizing: 'border-box',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
               }}
             >{isPaid ? '✓ 입금 완료' : '입금 대기'}</button>
           </td>
         );
       case 'audienceName':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontWeight: 800, color: 'var(--slate-900)', fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
             {o.audienceName}
           </td>
         );
       case 'phone':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', color: '#475569', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', color: '#475569', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
             {o.phone || '-'}
           </td>
         );
       case 'ticketCount':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
             {o.ticketCount}
           </td>
         );
       case 'inviterName':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', fontSize: 13, color: '#64748b', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontSize: 13, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
             {o.inviterName || '-'}
           </td>
         );
       case 'afterParty':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: o.isAfterParty ? '#111827' : '#94a3b8' }}>
               {o.isAfterParty ? (o.afterPartyCount || 1) : 0}
             </div>
@@ -509,29 +514,30 @@ export default function ReservationManagementPage() {
         );
       case 'comment':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: cellWidth, boxSizing: 'border-box' }}>
             {o.comment || '-'}
           </td>
         );
       case 'createdAt':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
             {o.createdAt ? formatDate(o.createdAt) : '-'}
           </td>
         );
       case 'attendStatus':
         return (
-          <td key={colId} style={{ padding: '14px 10px', textAlign: 'center' }}>
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
             <button
               type="button"
               onClick={() => toggleAttendance(o)}
               style={{
-                width: '100%', padding: '7px 10px', borderRadius: 9,
+                width: '100%', padding: '7px 8px', borderRadius: 9,
                 border: `1.5px solid ${isEntered ? '#10b981' : currentEntered > 0 ? '#f59e0b' : 'var(--slate-200)'}`,
                 background: isEntered ? '#10b981' : currentEntered > 0 ? '#fef3c7' : '#fff',
                 color: isEntered ? '#fff' : currentEntered > 0 ? '#92400e' : '#64748b',
                 fontSize: 12, fontWeight: 800, cursor: isAdmin ? 'pointer' : 'default',
-                whiteSpace: 'nowrap', transition: 'all 0.2s'
+                whiteSpace: 'nowrap', transition: 'all 0.2s', boxSizing: 'border-box',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center'
               }}
             >
               {isEntered ? '✓ 입장 완료' : `${currentEntered}/${totalTickets} 입장`}
@@ -539,11 +545,9 @@ export default function ReservationManagementPage() {
           </td>
         );
       default:
-        return <td key={colId} />;
+        return <td key={colId} style={{ width: cellWidth, boxSizing: 'border-box' }} />;
     }
-  }, [isAdmin, checkinMode, orders]);
-
-  const colMap = Object.fromEntries(ALL_COLUMNS.map(c => [c.id, c]));
+  }, [isAdmin, checkinMode, orders, colMap]);
 
   if (loading) {
     return (
@@ -695,7 +699,7 @@ export default function ReservationManagementPage() {
             <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 15, fontWeight: 500 }}>표시할 예매 정보가 없습니다.</div>
           ) : (
             <div style={{ overflowX: 'auto', margin: '0 -24px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 600 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed', minWidth: checkinMode ? 480 : 720 }}>
                 <thead>
                   <tr style={{ background: checkinMode ? '#1e293b' : 'var(--slate-50)', borderBottom: '2px solid var(--slate-100)' }}>
                     {visibleColOrder.map(id => {
@@ -705,9 +709,11 @@ export default function ReservationManagementPage() {
                         <th
                           key={id}
                           style={{
-                            padding: '14px 10px', textAlign: 'center', fontSize: 13, fontWeight: 800,
+                            padding: '14px 8px', textAlign: 'center', fontSize: 13, fontWeight: 800,
                             color: checkinMode ? '#f8fafc' : 'var(--text-muted)',
                             whiteSpace: 'nowrap',
+                            width: col.width ? `${col.width}px` : undefined,
+                            boxSizing: 'border-box'
                           }}
                         >
                           {col.label}
@@ -733,11 +739,13 @@ export default function ReservationManagementPage() {
                 <tfoot>
                   <tr style={{ background: 'var(--slate-100)', fontWeight: 800, borderTop: '2px solid var(--slate-200)' }}>
                     {visibleColOrder.map((id, i) => {
-                      if (i === 0) return <td key={id} style={{ padding: '14px 10px', textAlign: 'center', color: 'var(--slate-700)' }}>합계</td>;
-                      if (id === 'ticketCount') return <td key={id} style={{ padding: '14px 10px', textAlign: 'center', color: '#111827' }}>{totals.tickets}매</td>;
-                      if (id === 'afterParty') return <td key={id} style={{ padding: '14px 10px', textAlign: 'center', color: '#475569' }}>{totals.afterParties}명</td>;
-                      if (id === 'attendStatus') return <td key={id} style={{ padding: '14px 10px', textAlign: 'center', color: '#059669' }}>{totals.enteredTotal}명 입장</td>;
-                      return <td key={id} />;
+                      const col = colMap[id];
+                      const cellWidth = col?.width ? `${col.width}px` : undefined;
+                      if (i === 0) return <td key={id} style={{ padding: '14px 8px', textAlign: 'center', color: 'var(--slate-700)', width: cellWidth, boxSizing: 'border-box' }}>합계</td>;
+                      if (id === 'ticketCount') return <td key={id} style={{ padding: '14px 8px', textAlign: 'center', color: '#111827', width: cellWidth, boxSizing: 'border-box' }}>{totals.tickets}매</td>;
+                      if (id === 'afterParty') return <td key={id} style={{ padding: '14px 8px', textAlign: 'center', color: '#475569', width: cellWidth, boxSizing: 'border-box' }}>{totals.afterParties}명</td>;
+                      if (id === 'attendStatus') return <td key={id} style={{ padding: '14px 8px', textAlign: 'center', color: '#059669', width: cellWidth, boxSizing: 'border-box' }}>{totals.enteredTotal}명 입장</td>;
+                      return <td key={id} style={{ width: cellWidth, boxSizing: 'border-box' }} />;
                     })}
                   </tr>
                 </tfoot>
@@ -745,6 +753,7 @@ export default function ReservationManagementPage() {
             </div>
           )}
         </div>
+
 
         {/* ── [섹션 2] 후원금 관리 섹션 (개별 내역 아코디언/토글 UI) ── */}
         <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 16 }}>
