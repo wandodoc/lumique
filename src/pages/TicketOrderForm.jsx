@@ -86,13 +86,29 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
           <span style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</span>
         </label>
         {fixed.isAfterParty && (
-          <div style={{ marginTop: 16, pt: 16, borderTop: '1px dotted #e2e8f0' }}>
+          <div style={{ marginTop: 16, borderTop: '1px dotted #e2e8f0', paddingTop: 16 }}>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>뒤풀이 참여 인원 (본인 포함)</label>
+              <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>
+                뒤풀이 참여 인원 (본인 포함) &nbsp;
+                <span style={{ color: '#94a3b8' }}>티켓 {fixed.qty}매 기준 최대 {fixed.qty}명</span>
+              </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button type="button" onClick={() => fixed.setAfterPartyCount(Math.max(1, fixed.afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>-</button>
+                <button type="button" onClick={() => fixed.setAfterPartyCount(Math.max(1, fixed.afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 18 }}>-</button>
                 <span style={{ fontSize: 15, fontWeight: 700 }}>{fixed.afterPartyCount}명</span>
-                <button type="button" onClick={() => fixed.setAfterPartyCount(fixed.afterPartyCount + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>+</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (fixed.afterPartyCount >= fixed.qty) {
+                      window.alert(`뒤풀이 인원은 티켓 매수(${fixed.qty}매)를 초과할 수 없습니다.`);
+                      return;
+                    }
+                    fixed.setAfterPartyCount(fixed.afterPartyCount + 1);
+                  }}
+                  style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 18 }}
+                >+</button>
+                {fixed.afterPartyCount >= fixed.qty && (
+                  <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>매수 제한 도달</span>
+                )}
               </div>
             </div>
             <div>
@@ -296,12 +312,6 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty,
         {/* Form body */}
         <form onSubmit={onSubmit}>
           <div style={{ padding: '0 20px', display: 'grid', gap: 20 }}>
-            {show?.description && (
-              <div style={{ padding: '14px 16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                {show.description}
-              </div>
-            )}
-
             <RenderSections
               sections={show?.customSections || []}
               values={customResponses}
@@ -324,11 +334,12 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty,
               disabled={submitting}
               style={{
                 width: '100%', height: 56, borderRadius: 16,
-                background: submitting ? '#94a3b8' : '#2563eb',
+                background: submitting ? '#4b5563' : '#111827',
                 color: '#fff', fontSize: 16, fontWeight: 800,
                 border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
                 marginBottom: 8,
-                transition: 'background 0.2s',
+                transition: 'background 0.2s, opacity 0.2s',
+                opacity: submitting ? 0.7 : 1,
               }}
             >
               {submitting ? '처리 중...' : `${total.toLocaleString()}원 결제 신청`}
@@ -495,7 +506,7 @@ export default function TicketOrderForm({ showId }) {
       {/* ── 고정 하단 바 ─────────────────────────────────────────────────── */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 800,
-        background: 'rgba(255,255,255,0.92)',
+        background: 'rgba(255,255,255,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderTop: '1px solid #e2e8f0',
@@ -519,19 +530,19 @@ export default function TicketOrderForm({ showId }) {
             flex: 2,
             height: 52,
             borderRadius: 16,
-            background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+            background: '#111827',
             color: '#fff',
             fontSize: 16,
             fontWeight: 800,
             border: 'none',
             cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(37,99,235,0.35)',
-            transition: 'transform 0.15s',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+            transition: 'transform 0.15s, opacity 0.15s',
           }}
-          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
-          onMouseUp={e => { e.currentTarget.style.transform = ''; }}
-          onTouchStart={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
-          onTouchEnd={e => { e.currentTarget.style.transform = ''; }}
+          onMouseDown={e => { e.currentTarget.style.opacity = '0.85'; }}
+          onMouseUp={e => { e.currentTarget.style.opacity = ''; }}
+          onTouchStart={e => { e.currentTarget.style.opacity = '0.85'; }}
+          onTouchEnd={e => { e.currentTarget.style.opacity = ''; }}
         >
           지금 예매하기 🎟
         </button>
