@@ -99,7 +99,7 @@ const normShows = (v) => {
 };
 
 const card = (title, children) => (
-  <section className="card card-pad" style={{ display: 'grid', gap: 14 }}>
+  <section className="card card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 20, boxSizing: 'border-box', width: '100%' }}>
     <h4 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: 'var(--slate-900)' }}>{title}</h4>
     {children}
   </section>
@@ -495,7 +495,7 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
               
               {/* 공연 기본 정보 및 링크 카드 */}
               {card('🔗 공연 신청 링크 공유', (
-                <div style={{ display: 'grid', gap: 10, fontSize: 14, width: '100%', boxSizing: 'border-box' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', boxSizing: 'border-box' }}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', boxSizing: 'border-box' }}>
                     <a 
                       href={formUrl} 
@@ -505,7 +505,7 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
                       style={{
                         flex: '1 1 0%',
                         minWidth: 0,
-                        padding: '9px 12px',
+                        padding: '10px 14px',
                         borderRadius: 10,
                         border: '1.5px solid #e2e8f0',
                         fontSize: 13,
@@ -528,9 +528,10 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
                       className="btn-secondary"
                       style={{
                         flex: '0 0 auto',
-                        height: 38,
+                        flexShrink: 0,
+                        height: 40,
                         fontSize: 13,
-                        padding: '0 14px',
+                        padding: '0 16px',
                         fontWeight: 800,
                         whiteSpace: 'nowrap',
                         borderRadius: 10,
@@ -544,7 +545,7 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
                       📋 링크 복사
                     </button>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--slate-500)', lineHeight: 1.5, fontWeight: 500, wordBreak: 'keep-all' }}>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)', lineHeight: 1.6, fontWeight: 500, wordBreak: 'keep-all', marginTop: 4, whiteSpace: 'normal' }}>
                     ※ URL 클릭 시 새 탭에서 예매 폼이 바로 열리며, 우측 <b>'📋 링크 복사'</b> 버튼으로 주소를 클립보드에 간편하게 복사할 수 있습니다.
                   </div>
                 </div>
