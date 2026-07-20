@@ -183,6 +183,46 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
 const toast = (msg) => window.alert(msg);
 
 // ── Bottom Sheet ──────────────────────────────────────────────────────────────
+function AccountCard({ account }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(account).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div style={{ background: '#111827', borderRadius: 16, padding: '16px 18px', color: '#fff' }}>
+      <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, marginBottom: 10, letterSpacing: '0.05em', textTransform: 'uppercase' }}>입금 계좌</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: '-0.01em' }}>{account}</span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          style={{
+            flexShrink: 0,
+            padding: '6px 14px',
+            borderRadius: 10,
+            border: 'none',
+            background: copied ? '#10b981' : '#374151',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          {copied ? '✓ 복사됨' : '복사'}
+        </button>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 12, color: '#6b7280', lineHeight: 1.6 }}>
+        * 신청 후 24시간 이내 입금 부탁드립니다.
+      </div>
+    </div>
+  );
+}
+
 function BottomSheet({ isOpen, onClose, show, price, total, qty,
   name, setName, phone, setPhone, setQty,
   isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount,
@@ -270,15 +310,12 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty,
             />
 
             {/* 결제 요약 */}
-            <div style={{ padding: '20px', background: '#111827', borderRadius: 20, color: '#fff', marginTop: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ background: '#111827', borderRadius: 20, padding: '20px', color: '#fff', marginTop: 4, display: 'grid', gap: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, color: '#9ca3af' }}>총 결제 금액</span>
                 <span style={{ fontSize: 22, fontWeight: 950 }}>{total.toLocaleString()}원</span>
               </div>
-              <div style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.7 }}>
-                무통장 입금: {SUPPORT_ACCOUNT}<br />
-                * 신청 후 24시간 이내 입금 부탁드립니다.
-              </div>
+              <AccountCard account={SUPPORT_ACCOUNT} />
             </div>
 
             {/* 제출 버튼 */}
@@ -413,13 +450,9 @@ export default function TicketOrderForm({ showId }) {
         <div style={{ fontSize: 50, marginBottom: 20 }}>🎉</div>
         <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 10px' }}>예매 신청 완료!</h2>
         <p style={{ color: '#64748b', fontSize: 14, marginBottom: 30 }}>입금 확인 후 최종 확정됩니다.</p>
-        <div style={{ background: '#111827', borderRadius: 20, padding: 24, margin: '24px 0' }}>
-          <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, marginBottom: 8 }}>입금 계좌 정보</div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <span style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>{SUPPORT_ACCOUNT}</span>
-            <button onClick={copyAccount} style={{ background: '#374151', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}>복사</button>
-          </div>
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #374151', color: '#fff', fontSize: 15 }}>
+        <div style={{ margin: '24px 0', textAlign: 'left' }}>
+          <AccountCard account={SUPPORT_ACCOUNT} />
+          <div style={{ marginTop: 12, padding: '12px 16px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 14, color: '#374151', textAlign: 'center' }}>
             입금 금액: <strong>{total.toLocaleString()}원</strong>
           </div>
         </div>
