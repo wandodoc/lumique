@@ -576,42 +576,7 @@ export default function ReservationManagementPage() {
           </button>
         </div>
 
-        {/* ── 당일 현장 입장 관리 모드 토글 ── */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-          padding: '16px 20px', borderRadius: 16,
-          background: checkinMode ? '#111827' : '#fff',
-          border: checkinMode ? '1.5px solid #374151' : '1.5px solid #e2e8f0',
-          transition: 'all 0.25s ease', boxShadow: checkinMode ? '0 4px 20px rgba(0,0,0,0.12)' : 'none'
-        }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: checkinMode ? '#f8fafc' : '#0f172a' }}>
-              입장 관리 모드 (당일 모드)
-            </div>
-            <div style={{ fontSize: 12, color: checkinMode ? '#94a3b8' : '#64748b', marginTop: 3, fontWeight: 600 }}>
-              {checkinMode
-                ? '활성화됨 — 입장 여부, 예매자명, 티켓 매수, 연락처 4개 핵심 컬럼만 노출됩니다.'
-                : '활성화 시 당일 체크인에 필요한 핵심 컬럼만 간결하게 배치됩니다.'}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCheckinMode(v => !v)}
-            style={{
-              position: 'relative', width: 56, height: 30, borderRadius: 15, border: 'none',
-              background: checkinMode ? '#10b981' : '#cbd5e1', cursor: 'pointer', flexShrink: 0,
-              transition: 'background 0.25s ease'
-            }}
-          >
-            <span style={{
-              position: 'absolute', top: 3, left: checkinMode ? 28 : 3,
-              width: 24, height: 24, borderRadius: 12, background: '#fff',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.18)', transition: 'left 0.25s ease', display: 'block'
-            }} />
-          </button>
-        </div>
-
-        {/* ── 통계 카드 (합계 요약 영역에는 단위 노출) ── */}
+        {/* ── 통계 카드 (합계 요약 영역) ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="#111827" />
           <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="#111827" />
@@ -619,7 +584,7 @@ export default function ReservationManagementPage() {
           <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="#64748b" />
         </div>
 
-        {/* ── 총 모금액 카드 & 건별 후원금 관리 (날짜 최신순 정렬 적용) ── */}
+        {/* ── 총 모금액 카드 & 건별 후원금 관리 ── */}
         {concertId && (
           <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
@@ -673,7 +638,7 @@ export default function ReservationManagementPage() {
                   </button>
                 </div>
 
-                {/* 입력된 후원 내역 목록 (날짜 최신순 정렬 노출) */}
+                {/* 입력된 후원 내역 목록 (날짜 최신순 정렬) */}
                 {donationList.length > 0 && (
                   <div style={{ display: 'grid', gap: 6, marginTop: 4, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                     {donationList.map((item) => (
@@ -701,6 +666,46 @@ export default function ReservationManagementPage() {
 
         {/* ── 예매자 테이블 영역 ── */}
         <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
+
+          {/* ── [이동 완료] 입장 관리 모드 (당일 모드) 토글 영역 ── */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+            padding: '14px 18px', borderRadius: 14,
+            background: checkinMode ? '#111827' : '#f8fafc',
+            border: checkinMode ? '1.5px solid #374151' : '1.5px solid #e2e8f0',
+            transition: 'all 0.25s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 16 }}>🚪</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: checkinMode ? '#f8fafc' : '#0f172a' }}>
+                  입장 관리 모드 (당일 모드)
+                </div>
+                <div style={{ fontSize: 12, color: checkinMode ? '#94a3b8' : '#64748b', marginTop: 2, fontWeight: 600 }}>
+                  {checkinMode
+                    ? '활성화됨 — 입장 여부, 예매자명, 티켓 매수, 연락처 4개 핵심 컬럼만 노출됩니다.'
+                    : '활성화 시 당일 체크인에 필요한 핵심 4개 컬럼(입장 여부/이름/매수/전화번호)만 노출됩니다.'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCheckinMode(v => !v)}
+              style={{
+                position: 'relative', width: 52, height: 28, borderRadius: 14, border: 'none',
+                background: checkinMode ? '#10b981' : '#cbd5e1', cursor: 'pointer', flexShrink: 0,
+                transition: 'background 0.25s ease'
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: 3, left: checkinMode ? 26 : 3,
+                width: 22, height: 22, borderRadius: 11, background: '#fff',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.18)', transition: 'left 0.25s ease', display: 'block'
+              }} />
+            </button>
+          </div>
+
+          {/* 검색창 & 액션 버튼들 */}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: 15, color: '#94a3b8' }}>🔎</span>

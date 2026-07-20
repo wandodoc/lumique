@@ -496,17 +496,25 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
               {/* 공연 기본 정보 및 링크 카드 */}
               {card('🔗 공연 신청 링크 공유', (
                 <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input 
                       type="text" 
                       readOnly 
                       value={formUrl} 
-                      style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13, background: '#f8fafc', color: 'var(--slate-800)', outline: 'none' }} 
+                      style={{ flex: 1, minWidth: 200, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13, background: '#f8fafc', color: 'var(--slate-800)', outline: 'none' }} 
                     />
                     <button onClick={copyUrl} className="btn-secondary" style={{ height: 38, fontSize: 13, padding: '0 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>링크 복사</button>
+                    <a
+                      href={formUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 38, padding: '0 16px', borderRadius: 8, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                    >
+                      새 탭으로 열기 ↗
+                    </a>
                   </div>
                   <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--slate-400)' }}>
-                    ※ 위 링크를 관객들에게 SNS나 메시지로 공유하면 예매를 접수받을 수 있습니다.
+                    ※ 위 링크를 관객들에게 SNS나 메시지로 공유하면 예매를 접수받을 수 있습니다. (클릭 시 새 탭에서 열립니다)
                   </p>
                 </div>
               ))}
