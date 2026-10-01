@@ -9,10 +9,32 @@ const AppContext = createContext(null);
 // 기본 공연 목록: 하드코딩 데이터 없음. 항상 빈 배열로 시작.
 const DEFAULT_PERFORMANCES = [];
 
+const normalizeMemberAvailability = value => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+);
+
+const normalizeBandMembers = value => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+);
+
+const normalizePracticeStatuses = value => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+);
+
+const normalizeConfirmedRehearsals = value => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+);
+
 const initialState = {
   members: [],
   transactions: [],
   performances: DEFAULT_PERFORMANCES, // 공연 목록 (동적 관리)
+  performanceParticipants: {},
+  memberAvailability: {},
+  bandMembers: {},
+  bandMemberAvailability: {},
+  practiceStatuses: {},
+  confirmedRehearsals: {},
   lastUpdated: null,
   loading: true,
 };
@@ -25,6 +47,12 @@ function reducer(state, action) {
         members: action.members,
         transactions: action.transactions,
         performances: action.performances,
+        performanceParticipants: action.performanceParticipants || {},
+        memberAvailability: normalizeMemberAvailability(action.memberAvailability),
+        bandMembers: normalizeBandMembers(action.bandMembers),
+        bandMemberAvailability: normalizeMemberAvailability(action.bandMemberAvailability),
+        practiceStatuses: normalizePracticeStatuses(action.practiceStatuses),
+        confirmedRehearsals: normalizeConfirmedRehearsals(action.confirmedRehearsals),
         lastUpdated: action.lastUpdated,
         loading: false,
       };
@@ -77,6 +105,153 @@ function reducer(state, action) {
     case 'DELETE_PERFORMANCE': {
       const performances = state.performances.filter(p => p.key !== action.key);
       return { ...state, performances, lastUpdated: new Date().toISOString() };
+    }
+    case 'SET_PERFORMANCE_PARTICIPANTS':
+      return {
+        ...state,
+        performanceParticipants: action.performanceParticipants || {},
+        lastUpdated: new Date().toISOString(),
+      };
+    case 'DELETE_PERFORMANCE_PARTICIPANTS': {
+      const performanceParticipants = { ...state.performanceParticipants };
+      delete performanceParticipants[action.showId];
+      return { ...state, performanceParticipants, lastUpdated: new Date().toISOString() };
+    }
+    case 'ADD_BAND_MEMBER': {
+      const bandMember = action.bandMember;
+      if (!bandMember?.id || bandMember.type !== 'external') return state;
+
+      return {
+        ...state,
+        bandMembers: {
+          ...normalizeBandMembers(state.bandMembers),
+          [bandMember.id]: bandMember,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'UPDATE_BAND_MEMBER': {
+      const bandMember = action.bandMember;
+      if (!bandMember?.id || bandMember.type !== 'external') return state;
+
+      const bandMembers = normalizeBandMembers(state.bandMembers);
+      if (!bandMembers[bandMember.id]) return state;
+
+      return {
+        ...state,
+        bandMembers: { ...bandMembers, [bandMember.id]: bandMember },
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'DELETE_BAND_MEMBER': {
+      const bandMembers = { ...normalizeBandMembers(state.bandMembers) };
+      delete bandMembers[action.bandMemberId];
+
+      const bandMemberAvailability = { ...normalizeMemberAvailability(state.bandMemberAvailability) };
+      delete bandMemberAvailability[action.bandMemberId];
+
+      return {
+        ...state,
+        bandMembers,
+        bandMemberAvailability,
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'UPDATE_BAND_MEMBER_AVAILABILITY': {
+      const { bandMemberId, date, status } = action;
+      const validStatuses = ['available', 'unavailable', 'undecided'];
+
+      if (!bandMemberId || !date || !validStatuses.includes(status)) return state;
+
+      const bandMemberAvailability = normalizeMemberAvailability(state.bandMemberAvailability);
+      return {
+        ...state,
+        bandMemberAvailability: {
+          ...bandMemberAvailability,
+          [bandMemberId]: {
+            ...(bandMemberAvailability[bandMemberId] || {}),
+            [date]: status,
+          },
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'UPDATE_PRACTICE_STATUS': {
+      const { date, songId, status } = action.payload || action;
+      const validStatuses = ['possible', 'impossible', 'hold', 'undecided'];
+
+      if (!date || !songId || !validStatuses.includes(status)) return state;
+
+      const practiceStatuses = normalizePracticeStatuses(state.practiceStatuses);
+      return {
+        ...state,
+        practiceStatuses: {
+          ...practiceStatuses,
+          [date]: {
+            ...(practiceStatuses[date] || {}),
+            [songId]: status,
+          },
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'ADD_CONFIRMED_REHEARSAL': {
+      const rehearsal = action.payload;
+      if (!rehearsal?.id) return state;
+
+      return {
+        ...state,
+        confirmedRehearsals: {
+          ...normalizeConfirmedRehearsals(state.confirmedRehearsals),
+          [rehearsal.id]: rehearsal,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'UPDATE_CONFIRMED_REHEARSAL': {
+      const rehearsal = action.payload;
+      if (!rehearsal?.id) return state;
+
+      const confirmedRehearsals = normalizeConfirmedRehearsals(state.confirmedRehearsals);
+      if (!confirmedRehearsals[rehearsal.id]) return state;
+
+      return {
+        ...state,
+        confirmedRehearsals: {
+          ...confirmedRehearsals,
+          [rehearsal.id]: rehearsal,
+        },
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'DELETE_CONFIRMED_REHEARSAL': {
+      const confirmedRehearsals = { ...normalizeConfirmedRehearsals(state.confirmedRehearsals) };
+      delete confirmedRehearsals[action.payload?.id || action.id];
+
+      return {
+        ...state,
+        confirmedRehearsals,
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'UPDATE_MEMBER_AVAILABILITY': {
+      const { memberId, date, status } = action;
+      const validStatuses = ['available', 'unavailable', 'undecided'];
+
+      if (!memberId || !date || !validStatuses.includes(status)) return state;
+
+      const memberAvailability = normalizeMemberAvailability(state.memberAvailability);
+      return {
+        ...state,
+        memberAvailability: {
+          ...memberAvailability,
+          [memberId]: {
+            ...(memberAvailability[memberId] || {}),
+            [date]: status,
+          },
+        },
+        lastUpdated: new Date().toISOString(),
+      };
     }
     default:
       return state;
@@ -168,6 +343,12 @@ export function AppProvider({ children }) {
           members: mergedMembers,
           transactions: transactions,
           performances: performances,
+          performanceParticipants: fbState.performanceParticipants || {},
+          memberAvailability: fbState.memberAvailability || {},
+          bandMembers: fbState.bandMembers ?? storage.getBandMembers() ?? {},
+          bandMemberAvailability: fbState.bandMemberAvailability ?? storage.getBandMemberAvailability() ?? {},
+          practiceStatuses: fbState.practiceStatuses ?? storage.getPracticeStatuses() ?? {},
+          confirmedRehearsals: fbState.confirmedRehearsals ?? storage.getConfirmedRehearsals() ?? {},
           lastUpdated: (updatedCount > 0 || needsPerfUpdate) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
@@ -175,6 +356,12 @@ export function AppProvider({ children }) {
         const savedTxs = storage.getTransactions();
         const savedMembers = storage.getMembers();
         const savedPerformances = storage.getPerformances();
+        const savedPerformanceParticipants = storage.getPerformanceParticipants();
+        const savedMemberAvailability = storage.getMemberAvailability();
+        const savedBandMembers = storage.getBandMembers();
+        const savedBandMemberAvailability = storage.getBandMemberAvailability();
+        const savedPracticeStatuses = storage.getPracticeStatuses();
+        const savedConfirmedRehearsals = storage.getConfirmedRehearsals();
         const savedLastUpdated = storage.getLastUpdated();
 
         const members = (savedMembers || MEMBERS).map(m => {
@@ -192,6 +379,12 @@ export function AppProvider({ children }) {
           members,
           transactions: savedTxs || SAMPLE_TRANSACTIONS,
           performances: savedPerformances || [],
+          performanceParticipants: savedPerformanceParticipants || {},
+          memberAvailability: savedMemberAvailability || {},
+          bandMembers: savedBandMembers || {},
+          bandMemberAvailability: savedBandMemberAvailability || {},
+          practiceStatuses: savedPracticeStatuses || {},
+          confirmedRehearsals: savedConfirmedRehearsals || {},
           lastUpdated: savedLastUpdated || new Date().toISOString(),
         };
 
@@ -211,6 +404,12 @@ export function AppProvider({ children }) {
         members: state.members,
         transactions: state.transactions,
         performances: state.performances,
+        performanceParticipants: state.performanceParticipants,
+        memberAvailability: state.memberAvailability,
+        bandMembers: state.bandMembers,
+        bandMemberAvailability: state.bandMemberAvailability,
+        practiceStatuses: state.practiceStatuses,
+        confirmedRehearsals: state.confirmedRehearsals,
         lastUpdated: state.lastUpdated
       };
       
@@ -227,6 +426,12 @@ export function AppProvider({ children }) {
         storage.setTransactions(state.transactions);
         storage.setMembers(state.members);
         storage.setPerformances(state.performances);
+        storage.setPerformanceParticipants(state.performanceParticipants);
+        storage.setMemberAvailability(state.memberAvailability);
+        storage.setBandMembers(state.bandMembers);
+        storage.setBandMemberAvailability(state.bandMemberAvailability);
+        storage.setPracticeStatuses(state.practiceStatuses);
+        storage.setConfirmedRehearsals(state.confirmedRehearsals);
         storage.setLastUpdated(state.lastUpdated);
         
         // 사용자가 명시한 키 'transactions'도 추가 동기화 보장
@@ -235,7 +440,7 @@ export function AppProvider({ children }) {
         console.error("LocalStorage Sync Error:", e);
       }
     }
-  }, [state.members, state.transactions, state.performances, state.lastUpdated, state.loading]);
+  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.lastUpdated, state.loading]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

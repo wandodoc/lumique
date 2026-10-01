@@ -1,4 +1,5 @@
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { useEffect, useMemo, useState } from 'react';
 import './PageStyles.css';
 
@@ -392,9 +393,10 @@ function ShowFormModal({ show, onClose, onSave }) {
   );
 }
 
-function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
+function ShowDetailModal({ show, orders = [], members = [], participantIds = [], onToggleParticipant, onClose, onEdit, isAdmin }) {
   if (!show) return null;
   const formUrl = `${window.location.origin}/form/${show.id}`;
+  const participants = members.filter(member => participantIds.includes(member.id));
 
   const copyUrl = () => {
     navigator.clipboard.writeText(formUrl);
@@ -492,6 +494,44 @@ function ShowDetailModal({ show, orders = [], onClose, onEdit, isAdmin }) {
 
             {/* 우측: 관리용 대시보드 통계 카드 */}
             <div style={{ display: 'grid', gap: 20, alignContent: 'start' }}>
+              {card('공연 참여 회원', (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {participants.length === 0 ? (
+                    <div style={{ color: 'var(--slate-500)', fontSize: 13 }}>등록된 참여 회원이 없습니다.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {participants.map(member => (
+                        <div key={member.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 999, background: 'var(--slate-50)', border: '1px solid var(--slate-200)', fontSize: 13 }}>
+                          <span style={{ fontWeight: 800, color: 'var(--slate-800)' }}>{member.name}</span>
+                          <span style={{ color: 'var(--slate-500)' }}>({member.part})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {isAdmin && (
+                    <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)', marginBottom: 8 }}>참여 회원 추가/해제</div>
+                      {members.length === 0 ? (
+                        <div style={{ color: 'var(--slate-400)', fontSize: 13 }}>등록된 회원이 없습니다.</div>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6 }}>
+                          {members.map(member => {
+                            const checked = participantIds.includes(member.id);
+                            return (
+                              <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', borderRadius: 8, background: checked ? 'var(--blue-50)' : 'transparent', cursor: 'pointer', fontSize: 13 }}>
+                                <input type="checkbox" checked={checked} onChange={() => onToggleParticipant(show.id, member.id)} />
+                                <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{member.name}</span>
+                                <span style={{ color: 'var(--slate-500)', fontSize: 11 }}>({member.part})</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
               
               {/* 공연 기본 정보 및 링크 카드 */}
               {card('🔗 공연 신청 링크 공유', (
@@ -619,6 +659,8 @@ export default function PerformancePage() {
   const [editing, setEditing] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const { isAdmin } = useAuth();
+  const { state: appState, dispatch } = useApp();
+  const { members, performanceParticipants = {} } = appState;
   
   const { id: paramId } = useParams();
   const navigate = useNavigate();
@@ -677,6 +719,23 @@ export default function PerformancePage() {
     lsSet(LS_SHOWS, nextShows);
     await firebaseStorage.saveConcerts(nextShows);
   };
+
+  const toggleParticipant = (showId, memberId) => {
+    const current = Array.isArray(performanceParticipants[showId])
+      ? performanceParticipants[showId]
+      : [];
+    const nextMemberIds = current.includes(memberId)
+      ? current.filter(id => id !== memberId)
+      : [...current, memberId];
+
+    dispatch({
+      type: 'SET_PERFORMANCE_PARTICIPANTS',
+      performanceParticipants: {
+        ...performanceParticipants,
+        [showId]: nextMemberIds,
+      },
+    });
+  };
   
   const delShow = async (id, e) => {
     if (e) e.stopPropagation();
@@ -685,6 +744,7 @@ export default function PerformancePage() {
     const nextOrders = orders.filter(o => o.concertId !== id);
     setShows(nextShows);
     setOrders(nextOrders);
+    dispatch({ type: 'DELETE_PERFORMANCE_PARTICIPANTS', showId: id });
     lsSet(LS_SHOWS, nextShows);
     lsSet(LS_ORDERS, nextOrders);
     if (detail?.id === id) setDetail(null);
@@ -803,7 +863,16 @@ export default function PerformancePage() {
       )}
 
       {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
-      {detail && <ShowDetailModal show={detail} orders={orders.filter(o => o.concertId === detail.id)} onClose={() => setDetail(null)} onEdit={() => { setEditing(detail); setDetail(null); }} isAdmin={isAdmin} />}
+      {detail && <ShowDetailModal
+        show={detail}
+        orders={orders.filter(o => o.concertId === detail.id)}
+        members={members}
+        participantIds={performanceParticipants[detail.id] || []}
+        onToggleParticipant={toggleParticipant}
+        onClose={() => setDetail(null)}
+        onEdit={() => { setEditing(detail); setDetail(null); }}
+        isAdmin={isAdmin}
+      />}
     </div>
   );
 }

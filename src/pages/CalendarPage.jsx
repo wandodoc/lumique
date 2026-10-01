@@ -1,11 +1,94 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import './PageStyles.css';
 
+const SONG_PARTS = [
+  { key: 'vocal', label: '보컬' },
+  { key: 'guitar', label: '기타' },
+  { key: 'bass', label: '베이스' },
+  { key: 'synth', label: '신디' },
+  { key: 'drums', label: '드럼' }
+];
+
+const ASSIGNMENT_STATUSES = {
+  assigned: '담당자 지정',
+  unused: 'X',
+  undecided: '미정'
+};
+
+const AVAILABILITY_LABELS = {
+  available: '가능',
+  unavailable: '불가능',
+  undecided: '미정'
+};
+
+const PRACTICE_STATUS_OPTIONS = [
+  { value: 'possible', label: '가능' },
+  { value: 'impossible', label: '불가능' },
+  { value: 'hold', label: '보류' },
+  { value: 'undecided', label: '미정' }
+];
+
+const toDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentWeekMonday = (date) => {
+  const monday = new Date(date);
+  const day = monday.getDay();
+  monday.setDate(monday.getDate() + (day === 0 ? -6 : 1 - day));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+const formatBandPlanningDate = (dateKey) => {
+  const date = new Date(`${dateKey}T00:00:00`);
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short'
+  });
+};
+
+const createDefaultAssignments = () => SONG_PARTS.reduce((assignments, part) => {
+  assignments[part.key] = { status: 'undecided', memberIds: [] };
+  return assignments;
+}, {});
+
+const getAssignmentsForEditor = (song) => SONG_PARTS.reduce((assignments, part) => {
+  const savedAssignment = song?.assignments?.[part.key];
+  const status = Object.prototype.hasOwnProperty.call(ASSIGNMENT_STATUSES, savedAssignment?.status)
+    ? savedAssignment.status
+    : 'undecided';
+  const memberIds = Array.isArray(savedAssignment?.memberIds)
+    ? savedAssignment.memberIds.map(id => String(id))
+    : [];
+  const participantRefs = Array.isArray(savedAssignment?.participantRefs)
+    ? savedAssignment.participantRefs
+    : [];
+
+  assignments[part.key] = { status, memberIds };
+  if (Array.isArray(savedAssignment?.participantRefs)) {
+    assignments[part.key].participantRefs = participantRefs;
+  }
+  return assignments;
+}, createDefaultAssignments());
+
 export default function CalendarPage() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const members = state?.members || [];
+  const memberAvailability = state?.memberAvailability || {};
+  const bandMembers = state?.bandMembers || {};
+  const bandMemberAvailability = state?.bandMemberAvailability || {};
+  const practiceStatuses = state?.practiceStatuses || {};
+  const confirmedRehearsals = state?.confirmedRehearsals || {};
+  const externalBandMembers = Object.values(bandMembers)
+    .filter(member => member?.type === 'external' && member.id && member.name);
   const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'settlement'
   const { id: detailId } = useParams();
   const navigate = useNavigate();
@@ -36,44 +119,231 @@ export default function CalendarPage() {
   const [editingSongId, setEditingSongId] = useState(null);
   const [songTitle, setSongTitle] = useState('');
   const [songArtist, setSongArtist] = useState('');
-  const [selectedSongMembers, setSelectedSongMembers] = useState([]);
+  const [songAssignments, setSongAssignments] = useState(createDefaultAssignments);
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [bandPlanningDate, setBandPlanningDate] = useState(() => toDateKey(getCurrentWeekMonday(new Date())));
+  const [editingRehearsalId, setEditingRehearsalId] = useState(null);
+  const [rehearsalDate, setRehearsalDate] = useState(() => toDateKey(getCurrentWeekMonday(new Date())));
+  const [rehearsalTime, setRehearsalTime] = useState('');
+  const [rehearsalLocation, setRehearsalLocation] = useState('');
+  const [rehearsalSongIds, setRehearsalSongIds] = useState([]);
+  const [rehearsalMemo, setRehearsalMemo] = useState('');
 
-  const handleToggleMember = (memberName) => {
-    setSelectedSongMembers(prev => 
-      prev.includes(memberName) 
-        ? prev.filter(m => m !== memberName) 
-        : [...prev, memberName]
-    );
+  const getMemberLabel = (memberId) => {
+    const member = members.find(item => String(item.id) === String(memberId));
+    if (!member) return `ID: ${memberId}`;
+    return member.status === 'active' ? member.name : `${member.name} (inactive)`;
+  };
+
+  const getExternalBandMemberLabel = (bandMemberId) => {
+    const bandMember = externalBandMembers.find(item => String(item.id) === String(bandMemberId));
+    return bandMember ? `${bandMember.name} (외부)` : `ID: ${bandMemberId} (외부)`;
+  };
+
+  const getAssignmentLabels = (assignment) => {
+    const memberLabels = (assignment?.memberIds || []).map(memberId => getMemberLabel(memberId));
+    const externalLabels = (assignment?.participantRefs || [])
+      .filter(ref => ref?.type === 'external' && ref.id)
+      .map(ref => getExternalBandMemberLabel(ref.id));
+    return [...memberLabels, ...externalLabels];
+  };
+
+  const getBandPlanningParticipants = (assignment) => [
+    ...(assignment?.memberIds || []).map(memberId => ({
+      type: 'member',
+      id: String(memberId),
+      name: getMemberLabel(memberId)
+    })),
+    ...(assignment?.participantRefs || [])
+      .filter(ref => ref?.type === 'external' && ref.id)
+      .map(ref => ({
+        type: 'external',
+        id: String(ref.id),
+        name: getExternalBandMemberLabel(ref.id)
+      }))
+  ];
+
+  const getBandPlanningAvailability = (participant) => {
+    const availability = participant.type === 'member'
+      ? memberAvailability?.[participant.id]?.[bandPlanningDate]
+      : bandMemberAvailability?.[participant.id]?.[bandPlanningDate];
+    return AVAILABILITY_LABELS[availability] || AVAILABILITY_LABELS.undecided;
+  };
+
+  const shiftBandPlanningDate = (amount) => {
+    const nextDate = new Date(`${bandPlanningDate}T00:00:00`);
+    nextDate.setDate(nextDate.getDate() + amount);
+    setBandPlanningDate(toDateKey(nextDate));
+  };
+
+  const updatePracticeStatus = (songId, status) => {
+    dispatch({
+      type: 'UPDATE_PRACTICE_STATUS',
+      payload: {
+        date: bandPlanningDate,
+        songId,
+        status,
+      },
+    });
+  };
+
+  const resetRehearsalForm = () => {
+    setEditingRehearsalId(null);
+    setRehearsalDate(bandPlanningDate);
+    setRehearsalTime('');
+    setRehearsalLocation('');
+    setRehearsalSongIds([]);
+    setRehearsalMemo('');
+  };
+
+  const handleRehearsalSongSelection = (event) => {
+    setRehearsalSongIds(Array.from(event.target.selectedOptions, option => option.value));
+  };
+
+  const handleSaveConfirmedRehearsal = (event) => {
+    event.preventDefault();
+    if (!rehearsalDate || !rehearsalTime || !rehearsalLocation.trim() || rehearsalSongIds.length === 0) {
+      alert('날짜, 시간, 장소, 연습 곡을 모두 입력해 주세요.');
+      return;
+    }
+
+    const id = editingRehearsalId || `rehearsal-${Date.now()}`;
+    const rehearsal = {
+      id,
+      date: rehearsalDate,
+      time: rehearsalTime,
+      location: rehearsalLocation.trim(),
+      songIds: rehearsalSongIds,
+      memo: rehearsalMemo.trim(),
+      status: 'confirmed'
+    };
+
+    dispatch({
+      type: editingRehearsalId ? 'UPDATE_CONFIRMED_REHEARSAL' : 'ADD_CONFIRMED_REHEARSAL',
+      payload: rehearsal,
+    });
+    resetRehearsalForm();
+  };
+
+  const handleEditConfirmedRehearsal = (rehearsal) => {
+    setEditingRehearsalId(rehearsal.id);
+    setRehearsalDate(rehearsal.date || bandPlanningDate);
+    setRehearsalTime(rehearsal.time || '');
+    setRehearsalLocation(rehearsal.location || '');
+    setRehearsalSongIds(Array.isArray(rehearsal.songIds) ? rehearsal.songIds : []);
+    setRehearsalMemo(rehearsal.memo || '');
+  };
+
+  const handleDeleteConfirmedRehearsal = (rehearsalId) => {
+    if (!window.confirm('확정 연습 일정을 삭제하시겠습니까?')) return;
+    dispatch({
+      type: 'DELETE_CONFIRMED_REHEARSAL',
+      payload: { id: rehearsalId },
+    });
+    if (editingRehearsalId === rehearsalId) resetRehearsalForm();
+  };
+
+  const confirmedRehearsalList = Object.values(confirmedRehearsals)
+    .filter(rehearsal => rehearsal?.id)
+    .sort((a, b) => `${a.date || ''} ${a.time || ''}`.localeCompare(`${b.date || ''} ${b.time || ''}`));
+
+  const handleAssignmentStatusChange = (partKey, status) => {
+    setSongAssignments(prev => ({
+      ...prev,
+      [partKey]: {
+        ...prev[partKey],
+        status
+      }
+    }));
+  };
+
+  const handleToggleAssignmentMember = (partKey, memberId) => {
+    const normalizedId = String(memberId);
+    setSongAssignments(prev => {
+      const currentAssignment = prev[partKey] || { status: 'undecided', memberIds: [], participantRefs: [] };
+      const currentIds = currentAssignment.memberIds || [];
+      const memberIds = currentIds.includes(normalizedId)
+        ? currentIds.filter(id => id !== normalizedId)
+        : [...currentIds, normalizedId];
+      const participantRefs = currentAssignment.participantRefs || [];
+      const nextAssignment = {
+        ...currentAssignment,
+        status: memberIds.length > 0 || participantRefs.length > 0 ? 'assigned' : 'undecided',
+        memberIds,
+      };
+      if (participantRefs.length > 0 || Object.prototype.hasOwnProperty.call(currentAssignment, 'participantRefs')) {
+        nextAssignment.participantRefs = participantRefs;
+      }
+
+      return {
+        ...prev,
+        [partKey]: nextAssignment
+      };
+    });
+  };
+
+  const handleToggleExternalBandMember = (partKey, bandMemberId) => {
+    const normalizedId = String(bandMemberId);
+    setSongAssignments(prev => {
+      const currentAssignment = prev[partKey] || { status: 'undecided', memberIds: [], participantRefs: [] };
+      const currentRefs = Array.isArray(currentAssignment.participantRefs)
+        ? currentAssignment.participantRefs
+        : [];
+      const isSelected = currentRefs.some(ref => ref?.type === 'external' && String(ref.id) === normalizedId);
+      const participantRefs = isSelected
+        ? currentRefs.filter(ref => !(ref?.type === 'external' && String(ref.id) === normalizedId))
+        : [...currentRefs, { type: 'external', id: normalizedId }];
+      const memberIds = currentAssignment.memberIds || [];
+
+      return {
+        ...prev,
+        [partKey]: {
+          ...currentAssignment,
+          status: memberIds.length > 0 || participantRefs.some(ref => ref?.type === 'external' && ref.id)
+            ? 'assigned'
+            : 'undecided',
+          participantRefs,
+        }
+      };
+    });
   };
 
   const handleAddSong = (e) => {
     e.preventDefault();
     if (!songTitle.trim()) return alert('곡명을 입력해 주세요.');
 
-    const newSong = {
-      id: editingSongId || `song-${Date.now()}`,
-      title: songTitle.trim(),
-      artist: songArtist.trim(),
-      members: selectedSongMembers,
-      memberCount: selectedSongMembers.length,
-      regularDay: songRegularDay,
-      musicStatus: songStatus
-    };
-
     if (editingSongId) {
-      saveSongs(songs.map(s => s.id === editingSongId ? newSong : s));
+      saveSongs(songs.map(s => s.id === editingSongId
+        ? {
+            ...s,
+            title: songTitle.trim(),
+            artist: songArtist.trim(),
+            regularDay: songRegularDay,
+            musicStatus: songStatus,
+            assignments: songAssignments
+          }
+        : s));
     } else {
+      const newSong = {
+        id: `song-${Date.now()}`,
+        title: songTitle.trim(),
+        artist: songArtist.trim(),
+        members: [],
+        memberCount: 0,
+        regularDay: songRegularDay,
+        musicStatus: songStatus,
+        assignments: songAssignments
+      };
       saveSongs([...songs, newSong]);
     }
     
     setEditingSongId(null);
     setSongTitle('');
     setSongArtist('');
-    setSelectedSongMembers([]);
+    setSongAssignments(createDefaultAssignments());
+    setMemberSearchQuery('');
     setSongRegularDay('월요일');
     setSongStatus('시작전');
   };
@@ -82,7 +352,8 @@ export default function CalendarPage() {
     setEditingSongId(s.id);
     setSongTitle(s.title);
     setSongArtist(s.artist || '');
-    setSelectedSongMembers(s.members || []);
+    setSongAssignments(getAssignmentsForEditor(s));
+    setMemberSearchQuery('');
     setSongRegularDay(s.regularDay || '월요일');
     setSongStatus(s.musicStatus || '시작전');
     setActiveSubTab('songs');
@@ -231,12 +502,6 @@ export default function CalendarPage() {
     alert('정산 처리가 완료되었습니다.');
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-    }
-  };
-
   // --- 캘린더 날짜 렌더링용 ---
   const [calYear, setCalYear] = useState(2026);
   const [calMonth, setCalMonth] = useState(7);
@@ -259,6 +524,7 @@ export default function CalendarPage() {
         {[
           { id: 'calendar', label: '📅 캘린더' },
           { id: 'songs', label: '🎼 셋리스트' },
+          { id: 'band-planning', label: '🎸 밴드 일정 관리' },
           { id: 'settlement', label: '💸 월말 정산' }
         ].map(tab => (
           <button key={tab.id}
@@ -458,6 +724,206 @@ export default function CalendarPage() {
 
       {/* --- 2. 곡 마스터 관리 탭 --- */}
 
+      {activeSubTab === 'band-planning' && (
+        <div className="card card-pad">
+          <div className="flex-between" style={{ gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+            <div>
+              <span className="card-title" style={{ margin: 0 }}>🎸 밴드 일정 관리</span>
+              <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                선택한 날짜의 곡 담당자별 일정 상태를 조회합니다.
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className="btn-sm" onClick={() => shiftBandPlanningDate(-1)}>이전 날짜</button>
+              <input
+                type="date"
+                value={bandPlanningDate}
+                onChange={e => setBandPlanningDate(e.target.value)}
+                aria-label="밴드 일정 관리 날짜"
+                style={{ padding: '7px 9px', border: '1px solid var(--slate-200)', borderRadius: 8, fontSize: 12 }}
+              />
+              <button type="button" className="btn-sm" onClick={() => shiftBandPlanningDate(1)}>다음 날짜</button>
+            </div>
+          </div>
+
+          <div style={{ padding: '10px 12px', marginBottom: 16, background: 'var(--slate-50)', borderRadius: 8, color: 'var(--slate-700)', fontSize: 13, fontWeight: 700 }}>
+            조회 날짜: {formatBandPlanningDate(bandPlanningDate)}
+          </div>
+
+          {songs.length === 0 ? (
+            <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 곡이 없습니다.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+              {songs.map(song => (
+                <div key={song.id} style={{ padding: 16, border: '1px solid var(--slate-100)', borderRadius: 12, background: '#ffffff' }}>
+                  <div style={{ marginBottom: 14 }}>
+                    <strong style={{ display: 'block', color: 'var(--slate-800)', fontSize: 16 }}>{song.title}</strong>
+                    {song.artist && <span style={{ color: 'var(--slate-500)', fontSize: 13 }}>{song.artist}</span>}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {SONG_PARTS.map(part => {
+                      const assignment = getAssignmentsForEditor(song)[part.key];
+                      const participants = getBandPlanningParticipants(assignment);
+
+                      return (
+                        <div key={part.key} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--slate-50)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <strong style={{ fontSize: 12, color: 'var(--slate-700)' }}>{part.label}</strong>
+                            <span style={{ fontSize: 11, color: 'var(--slate-500)' }}>
+                              {assignment.status === 'unused' ? 'X · 사용 안 함' : assignment.status === 'undecided' ? '미정' : '담당자 지정'}
+                            </span>
+                          </div>
+
+                          {assignment.status === 'unused' ? (
+                            <div style={{ color: 'var(--slate-500)', fontSize: 12 }}>이 곡에서는 사용하지 않음</div>
+                          ) : assignment.status === 'undecided' || participants.length === 0 ? (
+                            <div style={{ color: 'var(--slate-500)', fontSize: 12 }}>담당자 미정</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                              {participants.map(participant => (
+                                <div key={`${participant.type}-${participant.id}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                                  <span style={{ color: 'var(--slate-800)' }}>{participant.name}</span>
+                                  <span style={{
+                                    padding: '2px 7px',
+                                    borderRadius: 999,
+                                    background: getBandPlanningAvailability(participant) === '가능' ? '#dcfce7' : getBandPlanningAvailability(participant) === '불가능' ? '#fee2e2' : '#f1f5f9',
+                                    color: getBandPlanningAvailability(participant) === '가능' ? '#166534' : getBandPlanningAvailability(participant) === '불가능' ? '#b91c1c' : 'var(--slate-600)',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    {getBandPlanningAvailability(participant)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--slate-100)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>연습 상태</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {PRACTICE_STATUS_OPTIONS.map(option => {
+                        const selectedStatus = practiceStatuses?.[bandPlanningDate]?.[song.id] || 'undecided';
+                        const isSelected = selectedStatus === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            aria-pressed={isSelected}
+                            onClick={() => updatePracticeStatus(song.id, option.value)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 8,
+                              border: `1px solid ${isSelected ? 'var(--blue-500)' : 'var(--slate-200)'}`,
+                              background: isSelected ? 'var(--blue-500)' : '#ffffff',
+                              color: isSelected ? '#ffffff' : 'var(--slate-600)',
+                              fontSize: 12,
+                              fontWeight: isSelected ? 800 : 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--slate-200)' }}>
+            <div className="flex-between" style={{ gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+              <div>
+                <span className="card-title" style={{ margin: 0 }}>확정 연습 일정</span>
+                <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                  availability나 연습 상태와 별도로 사용자가 직접 확정한 일정입니다.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              <form onSubmit={handleSaveConfirmedRehearsal} style={{ padding: 14, border: '1px solid var(--slate-100)', borderRadius: 10, background: 'var(--slate-50)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <strong style={{ fontSize: 14, color: 'var(--slate-800)' }}>
+                  {editingRehearsalId ? '연습 일정 수정' : '연습 일정 추가'}
+                </strong>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
+                  날짜
+                  <input type="date" value={rehearsalDate} onChange={e => setRehearsalDate(e.target.value)} required style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box' }} />
+                </label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
+                  시간
+                  <input type="time" value={rehearsalTime} onChange={e => setRehearsalTime(e.target.value)} required style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box' }} />
+                </label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
+                  장소
+                  <input type="text" value={rehearsalLocation} onChange={e => setRehearsalLocation(e.target.value)} placeholder="연습실 이름" required style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box' }} />
+                </label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
+                  연습 곡 (여러 곡 선택 가능)
+                  <select multiple value={rehearsalSongIds} onChange={handleRehearsalSongSelection} required style={{ display: 'block', width: '100%', minHeight: 96, marginTop: 5, padding: '6px 8px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box', background: '#ffffff' }}>
+                    {songs.map(song => (
+                      <option key={song.id} value={song.id}>{song.title}{song.artist ? ` - ${song.artist}` : ''}</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
+                  메모 (선택)
+                  <textarea value={rehearsalMemo} onChange={e => setRehearsalMemo(e.target.value)} rows={3} placeholder="연습 관련 메모" style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box', resize: 'vertical' }} />
+                </label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                  {editingRehearsalId && (
+                    <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={resetRehearsalForm}>취소</button>
+                  )}
+                  <button type="submit" className="btn-primary" style={{ flex: 2 }}>
+                    {editingRehearsalId ? '연습 일정 저장' : '연습 일정 확정'}
+                  </button>
+                </div>
+              </form>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {confirmedRehearsalList.length === 0 ? (
+                  <div className="text-muted" style={{ padding: '24px 12px', textAlign: 'center', border: '1px dashed var(--slate-200)', borderRadius: 10 }}>
+                    등록된 확정 연습 일정이 없습니다.
+                  </div>
+                ) : (
+                  confirmedRehearsalList.map(rehearsal => (
+                    <div key={rehearsal.id} style={{ padding: 14, border: '1px solid var(--slate-100)', borderRadius: 10, background: '#ffffff' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                        <div>
+                          <strong style={{ display: 'block', fontSize: 14, color: 'var(--slate-800)' }}>
+                            {rehearsal.date ? formatBandPlanningDate(rehearsal.date) : '날짜 미정'} {rehearsal.time || ''}
+                          </strong>
+                          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--slate-600)' }}>📍 {rehearsal.location}</div>
+                        </div>
+                        <span style={{ padding: '3px 7px', borderRadius: 999, background: '#dcfce7', color: '#166534', fontSize: 11, fontWeight: 800 }}>확정</span>
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 12, color: 'var(--slate-600)' }}>
+                        <strong>연습 곡</strong>
+                        <ul style={{ margin: '5px 0 0 18px', padding: 0 }}>
+                          {(Array.isArray(rehearsal.songIds) ? rehearsal.songIds : []).map(songId => {
+                            const song = songs.find(item => item.id === songId);
+                            return <li key={songId}>{song?.title || `곡 ID: ${songId}`}</li>;
+                          })}
+                        </ul>
+                      </div>
+                      {rehearsal.memo && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--slate-500)' }}>📝 {rehearsal.memo}</div>}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                        <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: 11 }} onClick={() => handleEditConfirmedRehearsal(rehearsal)}>수정</button>
+                        <button type="button" className="btn-secondary" style={{ padding: '5px 9px', fontSize: 11, color: 'var(--red-500)' }} onClick={() => handleDeleteConfirmedRehearsal(rehearsal.id)}>삭제</button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeSubTab === 'songs' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
           {/* 곡 신규 등록 */}
@@ -477,94 +943,106 @@ export default function CalendarPage() {
               </div>
               
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>참여 부원 선택 (활동 부원만 대상)</label>
-                
-                {/* 1. 선택된 부원 칩(Chip) 영역 */}
-                {selectedSongMembers.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                    {selectedSongMembers.map(name => (
-                      <span key={name} style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '4px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: '#f3f4f6',
-                        color: '#1f2937',
-                        fontSize: '13px',
-                        fontWeight: '500',
-                        border: '1px solid #e5e7eb'
-                      }}>
-                        {name}
-                        <button type="button" onClick={() => handleToggleMember(name)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '0 0 0 6px', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>×</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>파트별 담당자</label>
+                <p style={{ fontSize: 12, color: 'var(--slate-500)', margin: '0 0 10px' }}>
+                  현재 부원은 ID로 저장하며, 기존 레거시 참여 부원 정보는 별도로 유지됩니다.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {SONG_PARTS.map(part => {
+                    const assignment = songAssignments[part.key] || { status: 'undecided', memberIds: [], participantRefs: [] };
+                    const selectedIds = assignment.memberIds || [];
+                    const selectedParticipantRefs = Array.isArray(assignment.participantRefs)
+                      ? assignment.participantRefs
+                      : [];
+                    const activeMembers = members.filter(member => member.status === 'active');
+                    const visibleMembers = activeMembers.filter(member => {
+                      const query = memberSearchQuery.trim().toLowerCase();
+                      return !query || member.name.toLowerCase().includes(query);
+                    });
+                    const visibleExternalBandMembers = externalBandMembers.filter(member => {
+                      const query = memberSearchQuery.trim().toLowerCase();
+                      return !query || member.name.toLowerCase().includes(query);
+                    });
+                    const storedNonActiveIds = selectedIds.filter(id => (
+                      !members.some(member => String(member.id) === String(id))
+                      || !members.some(member => String(member.id) === String(id) && member.status === 'active')
+                    ));
+                    const storedUnknownExternalRefs = selectedParticipantRefs.filter(ref => (
+                      ref?.type === 'external'
+                      && ref.id
+                      && !externalBandMembers.some(member => String(member.id) === String(ref.id))
+                    ));
 
-                {/* Autocomplete 컨테이너 */}
-                <div style={{ position: 'relative' }}>
-                  {/* 2. 이름 검색창 */}
-                  <input
-                    type="text"
-                    value={memberSearchQuery}
-                    onChange={e => setMemberSearchQuery(e.target.value)}
-                    onFocus={() => setIsSearchFocused(true)}
-                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                    placeholder="🔍 이름으로 부원 검색..."
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      border: '1px solid var(--slate-200)',
-                      fontSize: 12,
-                      outline: 'none'
-                    }}
-                  />
+                    return (
+                      <div key={part.key} style={{ padding: 10, border: '1px solid var(--slate-100)', borderRadius: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                          <strong style={{ fontSize: 13, color: 'var(--slate-700)' }}>{part.label}</strong>
+                          <select
+                            value={assignment.status}
+                            onChange={e => handleAssignmentStatusChange(part.key, e.target.value)}
+                            style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--slate-200)', fontSize: 12 }}
+                          >
+                            {Object.entries(ASSIGNMENT_STATUSES).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                  {/* 3. 검색 추천 absolute 드롭다운 */}
-                  {(isSearchFocused || memberSearchQuery.trim() !== '') && (
-                    <div style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: '100%',
-                      marginTop: '4px',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                      zIndex: 50,
-                      maxHeight: '192px',
-                      overflowY: 'auto',
-                      padding: '8px 12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}>
-                      {(() => {
-                        const activeMembers = (members || []).filter(m => m.status === 'active');
-                        const filtered = activeMembers.filter(m => 
-                          m.name.toLowerCase().includes(memberSearchQuery.toLowerCase())
-                        );
-
-                        if (filtered.length > 0) {
-                          return filtered.map(m => (
-                            <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', userSelect: 'none' }} onMouseDown={e => e.preventDefault()}>
-                              <input
-                                type="checkbox"
-                                checked={selectedSongMembers.includes(m.name)}
-                                onChange={() => handleToggleMember(m.name)}
-                              />
-                              <span>{m.name} ({m.part})</span>
-                            </label>
-                          ));
-                        } else {
-                          return <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없습니다.</span>;
-                        }
-                      })()}
-                    </div>
-                  )}
+                        {assignment.status === 'assigned' ? (
+                          <>
+                            <input
+                              type="text"
+                              value={memberSearchQuery}
+                              onChange={e => setMemberSearchQuery(e.target.value)}
+                              placeholder="이름으로 부원 검색..."
+                              style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid var(--slate-200)', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}
+                            />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', marginTop: 2 }}>정식 회원</div>
+                              {visibleMembers.map(member => (
+                                <label key={`member-${member.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.includes(String(member.id))}
+                                  onChange={() => handleToggleAssignmentMember(part.key, member.id)}
+                                />
+                                <span>{member.name}{member.part ? ` (${member.part})` : ''}</span>
+                                </label>
+                              ))}
+                              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', marginTop: 6 }}>외부 참여자</div>
+                              {visibleExternalBandMembers.map(bandMember => (
+                                <label key={`external-${bandMember.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedParticipantRefs.some(ref => ref?.type === 'external' && String(ref.id) === String(bandMember.id))}
+                                    onChange={() => handleToggleExternalBandMember(part.key, bandMember.id)}
+                                  />
+                                  <span>{bandMember.name} (외부)</span>
+                                </label>
+                              ))}
+                              {visibleMembers.length === 0 && visibleExternalBandMembers.length === 0 && <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없습니다.</span>}
+                            </div>
+                            {storedNonActiveIds.length > 0 && (
+                              <div style={{ marginTop: 8, fontSize: 11, color: 'var(--slate-500)' }}>
+                                저장된 비활성/알 수 없는 ID: {storedNonActiveIds.map(id => getMemberLabel(id)).join(', ')}
+                              </div>
+                            )}
+                            {storedUnknownExternalRefs.length > 0 && (
+                              <div style={{ marginTop: 8, fontSize: 11, color: 'var(--slate-500)' }}>
+                                저장된 외부 참여자 ID: {storedUnknownExternalRefs.map(ref => getExternalBandMemberLabel(ref.id)).join(', ')}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          (selectedIds.length > 0 || selectedParticipantRefs.length > 0) && (
+                            <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>
+                              기존 저장 담당자: {getAssignmentLabels(assignment).join(', ')}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -592,7 +1070,8 @@ export default function CalendarPage() {
                     setEditingSongId(null);
                     setSongTitle('');
                     setSongArtist('');
-                    setSelectedSongMembers([]);
+                    setSongAssignments(createDefaultAssignments());
+                    setMemberSearchQuery('');
                     setSongRegularDay('월요일');
                     setSongStatus('시작전');
                   }}>취소</button>
@@ -609,8 +1088,10 @@ export default function CalendarPage() {
               <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 곡이 없습니다.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {songs.map(s => (
-                  <div key={s.id} style={{
+                {songs.map(s => {
+                  const displayAssignments = getAssignmentsForEditor(s);
+                  return (
+                    <div key={s.id} style={{
                     padding: 14,
                     borderRadius: 12,
                     border: '1px solid var(--slate-100)',
@@ -621,8 +1102,21 @@ export default function CalendarPage() {
                   }}>
                     <div>
                       <strong style={{ fontSize: 15, color: 'var(--slate-800)', display: 'block', marginBottom: 4 }}>{s.title} {s.artist && <span style={{ color: 'var(--slate-500)', fontSize: 13 }}>- {s.artist}</span>}</strong>
-                      <div style={{ fontSize: 12, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span>👥 <strong>참여 ({s.memberCount}명):</strong> {s.members.join(', ')}</span>
+                      <div style={{ fontSize: 12, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span>👥 <strong>기존 참여 ({s.memberCount ?? (Array.isArray(s.members) ? s.members.length : 0)}명):</strong> {Array.isArray(s.members) && s.members.length > 0 ? s.members.join(', ') : '없음'}</span>
+                        <div>
+                          <strong>파트별 담당:</strong>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
+                            {SONG_PARTS.map(part => {
+                              const assignment = displayAssignments[part.key];
+                              const assignmentLabels = getAssignmentLabels(assignment);
+                              const names = assignmentLabels.length > 0
+                                ? assignmentLabels.join(', ')
+                                : '없음';
+                              return <span key={part.key} style={{ paddingLeft: 8 }}>{part.label}: {ASSIGNMENT_STATUSES[assignment.status]} · {names}</span>;
+                            })}
+                          </div>
+                        </div>
                         <span>📅 <strong>요일:</strong> {s.regularDay}</span>
                         <span>🏷️ <strong>상태:</strong> {s.musicStatus}</span>
                       </div>
@@ -635,8 +1129,9 @@ export default function CalendarPage() {
                         삭제
                       </button>
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
