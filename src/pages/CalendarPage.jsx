@@ -183,7 +183,7 @@ export default function CalendarPage() {
   const [songAssignments, setSongAssignments] = useState(createDefaultAssignments);
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
-  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [memberSearchQueries, setMemberSearchQueries] = useState({});
   const [bandPlanningDate, setBandPlanningDate] = useState(() => toDateKey(getCurrentWeekMonday(new Date())));
   const [editingRehearsalId, setEditingRehearsalId] = useState(null);
   const [rehearsalDate, setRehearsalDate] = useState(() => toDateKey(getCurrentWeekMonday(new Date())));
@@ -406,7 +406,7 @@ export default function CalendarPage() {
     setSongTitle('');
     setSongArtist('');
     setSongAssignments(createDefaultAssignments());
-    setMemberSearchQuery('');
+    setMemberSearchQueries({});
     setSongRegularDay('없음');
     setSongStatus('시작전');
   };
@@ -416,7 +416,7 @@ export default function CalendarPage() {
     setSongTitle(s.title);
     setSongArtist(s.artist || '');
     setSongAssignments(getAssignmentsForEditor(s));
-    setMemberSearchQuery('');
+    setMemberSearchQueries({});
     setSongRegularDay(Array.isArray(s.regularPracticeDays) && s.regularPracticeDays.length > 0 ? s.regularPracticeDays[0] : '없음');
     setSongStatus(s.musicStatus || '시작전');
     setActiveSubTab('songs');
@@ -628,8 +628,7 @@ export default function CalendarPage() {
                   <button
                     key={member.id}
                     onClick={() => handleAddOfficialToBand(member.id)}
-                    className="member-count-chip"
-                    style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', cursor: 'pointer' }}
+                    style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                   >
                     + {member.name}
                   </button>
@@ -676,7 +675,6 @@ export default function CalendarPage() {
                       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--slate-800)' }}>
                         {member.name} {member.type === 'external' && <span style={{ fontSize: 11, color: 'var(--blue-500)', fontWeight: 600 }}>(외부)</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--slate-400)' }}>{member.id}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {member.type === 'external' && (
@@ -954,7 +952,8 @@ export default function CalendarPage() {
                       ? assignment.participantRefs
                       : [];
 
-                    const query = memberSearchQuery.trim().toLowerCase();
+                    const partSearchValue = memberSearchQueries[part.key] || '';
+                    const query = partSearchValue.trim().toLowerCase();
                     const visibleBandMembers = bandMemberList.filter(m => 
                       !query || (m.name || '').toLowerCase().includes(query)
                     );
@@ -981,8 +980,8 @@ export default function CalendarPage() {
                           <>
                             <input
                               type="text"
-                              value={memberSearchQuery}
-                              onChange={e => setMemberSearchQuery(e.target.value)}       
+                              value={partSearchValue}
+                              onChange={e => setMemberSearchQueries(prev => ({ ...prev, [part.key]: e.target.value }))}
                               placeholder="이름으로 부원 검색..."
                               style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid var(--slate-200)', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}
                             />
