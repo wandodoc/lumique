@@ -119,7 +119,7 @@ function reducer(state, action) {
     }
     case 'ADD_BAND_MEMBER': {
       const bandMember = action.bandMember;
-      if (!bandMember?.id || bandMember.type !== 'external') return state;
+      if (!bandMember?.id) return state;
 
       return {
         ...state,
@@ -132,7 +132,7 @@ function reducer(state, action) {
     }
     case 'UPDATE_BAND_MEMBER': {
       const bandMember = action.bandMember;
-      if (!bandMember?.id || bandMember.type !== 'external') return state;
+      if (!bandMember?.id) return state;
 
       const bandMembers = normalizeBandMembers(state.bandMembers);
       if (!bandMembers[bandMember.id]) return state;

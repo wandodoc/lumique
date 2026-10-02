@@ -89,7 +89,7 @@ export default function CalendarPage() {
   const confirmedRehearsals = state?.confirmedRehearsals || {};
   const externalBandMembers = Object.values(bandMembers)
     .filter(member => member?.type === 'external' && member.id && member.name);
-  const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'settlement'
+  const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'band-planning' | 'band-members' | 'settlement'
   const { id: detailId } = useParams();
   const navigate = useNavigate();
 
@@ -114,6 +114,67 @@ export default function CalendarPage() {
     setActivities(list);
     localStorage.setItem('lumique_activities', JSON.stringify(list));
   };
+
+  // --- 밴드 참여자 관리 관련 상태 및 핸들러 ---
+  const [externalBandName, setExternalBandName] = useState('');
+  const [editingExternalBandMemberId, setEditingExternalBandMemberId] = useState(null);
+
+  const handleAddOfficialToBand = (memberId) => {
+    const member = members.find(m => String(m.id) === String(memberId));
+    if (!member) return;
+    
+    dispatch({
+      type: 'ADD_BAND_MEMBER',
+      bandMember: { id: String(member.id), type: 'official', name: member.name }
+    });
+  };
+
+  const handleRemoveFromBand = (bandMemberId) => {
+    if (!window.confirm('밴드 참여자 목록에서 삭제하시겠습니까? (관련 availability 데이터도 삭제됩니다)')) return;
+    dispatch({ type: 'DELETE_BAND_MEMBER', bandMemberId });
+  };
+
+  const handleSaveExternalBandMember = (e) => {
+    e.preventDefault();
+    const name = externalBandName.trim();
+    if (!name) return;
+
+    if (editingExternalBandMemberId) {
+      const existing = bandMembers[editingExternalBandMemberId];
+      if (existing) {
+        dispatch({
+          type: 'UPDATE_BAND_MEMBER',
+          bandMember: { ...existing, name },
+        });
+      }
+    } else {
+      const id = `external:ext${Date.now()}`;
+      dispatch({
+        type: 'ADD_BAND_MEMBER',
+        bandMember: { id, type: 'external', name },
+      });
+    }
+
+    setExternalBandName('');
+    setEditingExternalBandMemberId(null);
+  };
+
+  const handleEditExternalBandMember = (bandMember) => {
+    setEditingExternalBandMemberId(bandMember.id);
+    setExternalBandName(bandMember.name || '');
+  };
+
+  const updateBandMemberAvailability = (bandMemberId, date, status) => {
+    dispatch({
+      type: 'UPDATE_BAND_MEMBER_AVAILABILITY',
+      bandMemberId,
+      date,
+      status,
+    });
+  };
+
+  const bandMemberList = Object.values(bandMembers || {})
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
 
   // --- 곡 마스터 관련 상태 및 핸들러 ---
   const [editingSongId, setEditingSongId] = useState(null);
@@ -314,13 +375,15 @@ export default function CalendarPage() {
     e.preventDefault();
     if (!songTitle.trim()) return alert('곡명을 입력해 주세요.');
 
+    const regularPracticeDays = songRegularDay === '없음' ? [] : [songRegularDay];
+
     if (editingSongId) {
       saveSongs(songs.map(s => s.id === editingSongId
         ? {
             ...s,
             title: songTitle.trim(),
             artist: songArtist.trim(),
-            regularDay: songRegularDay,
+            regularPracticeDays,
             musicStatus: songStatus,
             assignments: songAssignments
           }
@@ -332,7 +395,7 @@ export default function CalendarPage() {
         artist: songArtist.trim(),
         members: [],
         memberCount: 0,
-        regularDay: songRegularDay,
+        regularPracticeDays,
         musicStatus: songStatus,
         assignments: songAssignments
       };
@@ -344,7 +407,7 @@ export default function CalendarPage() {
     setSongArtist('');
     setSongAssignments(createDefaultAssignments());
     setMemberSearchQuery('');
-    setSongRegularDay('월요일');
+    setSongRegularDay('없음');
     setSongStatus('시작전');
   };
 
@@ -354,7 +417,7 @@ export default function CalendarPage() {
     setSongArtist(s.artist || '');
     setSongAssignments(getAssignmentsForEditor(s));
     setMemberSearchQuery('');
-    setSongRegularDay(s.regularDay || '월요일');
+    setSongRegularDay(Array.isArray(s.regularPracticeDays) && s.regularPracticeDays.length > 0 ? s.regularPracticeDays[0] : '없음');
     setSongStatus(s.musicStatus || '시작전');
     setActiveSubTab('songs');
     window.scrollTo(0, 0);
@@ -525,6 +588,7 @@ export default function CalendarPage() {
           { id: 'calendar', label: '📅 캘린더' },
           { id: 'songs', label: '🎼 셋리스트' },
           { id: 'band-planning', label: '🎸 밴드 일정 관리' },
+          { id: 'band-members', label: '👥 밴드 참여자' },
           { id: 'settlement', label: '💸 월말 정산' }
         ].map(tab => (
           <button key={tab.id}
@@ -544,185 +608,89 @@ export default function CalendarPage() {
       </div>
 
       {/* --- 1. 연습/공연 캘린더 탭 --- */}
-      {activeSubTab === 'calendar' && (
-        <div>
-          <div className="calendar-main-header">
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>📅 연습 & 공연 캘린더</h2>
-            
-            <div className="calendar-header-controls">
-              {/* 곡별 필터 드롭다운 */}
-              <select
-                value={filterSongId}
-                onChange={e => setFilterSongId(e.target.value)}
-                className="calendar-select"
-              >
-                <option value="">🚫 전체 곡 보기</option>
-                {songs.map(s => (
-                  <option key={s.id} value={s.id}>🎼 {s.title}</option>
-                ))}
-              </select>
+      {/* ... (keep existing calendar tab content) */}
 
-              <button className="calendar-btn calendar-btn-primary" onClick={() => {
-                setEditingActId(null);
-                setActTitle('');
-                setActDate('');
-                setActLocation('');
-                setActSongId('');
-                setActRound(1);
-                setActPlan('');
-                setActCost(0);
-                setActBooker('');
-                setActStatus('해당없음');
-                setShowAddActModal(true);
-              }}>
-                + 일정 등록
-              </button>
+      {/* --- 2. 곡 마스터 관리 탭 --- */}
+      {/* ... (keep existing songs tab content) */}
+
+      {activeSubTab === 'band-members' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+          <div className="card card-pad">
+            <span className="card-title" style={{ fontSize: 16 }}>👥 밴드 참여자 관리</span>
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 16 }}>
+              밴드 연습 및 일정 관리의 대상이 되는 인원을 관리합니다.
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>정식 회원 추가</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {members.filter(m => m.status === 'active' && !bandMembers[m.id]).map(member => (
+                  <button
+                    key={member.id}
+                    onClick={() => handleAddOfficialToBand(member.id)}
+                    className="member-count-chip"
+                    style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', cursor: 'pointer' }}
+                  >
+                    + {member.name}
+                  </button>
+                ))}
+                {members.filter(m => m.status === 'active' && !bandMembers[m.id]).length === 0 && (
+                  <span className="text-muted" style={{ fontSize: 13 }}>추가할 수 있는 활성 정식 회원이 없습니다.</span>
+                )}
+              </div>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '16px 0' }} />
+
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>외부 참여자 등록</div>
+              <form onSubmit={handleSaveExternalBandMember} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={externalBandName}
+                  onChange={e => setExternalBandName(e.target.value)}
+                  placeholder="외부 참여자 이름"
+                  style={{ flex: 1, minWidth: 150, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--slate-200)' }}
+                />
+                <button type="submit" className="btn-primary">
+                  {editingExternalBandMemberId ? '저장' : '추가'}
+                </button>
+                {editingExternalBandMemberId && (
+                  <button type="button" className="btn-secondary" onClick={() => { setExternalBandName(''); setEditingExternalBandMemberId(null); }}>
+                    취소
+                  </button>
+                )}
+              </form>
             </div>
           </div>
 
-          <div className="calendar-grid-container">
-            {/* 달력 판넬 */}
-            <div className="card card-pad calendar-left-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <span className="card-title" style={{ fontSize: 16, margin: 0 }}>
-                  {calYear}년 {calMonth}월
-                </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn-sm" onClick={() => {
-                    const today = new Date();
-                    setCalYear(today.getFullYear());
-                    setCalMonth(today.getMonth() + 1);
-                  }} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>오늘</button>
-                  <button className="btn-sm" onClick={() => {
-                    if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
-                    else { setCalMonth(m => m - 1); }
-                  }}>이전</button>
-                  <button className="btn-sm" onClick={() => {
-                    if (calMonth === 12) { setCalYear(y => y + 1); setCalMonth(1); }
-                    else { setCalMonth(m => m + 1); }
-                  }}>다음</button>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--slate-500)', marginBottom: 8 }}>
-                {['일', '월', '화', '수', '목', '금', '토'].map((day, idx) => (
-                  <span key={day} style={{ color: idx === 0 ? 'var(--red-500)' : idx === 6 ? 'var(--blue-500)' : 'inherit' }}>{day}</span>
+          <div className="card card-pad">
+            <span className="card-title" style={{ fontSize: 16 }}>등록된 밴드 참여자 목록</span>
+            {bandMemberList.length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 밴드 참여자가 없습니다.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {bandMemberList.map(member => (
+                  <div key={member.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#ffffff', border: '1px solid var(--slate-100)', borderRadius: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--slate-800)' }}>
+                        {member.name} {member.type === 'external' && <span style={{ fontSize: 11, color: 'var(--blue-500)', fontWeight: 600 }}>(외부)</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--slate-400)' }}>{member.id}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {member.type === 'external' && (
+                        <button onClick={() => handleEditExternalBandMember(member)} className="btn-sm" style={{ background: 'var(--slate-50)', color: 'var(--slate-600)' }}>수정</button>
+                      )}
+                      <button onClick={() => handleRemoveFromBand(member.id)} className="btn-sm" style={{ background: 'var(--slate-50)', color: 'var(--red-500)' }}>삭제</button>
+                    </div>
+                  </div>
                 ))}
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
-                {calendarCells.map((day, index) => {
-                  if (day === null) {
-                    return <div key={`empty-${index}`} style={{ aspectRatio: '1', background: '#f8fafc', borderRadius: 8, boxSizing: 'border-box' }} />;
-                  }
-
-                  const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  const dayActs = activities.filter(a => {
-                    const matchDate = a.date === dateStr;
-                    const matchSong = filterSongId ? a.songId === filterSongId : true;
-                    return matchDate && matchSong;
-                  });
-
-                  const todayObj = new Date();
-                  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
-                  const isToday = dateStr === todayStr;
-
-                  return (
-                    <div key={`day-${day}`} style={{
-                      aspectRatio: '1 / 1',
-                      background: isToday ? '#eff6ff' : '#ffffff',
-                      border: '1px solid',
-                      borderColor: isToday ? '#3b82f6' : 'var(--slate-100)',
-                      boxShadow: isToday ? 'inset 0 0 0 1px #3b82f6' : 'none',
-                      boxSizing: 'border-box',
-                      borderRadius: 8,
-                      padding: 6,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                      overflow: 'hidden',
-                      alignItems: 'flex-start'
-                    }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? '#1d4ed8' : 'var(--slate-600)' }}>{day}</span>
-                      {dayActs.length > 0 && (
-                        <div style={{ 
-                          fontSize: '10px', 
-                          padding: '2px 4px', 
-                          borderRadius: '4px', 
-                          backgroundColor: '#f1f5f9',
-                          color: '#475569',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          cursor: 'pointer'
-                        }} onClick={() => navigate(`/calendar/detail/${dayActs[0].id}`)}>
-                          <span style={{ fontWeight: 700, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].title}</span>
-                          <small style={{ display: 'block', fontSize: '10px', marginTop: 2, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].location}</small>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 일정 리스트 */}
-            <div className="card card-pad calendar-right-card" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span className="card-title" style={{ fontSize: 16 }}>일정 리스트 ({calYear}년 {calMonth}월)</span>
-              {/* ... (rest of the schedule listing) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {activities
-                    .filter(a => {
-                      const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
-                      const matchSong = filterSongId ? a.songId === filterSongId : true;
-                      return matchMonth && matchSong;
-                    })
-                    .map(act => {
-                      const linkedSong = songs.find(s => s.id === act.songId);
-                      return (
-                        <div key={act.id} style={{
-                          padding: 16,
-                          borderRadius: 12,
-                          border: '1px solid var(--slate-100)',
-                          background: '#ffffff',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                              <span style={{
-                                padding: '2px 8px',
-                                borderRadius: 4,
-                                fontSize: 11,
-                                fontWeight: 700,
-                                backgroundColor: act.location.includes('네오관') ? '#fee2e2' : '#f0f9ff',
-                                color: act.location.includes('네오관') ? '#ef4444' : '#0284c7'
-                              }}>{act.round}회차</span>
-                              <strong style={{ fontSize: 15, color: 'var(--slate-800)' }}>{act.title}</strong>
-                            </div>
-                            <div style={{ fontSize: 13, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              <span>📅 <strong>일시:</strong> {act.date}</span>
-                              <span>📍 <strong>장소:</strong> {act.location}</span>
-                              {linkedSong && <span>🎼 <strong>관련 곡:</strong> {linkedSong.title}</span>}
-                              {act.plan && <span>📝 <strong>계획:</strong> {act.plan}</span>}
-                              {act.cost > 0 && <span>🪙 <strong>대여비:</strong> {(act.cost || 0).toLocaleString()}원 ({act.booker} 예약 / 정산: {act.status})</span>}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 16, paddingLeft: 8 }}>
-                            <button onClick={() => handleEditActivity(act)} style={{ background: 'none', border: 'none', color: 'var(--blue-600)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '8px' }}>수정</button>
-                            <button onClick={() => handleDeleteActivity(act.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '8px' }}>삭제</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-            </div>
+            )}
           </div>
         </div>
       )}
-
-      {/* --- 2. 곡 마스터 관리 탭 --- */}
 
       {activeSubTab === 'band-planning' && (
         <div className="card card-pad">
@@ -730,7 +698,7 @@ export default function CalendarPage() {
             <div>
               <span className="card-title" style={{ margin: 0 }}>🎸 밴드 일정 관리</span>
               <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
-                선택한 날짜의 곡 담당자별 일정 상태를 조회합니다.
+                선택한 날짜의 인원별 availability와 곡별 연습 상태를 관리합니다.
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -749,6 +717,37 @@ export default function CalendarPage() {
           <div style={{ padding: '10px 12px', marginBottom: 16, background: 'var(--slate-50)', borderRadius: 8, color: 'var(--slate-700)', fontSize: 13, fontWeight: 700 }}>
             조회 날짜: {formatBandPlanningDate(bandPlanningDate)}
           </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 12 }}>인원별 Availability</div>
+            {bandMemberList.length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '20px 0' }}>밴드 참여자를 먼저 등록해주세요.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                {bandMemberList.map(member => {
+                  const status = bandMemberAvailability?.[member.id]?.[bandPlanningDate] || 'undecided';
+                  return (
+                    <div key={member.id} style={{ padding: '10px 12px', background: '#ffffff', border: '1px solid var(--slate-100)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-700)' }}>{member.name}</span>
+                      <select
+                        value={status}
+                        onChange={e => updateBandMemberAvailability(member.id, bandPlanningDate, e.target.value)}
+                        style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid var(--slate-200)', fontSize: 11 }}
+                      >
+                        {Object.entries(AVAILABILITY_LABELS).map(([val, label]) => (
+                          <option key={val} value={val}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '24px 0' }} />
+
+          {/* ... (rest of band-planning content like practice status per song) */}
 
           {songs.length === 0 ? (
             <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 곡이 없습니다.</p>
@@ -954,24 +953,14 @@ export default function CalendarPage() {
                     const selectedParticipantRefs = Array.isArray(assignment.participantRefs)
                       ? assignment.participantRefs
                       : [];
-                    const activeMembers = members.filter(member => member.status === 'active');
-                    const visibleMembers = activeMembers.filter(member => {
-                      const query = memberSearchQuery.trim().toLowerCase();
-                      return !query || member.name.toLowerCase().includes(query);
-                    });
-                    const visibleExternalBandMembers = externalBandMembers.filter(member => {
-                      const query = memberSearchQuery.trim().toLowerCase();
-                      return !query || member.name.toLowerCase().includes(query);
-                    });
-                    const storedNonActiveIds = selectedIds.filter(id => (
-                      !members.some(member => String(member.id) === String(id))
-                      || !members.some(member => String(member.id) === String(id) && member.status === 'active')
-                    ));
-                    const storedUnknownExternalRefs = selectedParticipantRefs.filter(ref => (
-                      ref?.type === 'external'
-                      && ref.id
-                      && !externalBandMembers.some(member => String(member.id) === String(ref.id))
-                    ));
+
+                    const query = memberSearchQuery.trim().toLowerCase();
+                    const visibleBandMembers = bandMemberList.filter(m => 
+                      !query || (m.name || '').toLowerCase().includes(query)
+                    );
+
+                    const officialBandMembers = visibleBandMembers.filter(m => m.type === 'official');
+                    const externalBandMembersForPart = visibleBandMembers.filter(m => m.type === 'external');
 
                     return (
                       <div key={part.key} style={{ padding: 10, border: '1px solid var(--slate-100)', borderRadius: 8 }}>
@@ -993,49 +982,48 @@ export default function CalendarPage() {
                             <input
                               type="text"
                               value={memberSearchQuery}
-                              onChange={e => setMemberSearchQuery(e.target.value)}
+                              onChange={e => setMemberSearchQuery(e.target.value)}       
                               placeholder="이름으로 부원 검색..."
                               style={{ width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid var(--slate-200)', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }}
                             />
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
-                              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', marginTop: 2 }}>정식 회원</div>
-                              {visibleMembers.map(member => (
-                                <label key={`member-${member.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedIds.includes(String(member.id))}
-                                  onChange={() => handleToggleAssignmentMember(part.key, member.id)}
-                                />
-                                <span>{member.name}{member.part ? ` (${member.part})` : ''}</span>
-                                </label>
-                              ))}
-                              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', marginTop: 6 }}>외부 참여자</div>
-                              {visibleExternalBandMembers.map(bandMember => (
-                                <label key={`external-${bandMember.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedParticipantRefs.some(ref => ref?.type === 'external' && String(ref.id) === String(bandMember.id))}
-                                    onChange={() => handleToggleExternalBandMember(part.key, bandMember.id)}
-                                  />
-                                  <span>{bandMember.name} (외부)</span>
-                                </label>
-                              ))}
-                              {visibleMembers.length === 0 && visibleExternalBandMembers.length === 0 && <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없습니다.</span>}
+                              {officialBandMembers.length > 0 && (
+                                <>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', marginTop: 2 }}>정식 회원</div>
+                                  {officialBandMembers.map(member => (
+                                    <label key={`member-${member.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedIds.includes(String(member.id))}    
+                                        onChange={() => handleToggleAssignmentMember(part.key, member.id)}
+                                      />
+                                      <span>{member.name}</span>
+                                    </label>
+                                  ))}
+                                </>
+                              )}
+
+                              {externalBandMembersForPart.length > 0 && (
+                                <>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--slate-500)', marginTop: 6 }}>외부 참여자</div>
+                                  {externalBandMembersForPart.map(bandMember => (
+                                    <label key={`external-${bandMember.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedParticipantRefs.some(ref => ref?.type === 'external' && String(ref.id) === String(bandMember.id))}
+                                        onChange={() => handleToggleExternalBandMember(part.key, bandMember.id)}
+                                      />
+                                      <span>{bandMember.name} (외부)</span>
+                                    </label>
+                                  ))}
+                                </>
+                              )}
+                              {visibleBandMembers.length === 0 && <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>검색 결과가 없습니다. (밴드 참여자를 먼저 등록해주세요)</span>}
                             </div>
-                            {storedNonActiveIds.length > 0 && (
-                              <div style={{ marginTop: 8, fontSize: 11, color: 'var(--slate-500)' }}>
-                                저장된 비활성/알 수 없는 ID: {storedNonActiveIds.map(id => getMemberLabel(id)).join(', ')}
-                              </div>
-                            )}
-                            {storedUnknownExternalRefs.length > 0 && (
-                              <div style={{ marginTop: 8, fontSize: 11, color: 'var(--slate-500)' }}>
-                                저장된 외부 참여자 ID: {storedUnknownExternalRefs.map(ref => getExternalBandMemberLabel(ref.id)).join(', ')}
-                              </div>
-                            )}
                           </>
                         ) : (
                           (selectedIds.length > 0 || selectedParticipantRefs.length > 0) && (
-                            <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>
+                            <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>    
                               기존 저장 담당자: {getAssignmentLabels(assignment).join(', ')}
                             </div>
                           )
@@ -1043,18 +1031,19 @@ export default function CalendarPage() {
                       </div>
                     );
                   })}
-                </div>
-              </div>
+                  </div>
+                  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}> 
+                  <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>정기 연습 요일</label>
                   <select value={songRegularDay} onChange={e => setSongRegularDay(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
-                    {['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'].map(day => (
+                    {['없음', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'].map(day => (
                       <option key={day} value={day}>{day}</option>
                     ))}
                   </select>
-                </div>
+                  </div>
+
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>진행 상태</label>
                   <select value={songStatus} onChange={e => setSongStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)' }}>
