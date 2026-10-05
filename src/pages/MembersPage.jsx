@@ -15,40 +15,7 @@ function fmtPerfLabel(key) {
   return `${y}년 ${m}월`;
 }
 
-const AVAILABILITY_OPTIONS = [
-  { value: 'available', label: '가능' },
-  { value: 'unavailable', label: '불가능' },
-  { value: 'undecided', label: '미정' },
-];
-
-const toDateKey = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
-
-const getWeekStart = (date) => {
-  const result = new Date(date);
-  const day = result.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  result.setDate(result.getDate() + diff);
-  result.setHours(0, 0, 0, 0);
-  return result;
-};
-
-const getWeekDates = (weekStart) => Array.from({ length: 7 }, (_, index) => {
-  const date = new Date(weekStart);
-  date.setDate(weekStart.getDate() + index);
-  return date;
-});
-
-const formatAvailabilityDate = (date) => {
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  return `${date.getMonth() + 1}/${date.getDate()} (${weekdays[date.getDay()]})`;
-};
-
-
+// 회원별 일정 가능 여부는 연습 일정 > 밴드 일정 관리 탭에서 통합 관리합니다.
 
 /* =========================================================
    회원 추가/수정 모달
@@ -329,9 +296,6 @@ export default function MembersPage({ initialView = '회원 목록' }) {
   const {
     members,
     performances,
-    memberAvailability = {},
-    bandMembers = {},
-    bandMemberAvailability = {},
   } = state;
 
   const [partFilter, setPartFilter] = useState('전체');
@@ -341,9 +305,6 @@ export default function MembersPage({ initialView = '회원 목록' }) {
   const [modal, setModal] = useState(null);
   const [showAddPerf, setShowAddPerf] = useState(false);
   const [view, setView] = useState(initialView);
-  const [availabilityWeekStart, setAvailabilityWeekStart] = useState(() => getWeekStart(new Date()));
-  const [externalBandName, setExternalBandName] = useState('');
-  const [editingExternalBandMemberId, setEditingExternalBandMemberId] = useState(null);
 
   useEffect(() => {
     setView(initialView);
@@ -382,90 +343,6 @@ export default function MembersPage({ initialView = '회원 목록' }) {
     if (window.confirm(`"${fmtPerfLabel(key)}" 공연을 삭제하시겠습니까?`)) {
       dispatch({ type: 'DELETE_PERFORMANCE', key });
     }
-  };
-
-  const availabilityDates = getWeekDates(availabilityWeekStart);
-
-  const shiftAvailabilityWeek = (amount) => {
-    setAvailabilityWeekStart(current => {
-      const next = new Date(current);
-      next.setDate(next.getDate() + amount * 7);
-      return next;
-    });
-  };
-
-  const updateMemberAvailability = (memberId, date, status) => {
-    const payload = { memberId, date, status };
-    dispatch({
-      type: 'UPDATE_MEMBER_AVAILABILITY',
-      payload,
-      // AppContext의 현재 reducer가 읽는 필드와도 호환
-      ...payload,
-    });
-  };
-
-  const externalBandMembers = Object.values(bandMembers || {})
-    .filter(member => member?.type === 'external' && member.id)
-    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ko'));
-
-  const getNextExternalBandMemberId = () => {
-    const usedNumbers = externalBandMembers
-      .map(member => String(member.id).match(/^external:ext(\d+)$/)?.[1])
-      .filter(Boolean)
-      .map(Number)
-      .filter(Number.isFinite);
-    const nextNumber = usedNumbers.length > 0 ? Math.max(...usedNumbers) + 1 : 1;
-    return `external:ext${String(nextNumber).padStart(2, '0')}`;
-  };
-
-  const handleSaveExternalBandMember = (e) => {
-    e.preventDefault();
-    const name = externalBandName.trim();
-    if (!name || !isAdmin) return;
-
-    if (editingExternalBandMemberId) {
-      const existing = bandMembers[editingExternalBandMemberId];
-      if (existing) {
-        dispatch({
-          type: 'UPDATE_BAND_MEMBER',
-          bandMember: { ...existing, name },
-        });
-      }
-    } else {
-      const id = getNextExternalBandMemberId();
-      dispatch({
-        type: 'ADD_BAND_MEMBER',
-        bandMember: { id, type: 'external', name },
-      });
-    }
-
-    setExternalBandName('');
-    setEditingExternalBandMemberId(null);
-  };
-
-  const handleEditExternalBandMember = (bandMember) => {
-    if (!isAdmin) return;
-    setEditingExternalBandMemberId(bandMember.id);
-    setExternalBandName(bandMember.name || '');
-  };
-
-  const handleDeleteExternalBandMember = (bandMember) => {
-    if (!isAdmin) return;
-    if (!window.confirm(`외부 참여자 "${bandMember.name}"을(를) 삭제하시겠습니까?`)) return;
-    dispatch({ type: 'DELETE_BAND_MEMBER', bandMemberId: bandMember.id });
-    if (editingExternalBandMemberId === bandMember.id) {
-      setExternalBandName('');
-      setEditingExternalBandMemberId(null);
-    }
-  };
-
-  const updateBandMemberAvailability = (bandMemberId, date, status) => {
-    dispatch({
-      type: 'UPDATE_BAND_MEMBER_AVAILABILITY',
-      bandMemberId,
-      date,
-      status,
-    });
   };
 
   // 파트 순 + 이름 가나다 순 + 필터 (검색어 포함)
@@ -577,66 +454,6 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                   <button className="btn-sm" onClick={() => setModal('add')}>
                     + 회원 추가
                   </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 회원별 일정 가능 여부 */}
-          <div className="card card-pad" style={{ marginTop: 16 }}>
-            <div className="flex-between" style={{ gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-              <div>
-                <span className="card-title" style={{ margin: 0 }}>일정 가능 여부</span>
-                <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>선택한 날짜의 회원별 상태를 직접 입력합니다.</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button type="button" className="btn-sm" onClick={() => shiftAvailabilityWeek(-1)}>이전 주</button>
-                <button type="button" className="btn-sm" onClick={() => setAvailabilityWeekStart(getWeekStart(new Date()))}>이번 주</button>
-                <button type="button" className="btn-sm" onClick={() => shiftAvailabilityWeek(1)}>다음 주</button>
-              </div>
-            </div>
-
-            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <div style={{ minWidth: 760 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1.2fr) repeat(7, minmax(82px, 1fr))', gap: 6, marginBottom: 6 }}>
-                  <div style={{ padding: '8px 6px', fontSize: 12, fontWeight: 800, color: 'var(--slate-500)' }}>회원</div>
-                  {availabilityDates.map(date => (
-                    <div key={toDateKey(date)} style={{ padding: '8px 4px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: 'var(--slate-500)' }}>
-                      {formatAvailabilityDate(date)}
-                    </div>
-                  ))}
-                </div>
-
-                {filtered.length === 0 ? (
-                  <div className="text-muted" style={{ padding: '18px 6px', textAlign: 'center' }}>표시할 회원이 없습니다.</div>
-                ) : (
-                  filtered.map(member => (
-                    <div key={member.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1.2fr) repeat(7, minmax(82px, 1fr))', gap: 6, alignItems: 'center', borderTop: '1px solid var(--slate-100)' }}>
-                      <div style={{ padding: '8px 6px', minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-800)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--slate-400)' }}>{member.part}</div>
-                      </div>
-                      {availabilityDates.map(date => {
-                        const dateKey = toDateKey(date);
-                        const status = memberAvailability?.[member.id]?.[dateKey] || 'undecided';
-                        return (
-                          <div key={`${member.id}-${dateKey}`} style={{ padding: '6px 0' }}>
-                            <select
-                              value={status}
-                              onChange={e => updateMemberAvailability(member.id, dateKey, e.target.value)}
-                              aria-label={`${member.name} ${dateKey} 일정 가능 여부`}
-                              className="search-input"
-                              style={{ width: '100%', minWidth: 0, padding: '7px 4px', fontSize: 11, textAlign: 'center' }}
-                            >
-                              {AVAILABILITY_OPTIONS.map(option => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))
                 )}
               </div>
             </div>

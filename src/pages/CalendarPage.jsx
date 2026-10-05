@@ -82,7 +82,6 @@ const getAssignmentsForEditor = (song) => SONG_PARTS.reduce((assignments, part) 
 export default function CalendarPage() {
   const { state, dispatch } = useApp();
   const members = state?.members || [];
-  const memberAvailability = state?.memberAvailability || {};
   const bandMembers = state?.bandMembers || {};
   const bandMemberAvailability = state?.bandMemberAvailability || {};
   const practiceStatuses = state?.practiceStatuses || {};
@@ -226,10 +225,10 @@ export default function CalendarPage() {
       }))
   ];
 
+  // 정식 회원(official)/외부 참여자 모두 밴드 참여자로 등록된 이후부터는
+  // bandMemberAvailability 하나로만 availability를 관리합니다.
   const getBandPlanningAvailability = (participant) => {
-    const availability = participant.type === 'member'
-      ? memberAvailability?.[participant.id]?.[bandPlanningDate]
-      : bandMemberAvailability?.[participant.id]?.[bandPlanningDate];
+    const availability = bandMemberAvailability?.[participant.id]?.[bandPlanningDate];
     return AVAILABILITY_LABELS[availability] || AVAILABILITY_LABELS.undecided;
   };
 
