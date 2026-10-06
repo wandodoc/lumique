@@ -38,14 +38,6 @@ const toDateKey = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const getCurrentWeekMonday = (date) => {
-  const monday = new Date(date);
-  const day = monday.getDay();
-  monday.setDate(monday.getDate() + (day === 0 ? -6 : 1 - day));
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-};
-
 const formatBandPlanningDate = (dateKey) => {
   const date = new Date(`${dateKey}T00:00:00`);
   return date.toLocaleDateString('ko-KR', {
@@ -220,9 +212,9 @@ export default function CalendarPage() {
   const [songRegularDay, setSongRegularDay] = useState('월요일');
   const [songStatus, setSongStatus] = useState('시작전');
   const [memberSearchQueries, setMemberSearchQueries] = useState({});
-  const [bandPlanningDate, setBandPlanningDate] = useState(() => toDateKey(getCurrentWeekMonday(new Date())));
+  const [bandPlanningDate, setBandPlanningDate] = useState(() => toDateKey(new Date()));
   const [editingRehearsalId, setEditingRehearsalId] = useState(null);
-  const [rehearsalDate, setRehearsalDate] = useState(() => toDateKey(getCurrentWeekMonday(new Date())));
+  const [rehearsalDate, setRehearsalDate] = useState(() => toDateKey(new Date()));
   const [rehearsalTime, setRehearsalTime] = useState('');
   const [rehearsalLocation, setRehearsalLocation] = useState('');
   const [rehearsalSongIds, setRehearsalSongIds] = useState([]);
@@ -273,6 +265,10 @@ export default function CalendarPage() {
     const nextDate = new Date(`${bandPlanningDate}T00:00:00`);
     nextDate.setDate(nextDate.getDate() + amount);
     setBandPlanningDate(toDateKey(nextDate));
+  };
+
+  const goToTodayBandPlanning = () => {
+    setBandPlanningDate(toDateKey(new Date()));
   };
 
   const updatePracticeStatus = (songId, status) => {
@@ -587,8 +583,8 @@ export default function CalendarPage() {
   };
 
   // --- 월말 정산 센터 관련 상태 및 로직 ---
-  const [settleYear, setSettleYear] = useState(2026);
-  const [settleMonth, setSettleMonth] = useState(7);
+  const [settleYear, setSettleYear] = useState(() => new Date().getFullYear());
+  const [settleMonth, setSettleMonth] = useState(() => new Date().getMonth() + 1);
 
   // 연월에 필터링된 정산대기 대상
   const targetYmStr = `${settleYear}-${String(settleMonth).padStart(2, '0')}`;
@@ -1028,6 +1024,7 @@ export default function CalendarPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <button type="button" className="btn-sm" onClick={() => shiftBandPlanningDate(-1)}>이전 날짜</button>
+              <button type="button" className="btn-sm" onClick={goToTodayBandPlanning} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>오늘</button>
               <input
                 type="date"
                 value={bandPlanningDate}
