@@ -671,7 +671,182 @@ export default function CalendarPage() {
       )}
 
       {/* --- 1. 연습/공연 캘린더 탭 --- */}
-      {/* ... (keep existing calendar tab content) */}
+      {activeSubTab === 'calendar' && (
+        <div>
+          <div className="calendar-main-header">
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, whiteSpace: 'nowrap' }}>📅 연습 & 공연 캘린더</h2>
+
+            <div className="calendar-header-controls">
+              {/* 곡별 필터 드롭다운 */}
+              <select
+                value={filterSongId}
+                onChange={e => setFilterSongId(e.target.value)}
+                className="calendar-select"
+              >
+                <option value="">🚫 전체 곡 보기</option>
+                {songs.map(s => (
+                  <option key={s.id} value={s.id}>🎼 {s.title}</option>
+                ))}
+              </select>
+
+              <button className="calendar-btn calendar-btn-primary" onClick={() => {
+                setEditingActId(null);
+                setActTitle('');
+                setActDate('');
+                setActLocation('');
+                setActSongId('');
+                setActRound(1);
+                setActPlan('');
+                setActCost(0);
+                setActBooker('');
+                setActStatus('해당없음');
+                setShowAddActModal(true);
+              }}>
+                + 일정 등록
+              </button>
+            </div>
+          </div>
+
+          <div className="calendar-grid-container">
+            {/* 달력 판넬 */}
+            <div className="card card-pad calendar-left-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span className="card-title" style={{ fontSize: 16, margin: 0 }}>
+                  {calYear}년 {calMonth}월
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn-sm" onClick={() => {
+                    const today = new Date();
+                    setCalYear(today.getFullYear());
+                    setCalMonth(today.getMonth() + 1);
+                  }} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none' }}>오늘</button>
+                  <button className="btn-sm" onClick={() => {
+                    if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
+                    else { setCalMonth(m => m - 1); }
+                  }}>이전</button>
+                  <button className="btn-sm" onClick={() => {
+                    if (calMonth === 12) { setCalYear(y => y + 1); setCalMonth(1); }
+                    else { setCalMonth(m => m + 1); }
+                  }}>다음</button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--slate-500)', marginBottom: 8 }}>
+                {['일', '월', '화', '수', '목', '금', '토'].map((day, idx) => (
+                  <span key={day} style={{ color: idx === 0 ? 'var(--red-500)' : idx === 6 ? 'var(--blue-500)' : 'inherit' }}>{day}</span>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+                {calendarCells.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`empty-${index}`} style={{ aspectRatio: '1', background: '#f8fafc', borderRadius: 8, boxSizing: 'border-box' }} />;
+                  }
+
+                  const dateStr = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const dayActs = activities.filter(a => {
+                    const matchDate = a.date === dateStr;
+                    const matchSong = filterSongId ? a.songId === filterSongId : true;
+                    return matchDate && matchSong;
+                  });
+
+                  const todayObj = new Date();
+                  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+                  const isToday = dateStr === todayStr;
+
+                  return (
+                    <div key={`day-${day}`} style={{
+                      aspectRatio: '1 / 1',
+                      background: isToday ? '#eff6ff' : '#ffffff',
+                      border: '1px solid',
+                      borderColor: isToday ? '#3b82f6' : 'var(--slate-100)',
+                      boxShadow: isToday ? 'inset 0 0 0 1px #3b82f6' : 'none',
+                      boxSizing: 'border-box',
+                      borderRadius: 8,
+                      padding: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      overflow: 'hidden',
+                      alignItems: 'flex-start'
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? '#1d4ed8' : 'var(--slate-600)' }}>{day}</span>
+                      {dayActs.length > 0 && (
+                        <div style={{
+                          fontSize: '10px',
+                          padding: '2px 4px',
+                          borderRadius: '4px',
+                          backgroundColor: '#f1f5f9',
+                          color: '#475569',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          cursor: 'pointer'
+                        }} onClick={() => navigate(`/calendar/detail/${dayActs[0].id}`)}>
+                          <span style={{ fontWeight: 700, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].title}</span>
+                          <small style={{ display: 'block', fontSize: '10px', marginTop: 2, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].location}</small>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 일정 리스트 */}
+            <div className="card card-pad calendar-right-card" style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title" style={{ fontSize: 16 }}>일정 리스트 ({calYear}년 {calMonth}월)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {activities
+                  .filter(a => {
+                    const matchMonth = a.date.slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
+                    const matchSong = filterSongId ? a.songId === filterSongId : true;
+                    return matchMonth && matchSong;
+                  })
+                  .map(act => {
+                    const linkedSong = songs.find(s => s.id === act.songId);
+                    return (
+                      <div key={act.id} style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        border: '1px solid var(--slate-100)',
+                        background: '#ffffff',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              backgroundColor: act.location.includes('네오관') ? '#fee2e2' : '#f0f9ff',
+                              color: act.location.includes('네오관') ? '#ef4444' : '#0284c7'
+                            }}>{act.round}회차</span>
+                            <strong style={{ fontSize: 15, color: 'var(--slate-800)' }}>{act.title}</strong>
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span>📅 <strong>일시:</strong> {act.date}</span>
+                            <span>📍 <strong>장소:</strong> {act.location}</span>
+                            {linkedSong && <span>🎼 <strong>관련 곡:</strong> {linkedSong.title}</span>}
+                            {act.plan && <span>📝 <strong>계획:</strong> {act.plan}</span>}
+                            {act.cost > 0 && <span>🪙 <strong>대여비:</strong> {(act.cost || 0).toLocaleString()}원 ({act.booker} 예약 / 정산: {act.status})</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, paddingLeft: 8 }}>
+                          <button onClick={() => handleEditActivity(act)} style={{ background: 'none', border: 'none', color: 'var(--blue-600)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '8px' }}>수정</button>
+                          <button onClick={() => handleDeleteActivity(act.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '8px' }}>삭제</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- 2. 곡 마스터 관리 탭 --- */}
       {/* ... (keep existing songs tab content) */}
