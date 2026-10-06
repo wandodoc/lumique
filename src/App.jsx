@@ -17,7 +17,7 @@ import './App.css';
 import './loading.css';
 
 function TransactionPageWrapper() {
-  return <TransactionPage openExcelImport={() => {}} />;
+  return <TransactionPage />;
 }
 
 function TicketOrderFormWrapper() {

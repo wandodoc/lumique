@@ -10,11 +10,12 @@ import './Pages.css';
 const PARTS_FILTER = ['전체', 'VOIX · SESSION', 'DANCE', '공통'];
 const TYPES_FILTER = ['전체', '수입', '지출'];
 
-export default function TransactionPage({ openExcelImport }) {
+export default function TransactionPage() {
   const { state, dispatch } = useApp();
   const { isAdmin, runWithAdmin } = useAuth();
   const { transactions, members } = state;
 
+  const [showExcelModal, setShowExcelModal] = useState(false);
   const [partFilter, setPartFilter] = useState('전체');
   const [typeFilter, setTypeFilter] = useState('전체');
   const [yearFilter, setYearFilter] = useState('전체');
@@ -228,7 +229,7 @@ export default function TransactionPage({ openExcelImport }) {
       <div className="flex-between" style={{ marginBottom: 16, alignItems: 'flex-end' }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>내역 필터</h2>
         {isAdmin && (
-          <button className="add-member-btn" onClick={openExcelImport}>
+          <button className="add-member-btn" onClick={() => runWithAdmin(() => setShowExcelModal(true))}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: 4, verticalAlign: 'middle' }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z M14 3v5h5 M12 18v-6 M9 15h6"/></svg>
             새 거래 추가
           </button>
@@ -569,6 +570,7 @@ export default function TransactionPage({ openExcelImport }) {
       </div>
 
       {editingTx && <EditTransactionModal tx={editingTx} onClose={() => setEditingTx(null)} />}
+      {showExcelModal && <ExcelImportModal onClose={() => setShowExcelModal(false)} />}
     </div>
   );
 }
