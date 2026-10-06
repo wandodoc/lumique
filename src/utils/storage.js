@@ -9,6 +9,8 @@ const KEYS = {
   BAND_MEMBER_AVAILABILITY: 'lumique_band_member_availability',
   PRACTICE_STATUSES: 'lumique_practice_statuses',
   CONFIRMED_REHEARSALS: 'lumique_confirmed_rehearsals',
+  PERFORMANCE_BAND_MEMBERS: 'lumique_performance_band_members',
+  PERFORMANCE_SETLISTS: 'lumique_performance_setlists',
   LAST_UPDATED: 'lumique_last_updated',
 };
 
@@ -94,6 +96,24 @@ export const storage = {
   setConfirmedRehearsals: (data) => {
     localStorage.setItem(KEYS.CONFIRMED_REHEARSALS, JSON.stringify(data));
   },
+  getPerformanceBandMembers: () => {
+    try {
+      const raw = localStorage.getItem(KEYS.PERFORMANCE_BAND_MEMBERS);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  },
+  setPerformanceBandMembers: (data) => {
+    localStorage.setItem(KEYS.PERFORMANCE_BAND_MEMBERS, JSON.stringify(data));
+  },
+  getPerformanceSetlists: () => {
+    try {
+      const raw = localStorage.getItem(KEYS.PERFORMANCE_SETLISTS);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  },
+  setPerformanceSetlists: (data) => {
+    localStorage.setItem(KEYS.PERFORMANCE_SETLISTS, JSON.stringify(data));
+  },
   getLastUpdated: () => {
     try {
       return localStorage.getItem(KEYS.LAST_UPDATED) || null;
@@ -112,6 +132,8 @@ export const storage = {
     localStorage.removeItem(KEYS.BAND_MEMBER_AVAILABILITY);
     localStorage.removeItem(KEYS.PRACTICE_STATUSES);
     localStorage.removeItem(KEYS.CONFIRMED_REHEARSALS);
+    localStorage.removeItem(KEYS.PERFORMANCE_BAND_MEMBERS);
+    localStorage.removeItem(KEYS.PERFORMANCE_SETLISTS);
     localStorage.removeItem(KEYS.LAST_UPDATED);
   },
 };

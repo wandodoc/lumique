@@ -86,9 +86,50 @@ export default function CalendarPage() {
   const bandMemberAvailability = state?.bandMemberAvailability || {};
   const practiceStatuses = state?.practiceStatuses || {};
   const confirmedRehearsals = state?.confirmedRehearsals || {};
+  const performances = state?.performances || [];
+  const performanceBandMembers = state?.performanceBandMembers || {};
+  const performanceSetlists = state?.performanceSetlists || {};
   const externalBandMembers = Object.values(bandMembers)
     .filter(member => member?.type === 'external' && member.id && member.name);
   const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'band-planning' | 'band-members' | 'settlement'
+
+  // --- 공연(공연 태그) 선택 상태 ---
+  const [selectedPerfKey, setSelectedPerfKey] = useState('');
+  const [newPerfDate, setNewPerfDate] = useState('');
+  const sortedPerformances = [...performances].sort((a, b) => (b.key || '').localeCompare(a.key || ''));
+  const selectedPerfExists = performances.some(p => p.key === selectedPerfKey);
+  const effectiveSelectedPerfKey = selectedPerfExists ? selectedPerfKey : (sortedPerformances[0]?.key || '');
+  const currentPerfBandMemberIds = (performanceBandMembers[effectiveSelectedPerfKey] || []).map(String);
+  const currentPerfSongIds = performanceSetlists[effectiveSelectedPerfKey] || [];
+
+  const formatPerfLabel = (key) => {
+    const parts = key.split('-');
+    const y = parts[0], m = parseInt(parts[1], 10);
+    if (parts.length === 3) return `${y}년 ${m}월 ${parseInt(parts[2], 10)}일`;
+    return `${y}년 ${m}월`;
+  };
+
+  const handleAddPerformanceQuick = (e) => {
+    e.preventDefault();
+    if (!newPerfDate) return;
+    if (performances.some(p => p.key === newPerfDate)) {
+      alert('이미 존재하는 공연입니다.');
+      return;
+    }
+    dispatch({ type: 'ADD_PERFORMANCE', perf: { key: newPerfDate, label: formatPerfLabel(newPerfDate) } });
+    setSelectedPerfKey(newPerfDate);
+    setNewPerfDate('');
+  };
+
+  const toggleBandMemberInPerformance = (bandMemberId) => {
+    if (!effectiveSelectedPerfKey) return;
+    dispatch({ type: 'TOGGLE_PERFORMANCE_BAND_MEMBER', perfKey: effectiveSelectedPerfKey, bandMemberId: String(bandMemberId) });
+  };
+
+  const toggleSongInSetlist = (songId) => {
+    if (!effectiveSelectedPerfKey) return;
+    dispatch({ type: 'TOGGLE_PERFORMANCE_SETLIST_SONG', perfKey: effectiveSelectedPerfKey, songId });
+  };
   const { id: detailId } = useParams();
   const navigate = useNavigate();
 
@@ -120,12 +161,16 @@ export default function CalendarPage() {
 
   const handleAddOfficialToBand = (memberId) => {
     const member = members.find(m => String(m.id) === String(memberId));
-    if (!member) return;
-    
-    dispatch({
-      type: 'ADD_BAND_MEMBER',
-      bandMember: { id: String(member.id), type: 'official', name: member.name }
-    });
+    if (!member || !effectiveSelectedPerfKey) return;
+
+    const idStr = String(member.id);
+    if (!bandMembers[idStr]) {
+      dispatch({
+        type: 'ADD_BAND_MEMBER',
+        bandMember: { id: idStr, type: 'official', name: member.name }
+      });
+    }
+    toggleBandMemberInPerformance(idStr);
   };
 
   const handleRemoveFromBand = (bandMemberId) => {
@@ -147,11 +192,16 @@ export default function CalendarPage() {
         });
       }
     } else {
+      if (!effectiveSelectedPerfKey) {
+        alert('공연을 먼저 선택하거나 추가해주세요.');
+        return;
+      }
       const id = `external:ext${Date.now()}`;
       dispatch({
         type: 'ADD_BAND_MEMBER',
         bandMember: { id, type: 'external', name },
       });
+      toggleBandMemberInPerformance(id);
     }
 
     setExternalBandName('');
@@ -174,6 +224,11 @@ export default function CalendarPage() {
 
   const bandMemberList = Object.values(bandMembers || {})
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+
+  // 현재 선택된 공연에 연결된 참여자만 (공연별 분리 뷰)
+  const currentPerfBandMemberList = bandMemberList.filter(member => currentPerfBandMemberIds.includes(String(member.id)));
+  const availableOfficialMembersForPerf = members.filter(m => m.status === 'active' && !currentPerfBandMemberIds.includes(String(m.id)));
+  const existingExternalForPerf = externalBandMembers.filter(m => !currentPerfBandMemberIds.includes(String(m.id)));
 
   // --- 곡 마스터 관련 상태 및 핸들러 ---
   const [editingSongId, setEditingSongId] = useState(null);
@@ -388,6 +443,10 @@ export default function CalendarPage() {
           }
         : s));
     } else {
+      if (!effectiveSelectedPerfKey) {
+        alert('공연을 먼저 선택하거나 추가해주세요.');
+        return;
+      }
       const newSong = {
         id: `song-${Date.now()}`,
         title: songTitle.trim(),
@@ -399,6 +458,7 @@ export default function CalendarPage() {
         assignments: songAssignments
       };
       saveSongs([...songs, newSong]);
+      toggleSongInSetlist(newSong.id);
     }
     
     setEditingSongId(null);
@@ -425,6 +485,7 @@ export default function CalendarPage() {
   const handleDeleteSong = (id) => {
     if (!window.confirm('곡 마스터를 삭제하시겠습니까? 관련 일정의 곡 정보는 유지됩니다.')) return;
     saveSongs(songs.filter(s => s.id !== id));
+    dispatch({ type: 'REMOVE_SONG_FROM_SETLISTS', songId: id });
   };
 
   // --- 일정 관련 상태 및 핸들러 ---
@@ -606,6 +667,35 @@ export default function CalendarPage() {
         ))}
       </div>
 
+      {/* --- 공연(공연 태그) 선택: 밴드 참여자/셋리스트/밴드 일정 관리 탭에서 공통 사용 --- */}
+      {['songs', 'band-planning', 'band-members'].includes(activeSubTab) && (
+        <div className="card card-pad" style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
+          <strong style={{ fontSize: 13, color: 'var(--slate-700)' }}>🎤 공연 선택</strong>
+          {sortedPerformances.length === 0 ? (
+            <span className="text-muted" style={{ fontSize: 12 }}>등록된 공연이 없습니다. 날짜를 지정해 공연을 먼저 추가해주세요.</span>
+          ) : (
+            <select
+              value={effectiveSelectedPerfKey}
+              onChange={e => setSelectedPerfKey(e.target.value)}
+              style={{ padding: '7px 9px', border: '1px solid var(--slate-200)', borderRadius: 8, fontSize: 13 }}
+            >
+              {sortedPerformances.map(p => (
+                <option key={p.key} value={p.key}>{p.label}</option>
+              ))}
+            </select>
+          )}
+          <form onSubmit={handleAddPerformanceQuick} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input
+              type="date"
+              value={newPerfDate}
+              onChange={e => setNewPerfDate(e.target.value)}
+              style={{ padding: '6px 8px', border: '1px solid var(--slate-200)', borderRadius: 8, fontSize: 12 }}
+            />
+            <button type="submit" className="btn-sm">+ 새 공연</button>
+          </form>
+        </div>
+      )}
+
       {/* --- 1. 연습/공연 캘린더 탭 --- */}
       {/* ... (keep existing calendar tab content) */}
 
@@ -617,58 +707,86 @@ export default function CalendarPage() {
           <div className="card card-pad">
             <span className="card-title" style={{ fontSize: 16 }}>👥 밴드 참여자 관리</span>
             <div className="text-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 16 }}>
-              밴드 연습 및 일정 관리의 대상이 되는 인원을 관리합니다.
+              {effectiveSelectedPerfKey
+                ? `선택된 공연(${formatPerfLabel(effectiveSelectedPerfKey)})에 참여할 인원을 관리합니다.`
+                : '공연을 먼저 선택하거나 추가해주세요.'}
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>정식 회원 추가</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {members.filter(m => m.status === 'active' && !bandMembers[m.id]).map(member => (
-                  <button
-                    key={member.id}
-                    onClick={() => handleAddOfficialToBand(member.id)}
-                    style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >
-                    + {member.name}
-                  </button>
-                ))}
-                {members.filter(m => m.status === 'active' && !bandMembers[m.id]).length === 0 && (
-                  <span className="text-muted" style={{ fontSize: 13 }}>추가할 수 있는 활성 정식 회원이 없습니다.</span>
+            {effectiveSelectedPerfKey && (
+              <>
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>정식 회원 추가</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {availableOfficialMembersForPerf.map(member => (
+                      <button
+                        key={member.id}
+                        onClick={() => handleAddOfficialToBand(member.id)}
+                        style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        + {member.name}
+                      </button>
+                    ))}
+                    {availableOfficialMembersForPerf.length === 0 && (
+                      <span className="text-muted" style={{ fontSize: 13 }}>추가할 수 있는 활성 정식 회원이 없습니다.</span>
+                    )}
+                  </div>
+                </div>
+
+                {existingExternalForPerf.length > 0 && (
+                  <>
+                    <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '16px 0' }} />
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>기존 외부 참여자 추가</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {existingExternalForPerf.map(member => (
+                          <button
+                            key={member.id}
+                            onClick={() => toggleBandMemberInPerformance(member.id)}
+                            style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            + {member.name} (외부)
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
-              </div>
-            </div>
 
-            <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '16px 0' }} />
+                <hr style={{ border: 'none', borderTop: '1px solid var(--slate-100)', margin: '16px 0' }} />
 
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>외부 참여자 등록</div>
-              <form onSubmit={handleSaveExternalBandMember} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  value={externalBandName}
-                  onChange={e => setExternalBandName(e.target.value)}
-                  placeholder="외부 참여자 이름"
-                  style={{ flex: 1, minWidth: 150, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--slate-200)' }}
-                />
-                <button type="submit" className="btn-primary">
-                  {editingExternalBandMemberId ? '저장' : '추가'}
-                </button>
-                {editingExternalBandMemberId && (
-                  <button type="button" className="btn-secondary" onClick={() => { setExternalBandName(''); setEditingExternalBandMemberId(null); }}>
-                    취소
-                  </button>
-                )}
-              </form>
-            </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>외부 참여자 신규 등록</div>
+                  <form onSubmit={handleSaveExternalBandMember} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      value={externalBandName}
+                      onChange={e => setExternalBandName(e.target.value)}
+                      placeholder="외부 참여자 이름"
+                      style={{ flex: 1, minWidth: 150, padding: '9px 10px', borderRadius: 8, border: '1px solid var(--slate-200)' }}
+                    />
+                    <button type="submit" className="btn-primary">
+                      {editingExternalBandMemberId ? '저장' : '추가'}
+                    </button>
+                    {editingExternalBandMemberId && (
+                      <button type="button" className="btn-secondary" onClick={() => { setExternalBandName(''); setEditingExternalBandMemberId(null); }}>
+                        취소
+                      </button>
+                    )}
+                  </form>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="card card-pad">
-            <span className="card-title" style={{ fontSize: 16 }}>등록된 밴드 참여자 목록</span>
-            {bandMemberList.length === 0 ? (
-              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 밴드 참여자가 없습니다.</p>
+            <span className="card-title" style={{ fontSize: 16 }}>
+              {effectiveSelectedPerfKey ? `${formatPerfLabel(effectiveSelectedPerfKey)} 참여자 목록` : '공연 참여자 목록'}
+            </span>
+            {currentPerfBandMemberList.length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>이 공연에 등록된 참여자가 없습니다.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {bandMemberList.map(member => (
+                {currentPerfBandMemberList.map(member => (
                   <div key={member.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#ffffff', border: '1px solid var(--slate-100)', borderRadius: 12 }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--slate-800)' }}>
@@ -679,7 +797,8 @@ export default function CalendarPage() {
                       {member.type === 'external' && (
                         <button onClick={() => handleEditExternalBandMember(member)} className="btn-sm" style={{ background: 'var(--slate-50)', color: 'var(--slate-600)' }}>수정</button>
                       )}
-                      <button onClick={() => handleRemoveFromBand(member.id)} className="btn-sm" style={{ background: 'var(--slate-50)', color: 'var(--red-500)' }}>삭제</button>
+                      <button onClick={() => toggleBandMemberInPerformance(member.id)} className="btn-sm" style={{ background: 'var(--slate-50)', color: 'var(--slate-600)' }}>공연에서 제외</button>
+                      <button onClick={() => handleRemoveFromBand(member.id)} className="btn-sm" style={{ background: 'var(--slate-50)', color: 'var(--red-500)' }}>완전 삭제</button>
                     </div>
                   </div>
                 ))}
@@ -717,11 +836,11 @@ export default function CalendarPage() {
 
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 12 }}>인원별 Availability</div>
-            {bandMemberList.length === 0 ? (
-              <p className="text-muted" style={{ textAlign: 'center', padding: '20px 0' }}>밴드 참여자를 먼저 등록해주세요.</p>
+            {currentPerfBandMemberList.length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '20px 0' }}>선택된 공연에 참여자가 없습니다. 밴드 참여자 탭에서 먼저 추가해주세요.</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                {bandMemberList.map(member => {
+                {currentPerfBandMemberList.map(member => {
                   const status = bandMemberAvailability?.[member.id]?.[bandPlanningDate] || 'undecided';
                   return (
                     <div key={member.id} style={{ padding: '10px 12px', background: '#ffffff', border: '1px solid var(--slate-100)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -746,11 +865,11 @@ export default function CalendarPage() {
 
           {/* ... (rest of band-planning content like practice status per song) */}
 
-          {songs.length === 0 ? (
-            <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 곡이 없습니다.</p>
+          {songs.filter(s => currentPerfSongIds.includes(s.id)).length === 0 ? (
+            <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>선택된 공연의 셋리스트에 곡이 없습니다. 셋리스트 탭에서 먼저 추가해주세요.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-              {songs.map(song => (
+              {songs.filter(s => currentPerfSongIds.includes(s.id)).map(song => (
                 <div key={song.id} style={{ padding: 16, border: '1px solid var(--slate-100)', borderRadius: 12, background: '#ffffff' }}>
                   <div style={{ marginBottom: 14 }}>
                     <strong style={{ display: 'block', color: 'var(--slate-800)', fontSize: 16 }}>{song.title}</strong>
@@ -1070,12 +1189,32 @@ export default function CalendarPage() {
 
           {/* 곡 리스트 */}
           <div className="card card-pad">
-            <span className="card-title" style={{ fontSize: 16 }}>등록된 곡 마스터 목록</span>
-            {songs.length === 0 ? (
-              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>등록된 곡이 없습니다.</p>
+            <span className="card-title" style={{ fontSize: 16 }}>
+              {effectiveSelectedPerfKey ? `${formatPerfLabel(effectiveSelectedPerfKey)} 셋리스트` : '공연 셋리스트'}
+            </span>
+
+            {effectiveSelectedPerfKey && songs.filter(s => !currentPerfSongIds.includes(s.id)).length > 0 && (
+              <div style={{ marginTop: 12, marginBottom: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--slate-700)', marginBottom: 8 }}>기존 곡을 이 공연 셋리스트에 추가</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {songs.filter(s => !currentPerfSongIds.includes(s.id)).map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleSongInSetlist(s.id)}
+                      style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      + {s.title}{s.artist ? ` - ${s.artist}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {songs.filter(s => currentPerfSongIds.includes(s.id)).length === 0 ? (
+              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 0' }}>이 공연의 셋리스트에 곡이 없습니다.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {songs.map(s => {
+                {songs.filter(s => currentPerfSongIds.includes(s.id)).map(s => {
                   const displayAssignments = getAssignmentsForEditor(s);
                   return (
                     <div key={s.id} style={{
@@ -1112,8 +1251,11 @@ export default function CalendarPage() {
                       <button onClick={() => handleEditSong(s)} style={{ background: 'none', border: 'none', color: 'var(--blue-600)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
                         수정
                       </button>
+                      <button onClick={() => toggleSongInSetlist(s.id)} style={{ background: 'none', border: 'none', color: 'var(--slate-600)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                        셋리스트 제외
+                      </button>
                       <button onClick={() => handleDeleteSong(s.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-                        삭제
+                        완전 삭제
                       </button>
                     </div>
                     </div>
