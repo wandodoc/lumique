@@ -286,13 +286,24 @@ export default function CalendarPage() {
     });
   };
 
+  // 해당 날짜에 연습 상태가 '가능'으로 지정된 곡 id 목록
+  const getPossibleSongIdsForDate = (date) => songs
+    .filter(song => practiceStatuses?.[date]?.[song.id] === 'possible')
+    .map(song => song.id);
+
   const resetRehearsalForm = () => {
     setEditingRehearsalId(null);
     setRehearsalDate(bandPlanningDate);
     setRehearsalTime('');
     setRehearsalLocation('');
-    setRehearsalSongIds([]);
+    setRehearsalSongIds(getPossibleSongIdsForDate(bandPlanningDate));
     setRehearsalMemo('');
+  };
+
+  // 연습 일정 날짜를 바꾸면 그 날짜에 '가능'으로 지정된 곡으로 선택지를 자동 필터
+  const handleRehearsalDateChange = (date) => {
+    setRehearsalDate(date);
+    setRehearsalSongIds(getPossibleSongIdsForDate(date));
   };
 
   const handleRehearsalSongSelection = (event) => {
@@ -608,8 +619,8 @@ export default function CalendarPage() {
   };
 
   // --- 캘린더 날짜 렌더링용 ---
-  const [calYear, setCalYear] = useState(2026);
-  const [calMonth, setCalMonth] = useState(7);
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth() + 1);
 
   const daysInMonth = new Date(calYear, calMonth, 0).getDate();
   const firstDayIndex = new Date(calYear, calMonth - 1, 1).getDay();
@@ -749,6 +760,11 @@ export default function CalendarPage() {
                     const matchSong = filterSongId ? a.songId === filterSongId : true;
                     return matchDate && matchSong;
                   });
+                  const dayRehearsals = confirmedRehearsalList.filter(r => {
+                    const matchDate = r.date === dateStr;
+                    const matchSong = filterSongId ? (r.songIds || []).includes(filterSongId) : true;
+                    return matchDate && matchSong;
+                  });
 
                   const todayObj = new Date();
                   const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
@@ -785,6 +801,21 @@ export default function CalendarPage() {
                         }} onClick={() => navigate(`/calendar/detail/${dayActs[0].id}`)}>
                           <span style={{ fontWeight: 700, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].title}</span>
                           <small style={{ display: 'block', fontSize: '10px', marginTop: 2, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayActs[0].location}</small>
+                        </div>
+                      )}
+                      {dayRehearsals.length > 0 && (
+                        <div style={{
+                          fontSize: '10px',
+                          padding: '2px 4px',
+                          borderRadius: '4px',
+                          backgroundColor: '#dcfce7',
+                          color: '#166534',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          <span style={{ fontWeight: 700, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>🎸 {dayRehearsals[0].location}</span>
+                          <small style={{ display: 'block', fontSize: '10px', marginTop: 2, color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayRehearsals[0].time}</small>
                         </div>
                       )}
                     </div>
@@ -842,6 +873,35 @@ export default function CalendarPage() {
                       </div>
                     );
                   })}
+                {confirmedRehearsalList
+                  .filter(r => {
+                    const matchMonth = (r.date || '').slice(0, 7) === `${calYear}-${String(calMonth).padStart(2, '0')}`;
+                    const matchSong = filterSongId ? (r.songIds || []).includes(filterSongId) : true;
+                    return matchMonth && matchSong;
+                  })
+                  .map(rehearsal => (
+                    <div key={rehearsal.id} style={{
+                      padding: 16,
+                      borderRadius: 12,
+                      border: '1px solid var(--slate-100)',
+                      background: '#f0fdf4',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, backgroundColor: '#dcfce7', color: '#166534' }}>🎸 확정 연습</span>
+                          <strong style={{ fontSize: 15, color: 'var(--slate-800)' }}>{rehearsal.location}</strong>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--slate-500)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span>📅 <strong>일시:</strong> {rehearsal.date} {rehearsal.time}</span>
+                          <span>🎼 <strong>연습 곡:</strong> {(rehearsal.songIds || []).map(id => songs.find(s => s.id === id)?.title || id).join(', ') || '없음'}</span>
+                          {rehearsal.memo && <span>📝 <strong>메모:</strong> {rehearsal.memo}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           </div>
@@ -1116,7 +1176,7 @@ export default function CalendarPage() {
                 </strong>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
                   날짜
-                  <input type="date" value={rehearsalDate} onChange={e => setRehearsalDate(e.target.value)} required style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box' }} />
+                  <input type="date" value={rehearsalDate} onChange={e => handleRehearsalDateChange(e.target.value)} required style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box' }} />
                 </label>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
                   시간
@@ -1127,10 +1187,13 @@ export default function CalendarPage() {
                   <input type="text" value={rehearsalLocation} onChange={e => setRehearsalLocation(e.target.value)} placeholder="연습실 이름" required style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 9px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box' }} />
                 </label>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--slate-600)' }}>
-                  연습 곡 (여러 곡 선택 가능)
+                  연습 곡 (여러 곡 선택 가능 · 이 날짜에 연습 상태 "가능"인 곡이 자동 선택됩니다)
                   <select multiple value={rehearsalSongIds} onChange={handleRehearsalSongSelection} required style={{ display: 'block', width: '100%', minHeight: 96, marginTop: 5, padding: '6px 8px', border: '1px solid var(--slate-200)', borderRadius: 7, boxSizing: 'border-box', background: '#ffffff' }}>
                     {songs.map(song => (
-                      <option key={song.id} value={song.id}>{song.title}{song.artist ? ` - ${song.artist}` : ''}</option>
+                      <option key={song.id} value={song.id}>
+                        {practiceStatuses?.[rehearsalDate]?.[song.id] === 'possible' ? '✅ ' : ''}
+                        {song.title}{song.artist ? ` - ${song.artist}` : ''}
+                      </option>
                     ))}
                   </select>
                 </label>
