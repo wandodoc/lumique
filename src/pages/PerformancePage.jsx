@@ -699,6 +699,7 @@ export default function PerformancePage() {
   const [orders, setOrders] = useState([]);
   const [editing, setEditing] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showTrash, setShowTrash] = useState(false);
   const { isAdmin } = useAuth();
   const { state: appState, dispatch } = useApp();
   const { members, performanceParticipants = {}, bandMembers = {} } = appState;
@@ -747,16 +748,22 @@ export default function PerformancePage() {
     loadData();
   }, []);
 
+  const activeShows = useMemo(() => shows.filter(s => !s.deletedAt), [shows]);
+  const trashedShows = useMemo(
+    () => shows.filter(s => s.deletedAt).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || '')),
+    [shows]
+  );
+
   const showsByYear = useMemo(() => {
     const grouped = {};
-    const sortedShows = [...shows].sort((a, b) => score(b.date, b.time) - score(a.date, a.time));
+    const sortedShows = [...activeShows].sort((a, b) => score(b.date, b.time) - score(a.date, a.time));
     sortedShows.forEach(show => {
       const year = show.date ? show.date.slice(0, 4) : '기타';
       if (!grouped[year]) grouped[year] = [];
       grouped[year].push(show);
     });
     return Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(year => ({ year, shows: grouped[year] }));
-  }, [shows]);
+  }, [activeShows]);
 
   const saveShow = async (next) => {
     const nextShows = normShows(shows.some(s => s.id === next.id) ? shows.map(s => s.id === next.id ? next : s) : [...shows, next]);
@@ -802,9 +809,31 @@ export default function PerformancePage() {
   };
 
 
+  // 삭제는 바로 영구 삭제하지 않고 휴지통으로 이동 (소프트 삭제).
+  // 연결된 예매 주문/참여자 기록도 그대로 보존된다.
   const delShow = async (id, e) => {
     if (e) e.stopPropagation();
-    if (!window.confirm('공연을 삭제할까요?')) return;
+    if (!window.confirm('공연을 휴지통으로 이동할까요? (휴지통에서 복구하거나 완전히 삭제할 수 있습니다)')) return;
+    const nextShows = normShows(shows.map(s => s.id === id ? { ...s, deletedAt: new Date().toISOString() } : s));
+    setShows(nextShows);
+    dispatch({ type: 'SET_SHOWS', shows: nextShows });
+    lsSet(LS_SHOWS, nextShows);
+    if (detail?.id === id) setDetail(null);
+    await firebaseStorage.saveConcerts(nextShows);
+  };
+
+  const restoreShow = async (id, e) => {
+    if (e) e.stopPropagation();
+    const nextShows = normShows(shows.map(s => s.id === id ? { ...s, deletedAt: null } : s));
+    setShows(nextShows);
+    dispatch({ type: 'SET_SHOWS', shows: nextShows });
+    lsSet(LS_SHOWS, nextShows);
+    await firebaseStorage.saveConcerts(nextShows);
+  };
+
+  const permanentlyDeleteShow = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('이 공연을 완전히 삭제할까요? 연결된 예매 주문/참여자 기록도 함께 삭제되며, 되돌릴 수 없습니다.')) return;
     const nextShows = shows.filter(s => s.id !== id);
     const nextOrders = orders.filter(o => o.concertId !== id);
     setShows(nextShows);
@@ -825,15 +854,50 @@ export default function PerformancePage() {
 
   return (
     <div className="page fade-in">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, marginBottom: 24 }}>
         {isAdmin && (
+          <button
+            className="btn-secondary"
+            onClick={() => setShowTrash(v => !v)}
+            style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}
+          >
+            {showTrash ? '← 목록으로' : `🗑️ 휴지통 (${trashedShows.length})`}
+          </button>
+        )}
+        {isAdmin && !showTrash && (
           <button className="btn-primary" onClick={() => setEditing(blankShow)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
             + 새 공연 등록
           </button>
         )}
       </div>
 
-      {isLoading ? (
+      {isAdmin && showTrash ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {trashedShows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', background: '#fff', borderRadius: 12, border: '1px solid var(--slate-200)' }}>
+              <p style={{ color: 'var(--slate-500)', fontSize: 15 }}>휴지통이 비어 있습니다.</p>
+            </div>
+          ) : (
+            trashedShows.map(show => (
+              <div key={show.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderRadius: 12, border: '1px solid var(--slate-200)', background: '#fff' }}>
+                <div>
+                  <strong style={{ fontSize: 15, color: 'var(--slate-800)' }}>{show.title}</strong>
+                  <div style={{ fontSize: 13, color: 'var(--slate-500)', marginTop: 4 }}>
+                    🗓️ {fmtDT(show.date, show.time)} · 📍 {show.location}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 4 }}>
+                    삭제 시각: {show.deletedAt ? new Date(show.deletedAt).toLocaleString('ko-KR') : '-'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={(e) => restoreShow(show.id, e)} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>복구</button>
+                  <button onClick={(e) => permanentlyDeleteShow(show.id, e)} style={{ background: 'var(--slate-100)', color: 'var(--red-500)', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>완전 삭제</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : isLoading ? (
         <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', gap: 16 }}>
           <div className="loading-spinner" style={{ width: 40, height: 40, borderWidth: 4 }}></div>
           <p className="loading-text" style={{ color: 'var(--slate-500)', fontSize: 15, fontWeight: 600, margin: 0 }}>공연 정보를 불러오는 중입니다...</p>
