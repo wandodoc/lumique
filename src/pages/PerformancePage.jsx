@@ -393,10 +393,12 @@ function ShowFormModal({ show, onClose, onSave }) {
   );
 }
 
-function ShowDetailModal({ show, orders = [], members = [], participantIds = [], onToggleParticipant, onClose, onEdit, isAdmin }) {
+function ShowDetailModal({ show, orders = [], members = [], externalBandMembers = [], participantIds = [], onToggleParticipant, onAddExternalParticipant, onClose, onEdit, isAdmin }) {
+  const [newExternalName, setNewExternalName] = useState('');
   if (!show) return null;
   const formUrl = `${window.location.origin}/form/${show.id}`;
-  const participants = members.filter(member => participantIds.includes(member.id));
+  const officialParticipants = members.filter(member => participantIds.includes(member.id));
+  const externalParticipants = externalBandMembers.filter(member => participantIds.includes(member.id));
 
   const copyUrl = () => {
     navigator.clipboard.writeText(formUrl);
@@ -496,14 +498,20 @@ function ShowDetailModal({ show, orders = [], members = [], participantIds = [],
             <div style={{ display: 'grid', gap: 20, alignContent: 'start' }}>
               {card('공연 참여 회원', (
                 <div style={{ display: 'grid', gap: 14 }}>
-                  {participants.length === 0 ? (
+                  {officialParticipants.length === 0 && externalParticipants.length === 0 ? (
                     <div style={{ color: 'var(--slate-500)', fontSize: 13 }}>등록된 참여 회원이 없습니다.</div>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {participants.map(member => (
+                      {officialParticipants.map(member => (
                         <div key={member.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 999, background: 'var(--slate-50)', border: '1px solid var(--slate-200)', fontSize: 13 }}>
                           <span style={{ fontWeight: 800, color: 'var(--slate-800)' }}>{member.name}</span>
                           <span style={{ color: 'var(--slate-500)' }}>({member.part})</span>
+                        </div>
+                      ))}
+                      {externalParticipants.map(member => (
+                        <div key={member.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 999, background: 'var(--slate-50)', border: '1px solid var(--slate-200)', fontSize: 13 }}>
+                          <span style={{ fontWeight: 800, color: 'var(--slate-800)' }}>{member.name}</span>
+                          <span style={{ color: 'var(--blue-500)' }}>(외부)</span>
                         </div>
                       ))}
                     </div>
@@ -511,7 +519,7 @@ function ShowDetailModal({ show, orders = [], members = [], participantIds = [],
 
                   {isAdmin && (
                     <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)', marginBottom: 8 }}>참여 회원 추가/해제</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)', marginBottom: 8 }}>정식 회원 추가/해제</div>
                       {members.length === 0 ? (
                         <div style={{ color: 'var(--slate-400)', fontSize: 13 }}>등록된 회원이 없습니다.</div>
                       ) : (
@@ -528,6 +536,39 @@ function ShowDetailModal({ show, orders = [], members = [], participantIds = [],
                           })}
                         </div>
                       )}
+
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)', margin: '14px 0 8px' }}>외부 참여자 추가/해제</div>
+                      {externalBandMembers.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6, marginBottom: 10 }}>
+                          {externalBandMembers.map(member => {
+                            const checked = participantIds.includes(member.id);
+                            return (
+                              <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', borderRadius: 8, background: checked ? 'var(--blue-50)' : 'transparent', cursor: 'pointer', fontSize: 13 }}>
+                                <input type="checkbox" checked={checked} onChange={() => onToggleParticipant(show.id, member.id)} />
+                                <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{member.name}</span>
+                                <span style={{ color: 'var(--blue-500)', fontSize: 11 }}>(외부)</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <form
+                        onSubmit={e => {
+                          e.preventDefault();
+                          onAddExternalParticipant(show.id, newExternalName);
+                          setNewExternalName('');
+                        }}
+                        style={{ display: 'flex', gap: 8 }}
+                      >
+                        <input
+                          type="text"
+                          value={newExternalName}
+                          onChange={e => setNewExternalName(e.target.value)}
+                          placeholder="외부 참여자 이름"
+                          style={{ flex: 1, padding: '7px 9px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13 }}
+                        />
+                        <button type="submit" className="btn-sm">+ 추가</button>
+                      </form>
                     </div>
                   )}
                 </div>
@@ -660,7 +701,9 @@ export default function PerformancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const { isAdmin } = useAuth();
   const { state: appState, dispatch } = useApp();
-  const { members, performanceParticipants = {} } = appState;
+  const { members, performanceParticipants = {}, bandMembers = {} } = appState;
+  const externalBandMembers = Object.values(bandMembers)
+    .filter(member => member?.type === 'external' && member.id && member.name);
   
   const { id: paramId } = useParams();
   const navigate = useNavigate();
@@ -739,7 +782,26 @@ export default function PerformancePage() {
       },
     });
   };
-  
+
+  const addExternalParticipant = (showId, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const id = `external:ext${Date.now()}`;
+    dispatch({ type: 'ADD_BAND_MEMBER', bandMember: { id, type: 'external', name: trimmed } });
+
+    const current = Array.isArray(performanceParticipants[showId])
+      ? performanceParticipants[showId]
+      : [];
+    dispatch({
+      type: 'SET_PERFORMANCE_PARTICIPANTS',
+      performanceParticipants: {
+        ...performanceParticipants,
+        [showId]: [...current, id],
+      },
+    });
+  };
+
+
   const delShow = async (id, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('공연을 삭제할까요?')) return;
@@ -871,8 +933,10 @@ export default function PerformancePage() {
         show={detail}
         orders={orders.filter(o => o.concertId === detail.id)}
         members={members}
+        externalBandMembers={externalBandMembers}
         participantIds={performanceParticipants[detail.id] || []}
         onToggleParticipant={toggleParticipant}
+        onAddExternalParticipant={addExternalParticipant}
         onClose={() => setDetail(null)}
         onEdit={() => { setEditing(detail); setDetail(null); }}
         isAdmin={isAdmin}
