@@ -1,10 +1,13 @@
-import { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useReducer, useEffect, useMemo } from 'react';
 import { MEMBERS } from '../data/members';
 import { SAMPLE_TRANSACTIONS } from '../data/transactions';
 import { storage } from '../utils/storage';
 import { firebaseStorage } from '../utils/firebaseStorage';
+import { derivePerformances } from '../utils/performances';
 
 const AppContext = createContext(null);
+
+const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 
 // 기본 공연 목록: 하드코딩 데이터 없음. 항상 빈 배열로 시작.
 const DEFAULT_PERFORMANCES = [];
@@ -45,6 +48,7 @@ const initialState = {
   confirmedRehearsals: {},
   performanceBandMembers: {},
   performanceSetlists: {},
+  shows: [],
   lastUpdated: null,
   loading: true,
 };
@@ -65,6 +69,7 @@ function reducer(state, action) {
         confirmedRehearsals: normalizeConfirmedRehearsals(action.confirmedRehearsals),
         performanceBandMembers: normalizePerformanceBandMembers(action.performanceBandMembers),
         performanceSetlists: normalizePerformanceSetlists(action.performanceSetlists),
+        shows: Array.isArray(action.shows) ? action.shows : [],
         lastUpdated: action.lastUpdated,
         loading: false,
       };
@@ -110,13 +115,12 @@ function reducer(state, action) {
       const members = state.members.map(m => m.id === action.member.id ? action.member : m);
       return { ...state, members, lastUpdated: new Date().toISOString() };
     }
-    case 'ADD_PERFORMANCE': {
-      const performances = [...state.performances, action.perf];
-      return { ...state, performances, lastUpdated: new Date().toISOString() };
-    }
-    case 'DELETE_PERFORMANCE': {
-      const performances = state.performances.filter(p => p.key !== action.key);
-      return { ...state, performances, lastUpdated: new Date().toISOString() };
+    case 'SET_SHOWS': {
+      return {
+        ...state,
+        shows: Array.isArray(action.shows) ? action.shows : [],
+        lastUpdated: new Date().toISOString(),
+      };
     }
     case 'SET_PERFORMANCE_PARTICIPANTS':
       return {
@@ -380,6 +384,33 @@ export function AppProvider({ children }) {
         });
         performances = uniquePerformances;
 
+        // 공연 데이터 단일화: shows(공연 관리/티켓) 를 공연의 단일 소스로 삼는다.
+        // 기존에 performances에만 있던(=매칭되는 show가 없는) 날짜는 1회성으로
+        // 최소 정보만 채운 show를 만들어 backfill 한다 (기존 회비/참여 데이터 보존).
+        let shows = fbState.shows || [];
+        const existingShowDates = new Set(shows.map(s => s.date));
+        const backfillShows = performances
+          .filter(p => p.key && !existingShowDates.has(p.key))
+          .map(p => ({
+            id: `show-legacy-${p.key}`,
+            title: p.label || p.key,
+            date: p.key,
+            time: '19:00',
+            location: '정보 입력 필요',
+            price: 5000,
+            description: '',
+            status: '종료',
+            imageUrl: '',
+            customSections: [],
+            supportAccount: SUPPORT_ACCOUNT,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }));
+        if (backfillShows.length > 0) {
+          shows = [...shows, ...backfillShows];
+          await firebaseStorage.saveConcerts(shows);
+        }
+
         // members.js에 하드코딩된 학생/직장인 및 2025 보정액을 파이어베이스 데이터에 병합
         const mergedMembers = (fbState.members || []).map(fbMember => {
           const codeMember = MEMBERS.find(m => m.id === fbMember.id);
@@ -419,7 +450,8 @@ export function AppProvider({ children }) {
           confirmedRehearsals: fbState.confirmedRehearsals ?? storage.getConfirmedRehearsals() ?? {},
           performanceBandMembers: fbState.performanceBandMembers ?? storage.getPerformanceBandMembers() ?? {},
           performanceSetlists: fbState.performanceSetlists ?? storage.getPerformanceSetlists() ?? {},
-          lastUpdated: (updatedCount > 0 || needsPerfUpdate) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
+          shows,
+          lastUpdated: (updatedCount > 0 || needsPerfUpdate || backfillShows.length > 0) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
         // Firebase가 비어있다면 localStorage에서 마이그레이션 (1회성)
@@ -435,6 +467,32 @@ export function AppProvider({ children }) {
         const savedPerformanceBandMembers = storage.getPerformanceBandMembers();
         const savedPerformanceSetlists = storage.getPerformanceSetlists();
         const savedLastUpdated = storage.getLastUpdated();
+
+        let savedShows = [];
+        try {
+          savedShows = JSON.parse(localStorage.getItem('lumique_concerts') || '[]');
+        } catch {
+          savedShows = [];
+        }
+        const existingShowDates = new Set(savedShows.map(s => s.date));
+        const backfillShows = (savedPerformances || [])
+          .filter(p => p.key && !existingShowDates.has(p.key))
+          .map(p => ({
+            id: `show-legacy-${p.key}`,
+            title: p.label || p.key,
+            date: p.key,
+            time: '19:00',
+            location: '정보 입력 필요',
+            price: 5000,
+            description: '',
+            status: '종료',
+            imageUrl: '',
+            customSections: [],
+            supportAccount: SUPPORT_ACCOUNT,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }));
+        const shows = backfillShows.length > 0 ? [...savedShows, ...backfillShows] : savedShows;
 
         const members = (savedMembers || MEMBERS).map(m => {
           const codeMember = MEMBERS.find(cm => cm.id === m.id);
@@ -459,12 +517,13 @@ export function AppProvider({ children }) {
           confirmedRehearsals: savedConfirmedRehearsals || {},
           performanceBandMembers: savedPerformanceBandMembers || {},
           performanceSetlists: savedPerformanceSetlists || {},
+          shows,
           lastUpdated: savedLastUpdated || new Date().toISOString(),
         };
 
         dispatch({ type: 'INIT', ...migState });
-        
-        // Firebase에 첫 동기화
+
+        // Firebase에 첫 동기화 (shows 포함)
         await firebaseStorage.saveData(migState);
       }
     }
@@ -520,8 +579,14 @@ export function AppProvider({ children }) {
     }
   }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.lastUpdated, state.loading]);
 
+  const derivedPerformances = useMemo(() => derivePerformances(state.shows), [state.shows]);
+  const providerState = useMemo(
+    () => ({ ...state, performances: derivedPerformances }),
+    [state, derivedPerformances]
+  );
+
   return (
-    <AppContext.Provider value={{ state, dispatch }}>
+    <AppContext.Provider value={{ state: providerState, dispatch }}>
       {children}
     </AppContext.Provider>
   );

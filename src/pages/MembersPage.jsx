@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { sortByPartAndName } from '../utils/calculations';
@@ -7,15 +8,8 @@ import './Pages.css';
 const PARTS = ['전체', 'VOIX', 'DANCE', 'SESSION'];
 const VIEWS = ['회원 목록', '공연별 현황'];
 
-// YYYY-MM-DD → "YYYY년 M월 D일" (기존 YYYY-MM 호환)
-function fmtPerfLabel(key) {
-  const parts = key.split('-');
-  const y = parts[0], m = parseInt(parts[1], 10);
-  if (parts.length === 3) return `${y}년 ${m}월 ${parseInt(parts[2], 10)}일`;
-  return `${y}년 ${m}월`;
-}
-
 // 회원별 일정 가능 여부는 연습 일정 > 밴드 일정 관리 탭에서 통합 관리합니다.
+// 공연 자체의 추가/수정/삭제는 "공연 관리"(/concerts) 탭에서 일괄 관리합니다.
 
 /* =========================================================
    회원 추가/수정 모달
@@ -96,41 +90,6 @@ function MemberFormModal({ member, performances, onSave, onClose }) {
             <button type="submit" className="btn-primary" style={{ flex: 2 }}>
               {isEdit ? '저장' : '추가'}
             </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   공연 추가 모달
-   ========================================================= */
-function AddPerfModal({ onSave, onClose, existing }) {
-  const [date, setDate] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!date) return;
-    const key = date; // YYYY-MM-DD
-    if (existing.some(p => p.key === key)) { setError('이미 존재하는 공연입니다.'); return; }
-    onSave({ key, label: fmtPerfLabel(key) });
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-handle" />
-        <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>공연 일정 추가</h3>
-        <form className="add-form" onSubmit={handleSubmit}>
-          <label>공연 일자
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} required />
-          </label>
-          {error && <div className="text-red" style={{ fontSize: 13 }}>{error}</div>}
-          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-            <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose}>취소</button>
-            <button type="submit" className="btn-primary" style={{ flex: 2 }}>추가</button>
           </div>
         </form>
       </div>
@@ -303,8 +262,8 @@ export default function MembersPage({ initialView = '회원 목록' }) {
   const [showInactive, setShowInactive] = useState(false);
   const [expandedMembers, setExpandedMembers] = useState({});
   const [modal, setModal] = useState(null);
-  const [showAddPerf, setShowAddPerf] = useState(false);
   const [view, setView] = useState(initialView);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setView(initialView);
@@ -334,16 +293,6 @@ export default function MembersPage({ initialView = '회원 목록' }) {
     setModal(null);
   };
 
-  const handleAddPerf = (perf) => {
-    dispatch({ type: 'ADD_PERFORMANCE', perf });
-    setShowAddPerf(false);
-  };
-
-  const handleDeletePerf = (key) => {
-    if (window.confirm(`"${fmtPerfLabel(key)}" 공연을 삭제하시겠습니까?`)) {
-      dispatch({ type: 'DELETE_PERFORMANCE', key });
-    }
-  };
 
   // 파트 순 + 이름 가나다 순 + 필터 (검색어 포함)
   const filtered = sortByPartAndName(
@@ -388,21 +337,15 @@ export default function MembersPage({ initialView = '회원 목록' }) {
         <div className="card card-pad" style={{ paddingBottom: 14 }}>
           <div className="flex-between" style={{ marginBottom: 10 }}>
             <span className="card-title" style={{ margin: 0 }}>공연 일정</span>
-            {isAdmin && (
-              <button className="btn-sm" onClick={() => setShowAddPerf(true)}>+ 공연 추가</button>
-            )}
+            <button className="btn-sm" onClick={() => navigate('/concerts')}>공연 관리에서 추가/수정</button>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {performances.length === 0 && (
-              <span className="text-muted">등록된 공연이 없습니다</span>
+              <span className="text-muted">등록된 공연이 없습니다. "공연 관리에서 추가/수정"에서 공연을 등록해주세요.</span>
             )}
             {performances.map(p => (
               <div key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--slate-100)', borderRadius: 99, padding: '4px 10px 4px 14px' }}>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{p.key.replace(/-/g, '.')}</span>
-                {isAdmin && (
-                  <button onClick={() => handleDeletePerf(p.key)}
-                    style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
-                )}
               </div>
             ))}
           </div>
@@ -673,13 +616,6 @@ export default function MembersPage({ initialView = '회원 목록' }) {
         />
       )}
 
-      {showAddPerf && (
-        <AddPerfModal
-          existing={performances}
-          onSave={handleAddPerf}
-          onClose={() => setShowAddPerf(false)}
-        />
-      )}
     </div>
   );
 }

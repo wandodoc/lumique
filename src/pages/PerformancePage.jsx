@@ -695,8 +695,10 @@ export default function PerformancePage() {
         await firebaseStorage.saveOrders(fbOrders);
       }
       
-      setShows(normShows(fbConcerts));
+      const normalizedShows = normShows(fbConcerts);
+      setShows(normalizedShows);
       setOrders(fbOrders);
+      dispatch({ type: 'SET_SHOWS', shows: normalizedShows });
       setIsLoading(false);
     }
     loadData();
@@ -717,6 +719,7 @@ export default function PerformancePage() {
     const nextShows = normShows(shows.some(s => s.id === next.id) ? shows.map(s => s.id === next.id ? next : s) : [...shows, next]);
     setShows(nextShows);
     lsSet(LS_SHOWS, nextShows);
+    dispatch({ type: 'SET_SHOWS', shows: nextShows });
     await firebaseStorage.saveConcerts(nextShows);
   };
 
@@ -745,6 +748,7 @@ export default function PerformancePage() {
     setShows(nextShows);
     setOrders(nextOrders);
     dispatch({ type: 'DELETE_PERFORMANCE_PARTICIPANTS', showId: id });
+    dispatch({ type: 'SET_SHOWS', shows: nextShows });
     lsSet(LS_SHOWS, nextShows);
     lsSet(LS_ORDERS, nextOrders);
     if (detail?.id === id) setDetail(null);

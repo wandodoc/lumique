@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { formatPerfLabel } from '../utils/performances';
 import './PageStyles.css';
 
 const SONG_PARTS = [
@@ -94,32 +95,13 @@ export default function CalendarPage() {
   const [activeSubTab, setActiveSubTab] = useState('calendar'); // 'calendar' | 'songs' | 'band-planning' | 'band-members' | 'settlement'
 
   // --- 공연(공연 태그) 선택 상태 ---
+  // 공연 자체의 추가/삭제는 "공연 관리"(/concerts)에서 일괄 관리하고, 여기서는 선택만 한다.
   const [selectedPerfKey, setSelectedPerfKey] = useState('');
-  const [newPerfDate, setNewPerfDate] = useState('');
   const sortedPerformances = [...performances].sort((a, b) => (b.key || '').localeCompare(a.key || ''));
   const selectedPerfExists = performances.some(p => p.key === selectedPerfKey);
   const effectiveSelectedPerfKey = selectedPerfExists ? selectedPerfKey : (sortedPerformances[0]?.key || '');
   const currentPerfBandMemberIds = (performanceBandMembers[effectiveSelectedPerfKey] || []).map(String);
   const currentPerfSongIds = performanceSetlists[effectiveSelectedPerfKey] || [];
-
-  const formatPerfLabel = (key) => {
-    const parts = key.split('-');
-    const y = parts[0], m = parseInt(parts[1], 10);
-    if (parts.length === 3) return `${y}년 ${m}월 ${parseInt(parts[2], 10)}일`;
-    return `${y}년 ${m}월`;
-  };
-
-  const handleAddPerformanceQuick = (e) => {
-    e.preventDefault();
-    if (!newPerfDate) return;
-    if (performances.some(p => p.key === newPerfDate)) {
-      alert('이미 존재하는 공연입니다.');
-      return;
-    }
-    dispatch({ type: 'ADD_PERFORMANCE', perf: { key: newPerfDate, label: formatPerfLabel(newPerfDate) } });
-    setSelectedPerfKey(newPerfDate);
-    setNewPerfDate('');
-  };
 
   const toggleBandMemberInPerformance = (bandMemberId) => {
     if (!effectiveSelectedPerfKey) return;
@@ -672,7 +654,7 @@ export default function CalendarPage() {
         <div className="card card-pad" style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
           <strong style={{ fontSize: 13, color: 'var(--slate-700)' }}>🎤 공연 선택</strong>
           {sortedPerformances.length === 0 ? (
-            <span className="text-muted" style={{ fontSize: 12 }}>등록된 공연이 없습니다. 날짜를 지정해 공연을 먼저 추가해주세요.</span>
+            <span className="text-muted" style={{ fontSize: 12 }}>등록된 공연이 없습니다. "공연 관리"에서 공연을 먼저 등록해주세요.</span>
           ) : (
             <select
               value={effectiveSelectedPerfKey}
@@ -684,15 +666,7 @@ export default function CalendarPage() {
               ))}
             </select>
           )}
-          <form onSubmit={handleAddPerformanceQuick} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              type="date"
-              value={newPerfDate}
-              onChange={e => setNewPerfDate(e.target.value)}
-              style={{ padding: '6px 8px', border: '1px solid var(--slate-200)', borderRadius: 8, fontSize: 12 }}
-            />
-            <button type="submit" className="btn-sm">+ 새 공연</button>
-          </form>
+          <button type="button" className="btn-sm" onClick={() => navigate('/concerts')}>공연 관리에서 추가/수정</button>
         </div>
       )}
 
