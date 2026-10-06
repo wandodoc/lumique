@@ -107,26 +107,18 @@ export default function CalendarPage() {
   const { id: detailId } = useParams();
   const navigate = useNavigate();
 
-  // 1. 곡 마스터 데이터 (Clean State)
-  const [songs, setSongs] = useState(() => {
-    const saved = localStorage.getItem('lumique_songs');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // 1. 곡 마스터 데이터 (AppContext/Firebase 동기화)
+  const songs = state?.songs || [];
 
-  // 2. 일정 데이터 (Clean State)
-  const [activities, setActivities] = useState(() => {
-    const saved = localStorage.getItem('lumique_activities');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // 2. 일정 데이터 (AppContext/Firebase 동기화)
+  const activities = state?.activities || [];
 
   const saveSongs = (list) => {
-    setSongs(list);
-    localStorage.setItem('lumique_songs', JSON.stringify(list));
+    dispatch({ type: 'SET_SONGS', songs: list });
   };
 
   const saveActivities = (list) => {
-    setActivities(list);
-    localStorage.setItem('lumique_activities', JSON.stringify(list));
+    dispatch({ type: 'SET_ACTIVITIES', activities: list });
   };
 
   // --- 밴드 참여자 관리 관련 상태 및 핸들러 ---

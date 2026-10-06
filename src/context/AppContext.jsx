@@ -49,6 +49,8 @@ const initialState = {
   performanceBandMembers: {},
   performanceSetlists: {},
   shows: [],
+  songs: [],
+  activities: [],
   lastUpdated: null,
   loading: true,
 };
@@ -70,6 +72,8 @@ function reducer(state, action) {
         performanceBandMembers: normalizePerformanceBandMembers(action.performanceBandMembers),
         performanceSetlists: normalizePerformanceSetlists(action.performanceSetlists),
         shows: Array.isArray(action.shows) ? action.shows : [],
+        songs: Array.isArray(action.songs) ? action.songs : [],
+        activities: Array.isArray(action.activities) ? action.activities : [],
         lastUpdated: action.lastUpdated,
         loading: false,
       };
@@ -119,6 +123,20 @@ function reducer(state, action) {
       return {
         ...state,
         shows: Array.isArray(action.shows) ? action.shows : [],
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'SET_SONGS': {
+      return {
+        ...state,
+        songs: Array.isArray(action.songs) ? action.songs : [],
+        lastUpdated: new Date().toISOString(),
+      };
+    }
+    case 'SET_ACTIVITIES': {
+      return {
+        ...state,
+        activities: Array.isArray(action.activities) ? action.activities : [],
         lastUpdated: new Date().toISOString(),
       };
     }
@@ -451,6 +469,8 @@ export function AppProvider({ children }) {
           performanceBandMembers: fbState.performanceBandMembers ?? storage.getPerformanceBandMembers() ?? {},
           performanceSetlists: fbState.performanceSetlists ?? storage.getPerformanceSetlists() ?? {},
           shows,
+          songs: fbState.songs ?? storage.getSongs() ?? [],
+          activities: fbState.activities ?? storage.getActivities() ?? [],
           lastUpdated: (updatedCount > 0 || needsPerfUpdate || backfillShows.length > 0) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
@@ -466,6 +486,8 @@ export function AppProvider({ children }) {
         const savedConfirmedRehearsals = storage.getConfirmedRehearsals();
         const savedPerformanceBandMembers = storage.getPerformanceBandMembers();
         const savedPerformanceSetlists = storage.getPerformanceSetlists();
+        const savedSongs = storage.getSongs();
+        const savedActivities = storage.getActivities();
         const savedLastUpdated = storage.getLastUpdated();
 
         let savedShows = [];
@@ -518,6 +540,8 @@ export function AppProvider({ children }) {
           performanceBandMembers: savedPerformanceBandMembers || {},
           performanceSetlists: savedPerformanceSetlists || {},
           shows,
+          songs: savedSongs || [],
+          activities: savedActivities || [],
           lastUpdated: savedLastUpdated || new Date().toISOString(),
         };
 
@@ -545,6 +569,8 @@ export function AppProvider({ children }) {
         confirmedRehearsals: state.confirmedRehearsals,
         performanceBandMembers: state.performanceBandMembers,
         performanceSetlists: state.performanceSetlists,
+        songs: state.songs,
+        activities: state.activities,
         lastUpdated: state.lastUpdated
       };
       
@@ -569,15 +595,17 @@ export function AppProvider({ children }) {
         storage.setConfirmedRehearsals(state.confirmedRehearsals);
         storage.setPerformanceBandMembers(state.performanceBandMembers);
         storage.setPerformanceSetlists(state.performanceSetlists);
+        storage.setSongs(state.songs);
+        storage.setActivities(state.activities);
         storage.setLastUpdated(state.lastUpdated);
-        
+
         // 사용자가 명시한 키 'transactions'도 추가 동기화 보장
         localStorage.setItem('transactions', JSON.stringify(state.transactions));
       } catch (e) {
         console.error("LocalStorage Sync Error:", e);
       }
     }
-  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.lastUpdated, state.loading]);
+  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.songs, state.activities, state.lastUpdated, state.loading]);
 
   const derivedPerformances = useMemo(() => derivePerformances(state.shows), [state.shows]);
   const providerState = useMemo(
