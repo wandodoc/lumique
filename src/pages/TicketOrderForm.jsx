@@ -20,7 +20,9 @@ const section = (s = {}) => ({
   options: Array.isArray(s.options) ? s.options.map(v => String(v || '').trim()).filter(Boolean) : [],
   min: Number.isFinite(Number(s.min)) ? Number(s.min) : 1,
   max: Number.isFinite(Number(s.max)) ? Number(s.max) : 10,
-  required: Boolean(s.required)
+  required: Boolean(s.required),
+  active: s.active !== false,
+  placement: s.placement === 'inline' ? 'inline' : 'popup'
 });
 
 const fmtDT = (d, t = DEFAULT_TIME) => {
@@ -362,7 +364,7 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty,
         <form onSubmit={onSubmit}>
           <div style={{ padding: '0 20px', display: 'grid', gap: 20 }}>
             <RenderSections
-              sections={show?.customSections || []}
+              sections={(show?.customSections || []).filter(s => s.placement !== 'inline')}
               values={customResponses}
               setValues={setCustomResponses}
               fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment }}
@@ -542,6 +544,16 @@ export default function TicketOrderForm({ showId }) {
             {show.description && (
               <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                 {show.description}
+              </div>
+            )}
+
+            {(show.customSections || []).some(s => s.placement === 'inline' && s.active !== false) && (
+              <div style={{ marginTop: 20, display: 'grid', gap: 20 }}>
+                <RenderSections
+                  sections={(show.customSections || []).filter(s => s.placement === 'inline')}
+                  values={customResponses}
+                  setValues={setCustomResponses}
+                />
               </div>
             )}
 

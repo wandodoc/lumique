@@ -62,7 +62,9 @@ const cleanSection = (s = {}) => {
     min: Number.isFinite(Number(s.min)) ? Number(s.min) : 1,
     max: Number.isFinite(Number(s.max)) ? Number(s.max) : 10,
     required: Boolean(s.required),
-    active: s.active !== false
+    active: s.active !== false,
+    // 고정 항목(성함/연락처/매수 등)은 항상 예매 팝업 안에서만 보인다.
+    placement: !String(type || '').startsWith('fixed_') && s.placement === 'inline' ? 'inline' : 'popup'
   };
 };
 
@@ -123,6 +125,7 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
               {isFixed ? (section.type === 'fixed_qty' ? '고정 예매 항목 (수량 질문)' : section.type === 'fixed_afterparty' ? '고정 예매 항목 (체크박스)' : section.type === 'fixed_comment' ? '고정 예매 항목 (장문형)' : '고정 예매 항목 (단답형)') : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
               {section.required && isActive && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
               {!isActive && <span style={{ color: 'var(--slate-500)', marginLeft: 8 }}>(비활성화됨)</span>}
+              {!isFixed && section.placement === 'inline' && <span style={{ color: 'var(--emerald-600)', marginLeft: 8, fontWeight: 600 }}>(상세 설명 하단에 표시)</span>}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -198,6 +201,21 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
           <input type="checkbox" checked={section.required} onChange={(e) => onChange(section.id, { required: e.target.checked })} style={{ width: 16, height: 16 }} />
           필수 입력 항목으로 설정
         </label>
+      )}
+
+      {!isFixed && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'block', textAlign: 'left' }}>표시 위치</label>
+          <select
+            value={section.placement === 'inline' ? 'inline' : 'popup'}
+            onChange={(e) => onChange(section.id, { placement: e.target.value })}
+            className="search-input"
+            style={{ background: '#fff', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '10px 12px' }}
+          >
+            <option value="popup">예매하기 팝업 안에서 보이기 (기본)</option>
+            <option value="inline">공연 상세 설명 아래에 바로 보이기</option>
+          </select>
+        </div>
       )}
 
       {isFixed && (
