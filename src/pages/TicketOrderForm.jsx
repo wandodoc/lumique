@@ -523,6 +523,12 @@ export default function TicketOrderForm({ showId }) {
     </div>
   );
 
+  // 상세 설명 하단에 표시되는 항목: 안내 텍스트는 설명과 한 박스로 묶고,
+  // 입력이 필요한 질문은 별도 영역에 렌더링한다.
+  const inlineSections = (show.customSections || []).filter(s => s.placement === 'inline' && s.active !== false);
+  const inlineTextSections = inlineSections.filter(s => s.type === 'text');
+  const inlineInputSections = inlineSections.filter(s => s.type !== 'text');
+
   // ── 메인 페이지 (공연 정보 표시) ──────────────────────────────────────────────
   return (
     <>
@@ -541,16 +547,27 @@ export default function TicketOrderForm({ showId }) {
               <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>티켓 금액</span><span style={{ fontWeight: 700 }}>{price.toLocaleString()}원 / 1매</span></div>
             </div>
 
-            {show.description && (
-              <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                {show.description}
+            {(show.description || inlineTextSections.length > 0) && (
+              <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', lineHeight: 1.6 }}>
+                {show.description && (
+                  <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{show.description}</p>
+                )}
+                {inlineTextSections.map((s, idx) => (
+                  <div
+                    key={s.id}
+                    style={(idx > 0 || show.description) ? { marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0' } : undefined}
+                  >
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>{s.title}</h3>
+                    <p style={{ fontSize: 14, color: '#4b5563', margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s.content}</p>
+                  </div>
+                ))}
               </div>
             )}
 
-            {(show.customSections || []).some(s => s.placement === 'inline' && s.active !== false) && (
+            {inlineInputSections.length > 0 && (
               <div style={{ marginTop: 20, display: 'grid', gap: 20 }}>
                 <RenderSections
-                  sections={(show.customSections || []).filter(s => s.placement === 'inline')}
+                  sections={inlineInputSections}
                   values={customResponses}
                   setValues={setCustomResponses}
                 />
