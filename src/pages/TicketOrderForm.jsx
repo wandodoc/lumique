@@ -581,9 +581,9 @@ export default function TicketOrderForm({ showId }) {
                   )}
 
                   {nextCutoff && (
-                    <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, maxWidth: '100%' }}>
-                      <span style={{ whiteSpace: 'nowrap' }}>⏱ {activeTier?.label || '현재'} 마감까지</span>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 900, whiteSpace: 'nowrap' }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
+                    <div style={{ marginTop: 8, display: 'inline-block', maxWidth: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 12, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1.5 }}>
+                      <span>⏱ {activeTier?.label || '현재'} 마감까지 </span>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 900 }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
                     </div>
                   )}
                 </div>
