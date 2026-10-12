@@ -9,19 +9,19 @@ export function resolveActivePrice(show, now = new Date()) {
   const tiers = Array.isArray(show?.priceTiers) ? show.priceTiers : [];
 
   if (show?.pricingMode !== 'tiered' || tiers.length === 0) {
-    return { price: fallbackPrice, tier: null, tierIndex: -1, nextCutoff: null };
+    return { price: fallbackPrice, tier: null, tierIndex: -1, nextCutoff: null, nextTier: null };
   }
 
   for (let i = 0; i < tiers.length; i++) {
     const t = tiers[i];
     const until = t.until ? new Date(t.until) : null;
     if (!until || now.getTime() < until.getTime()) {
-      return { price: Number(t.price) || 0, tier: t, tierIndex: i, nextCutoff: until };
+      return { price: Number(t.price) || 0, tier: t, tierIndex: i, nextCutoff: until, nextTier: until ? (tiers[i + 1] || null) : null };
     }
   }
 
   const last = tiers[tiers.length - 1];
-  return { price: Number(last?.price) || 0, tier: last, tierIndex: tiers.length - 1, nextCutoff: null };
+  return { price: Number(last?.price) || 0, tier: last, tierIndex: tiers.length - 1, nextCutoff: null, nextTier: null };
 }
 
 export function formatCountdown(ms) {

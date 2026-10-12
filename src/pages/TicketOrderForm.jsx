@@ -443,7 +443,7 @@ export default function TicketOrderForm({ showId }) {
     return () => clearInterval(timer);
   }, [show?.pricingMode]);
 
-  const { price: resolvedPrice, tier: activeTier, nextCutoff } = resolveActivePrice(show, now);
+  const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier } = resolveActivePrice(show, now);
   const price = resolvedPrice || PRICE;
   const total = qty * price;
 
@@ -575,6 +575,11 @@ export default function TicketOrderForm({ showId }) {
                   {nextCutoff && (
                     <div style={{ marginTop: 4, fontSize: 12, color: '#ea580c', fontWeight: 700, lineHeight: 1.5 }}>
                       ⏱ {activeTier?.label || '현재'} 마감까지 <span style={{ fontFamily: 'monospace' }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
+                      {nextTier && (
+                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>
+                          {' '}· 이후 {Number(nextTier.price || 0).toLocaleString()}원{nextTier.label ? ` (${nextTier.label})` : ''}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
