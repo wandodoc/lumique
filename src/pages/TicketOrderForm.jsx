@@ -11,7 +11,7 @@ const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, bor
 const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
 
 import { firebaseStorage } from '../utils/firebaseStorage';
-import { resolveActivePrice, formatCountdown, formatTierUntil } from '../utils/pricing';
+import { resolveActivePrice, formatCountdown } from '../utils/pricing';
 
 const section = (s = {}) => ({
   id: String(s.id || '').trim(),
@@ -555,43 +555,40 @@ export default function TicketOrderForm({ showId }) {
           <div style={{ padding: 28 }}>
             <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title}</h1>
             <div style={{ background: '#f8fafc', borderRadius: 16, padding: 16, display: 'grid', gap: 8, border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
-              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60 }}>장소</span><span style={{ fontWeight: 700 }}>{show.location}</span></div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60, flexShrink: 0 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60, flexShrink: 0 }}>장소</span><span style={{ fontWeight: 700 }}>{show.location}</span></div>
               <div style={{ display: 'flex', gap: 10, fontSize: 14 }}>
-                <span style={{ color: '#64748b', minWidth: 60 }}>티켓 금액</span>
-                <span style={{ fontWeight: 700 }}>
-                  {price.toLocaleString()}원 / 1매
-                  {activeTier?.label && <span style={{ color: '#ea580c', fontWeight: 700 }}> · {activeTier.label}</span>}
-                </span>
+                <span style={{ color: '#64748b', minWidth: 60, flexShrink: 0 }}>티켓 금액</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', fontWeight: 700 }}>
+                    <span>{price.toLocaleString()}원 / 1매</span>
+                    {activeTier?.label && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#ea580c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                        {activeTier.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {show.pricingMode === 'tiered' && show.priceTiers?.length > 0 && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', lineHeight: 1.7, wordBreak: 'keep-all' }}>
+                      {show.priceTiers.map((t, idx) => (
+                        <span key={t.id} style={{ fontWeight: activeTier?.id === t.id ? 800 : 500, color: activeTier?.id === t.id ? '#ea580c' : '#94a3b8' }}>
+                          {idx > 0 && <span style={{ color: '#cbd5e1', fontWeight: 400 }}> → </span>}
+                          {t.label ? `${t.label} ` : ''}{Number(t.price || 0).toLocaleString()}원
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {nextCutoff && (
+                    <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, maxWidth: '100%' }}>
+                      <span style={{ whiteSpace: 'nowrap' }}>⏱ {activeTier?.label || '현재'} 마감까지</span>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 900, whiteSpace: 'nowrap' }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-
-            {show.pricingMode === 'tiered' && show.priceTiers?.length > 0 && (
-              <div style={{ marginTop: 16, padding: 16, borderRadius: 14, background: '#fff7ed', border: '1px solid #fed7aa' }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#c2410c', marginBottom: 10 }}>🎫 기간별 가격</div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {show.priceTiers.map(t => {
-                    const isActive = activeTier?.id === t.id;
-                    return (
-                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '6px 8px', borderRadius: 8, background: isActive ? '#ffedd5' : 'transparent' }}>
-                        <span style={{ fontWeight: isActive ? 800 : 600, color: isActive ? '#9a3412' : '#78716c' }}>
-                          {t.label || '가격'}{isActive ? ' · 현재 적용' : ''}
-                        </span>
-                        <span style={{ fontWeight: 700, color: isActive ? '#9a3412' : '#78716c' }}>
-                          {Number(t.price || 0).toLocaleString()}원{t.until ? ` (${formatTierUntil(t.until)}까지)` : ''}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                {nextCutoff && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: '#111827', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>{activeTier?.label || '현재'} 가격 마감까지</span>
-                    <span style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace' }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
-                  </div>
-                )}
-              </div>
-            )}
 
             {(show.description || inlineTextSections.length > 0) && (
               <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', lineHeight: 1.6 }}>
