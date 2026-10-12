@@ -11,6 +11,16 @@ const VIEWS = ['회원 목록', '공연별 현황'];
 // 회원별 일정 가능 여부는 연습 일정 > 밴드 일정 관리 탭에서 통합 관리합니다.
 // 공연 자체의 추가/수정/삭제는 "공연 관리"(/concerts) 탭에서 일괄 관리합니다.
 
+// 공연 참여 여부의 단일 소스는 performanceParticipants(공연 관리에서 체크한 참여자)이다.
+// 아직 공연 관리에서 한 번도 참여자를 지정하지 않은 공연(performanceParticipants[showId] 미존재)에
+// 한해서만, 과거에 회원별로 저장해뒀던 레거시 participation 플래그(member.performances)로 대체한다.
+const getPerformanceParticipantIds = (perf, members, performanceParticipants) => {
+  if (perf?.showId && Array.isArray(performanceParticipants?.[perf.showId])) {
+    return performanceParticipants[perf.showId];
+  }
+  return members.filter(m => m.performances?.[perf?.key] === '참여').map(m => m.id);
+};
+
 /* =========================================================
    회원 추가/수정 모달
    ========================================================= */
@@ -23,7 +33,6 @@ function MemberFormModal({ member, performances, onSave, onClose }) {
       : { name: '', part: 'VOIX', joinDate: '', leaveDate: '', status: 'active', performances: defaultPerfs }
   );
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const setPerf = (k, v) => setForm(p => ({ ...p, performances: { ...p.performances, [k]: v } }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -64,26 +73,9 @@ function MemberFormModal({ member, performances, onSave, onClose }) {
           </label>
 
           {performances.length > 0 && (
-            <>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--slate-700)', marginTop: 4 }}>공연 참여</div>
-              <div className="perf-grid">
-                {performances.map(p => {
-                  const joinDateStr = form.joinDate || '9999-99-99';
-                  const disabled = joinDateStr > p.key;
-                  return (
-                    <div key={p.key} className="perf-item">
-                      <span className="text-muted" style={{ fontSize: 11 }}>{p.label}</span>
-                      <button type="button" disabled={disabled}
-                        className={`perf-toggle ${form.performances?.[p.key] === '참여' ? 'active' : ''}`}
-                        style={{ opacity: disabled ? 0.3 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-                        onClick={() => !disabled && setPerf(p.key, form.performances?.[p.key] === '참여' ? '미참여' : '참여')}>
-                        {disabled ? '—' : (form.performances?.[p.key] === '참여' ? '참여' : '미참여')}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+              공연 참여 여부는 "공연별 현황" 탭 또는 공연 관리에서 설정합니다.
+            </div>
           )}
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={onClose}>취소</button>
@@ -103,7 +95,7 @@ function MemberFormModal({ member, performances, onSave, onClose }) {
 /* =========================================================
    공연별 현황 뷰 (보드/카드 레이아웃)
    ========================================================= */
-function PerfView({ performances, members, onToggle }) {
+function PerfView({ performances, members, performanceParticipants }) {
   const [expandedPerfs, setExpandedPerfs] = useState({});
 
   const togglePerfExpand = (perfKey) => {
@@ -128,7 +120,8 @@ function PerfView({ performances, members, onToggle }) {
     <div className="perf-board-layout">
       {sortedPerformances.map(p => {
         const isExpanded = !!expandedPerfs[p.key];
-        const participated = members.filter(m => m.performances?.[p.key] === '참여');
+        const participantIds = getPerformanceParticipantIds(p, members, performanceParticipants);
+        const participated = members.filter(m => participantIds.includes(m.id));
         
         // 파트별 참여자 카운트
         const counts = {
@@ -255,6 +248,7 @@ export default function MembersPage({ initialView = '회원 목록' }) {
   const {
     members,
     performances,
+    performanceParticipants = {},
   } = state;
 
   const [partFilter, setPartFilter] = useState('전체');
@@ -269,14 +263,18 @@ export default function MembersPage({ initialView = '회원 목록' }) {
     setView(initialView);
   }, [initialView]);
 
-  const togglePerformance = (e, member, perfKey) => {
+  const togglePerformance = (e, member, perf) => {
     e.stopPropagation();
     if (window.innerWidth < 768) return; // no edit/login on mobile
     if (!rawIsAdmin) { requestLogin(); return; }
-    const current = member.performances?.[perfKey] === '참여';
+    if (!perf?.showId) return;
+    const current = getPerformanceParticipantIds(perf, members, performanceParticipants);
+    const next = current.includes(member.id)
+      ? current.filter(id => id !== member.id)
+      : [...current, member.id];
     dispatch({
-      type: 'UPDATE_MEMBER',
-      member: { ...member, performances: { ...member.performances, [perfKey]: current ? '미참여' : '참여' } }
+      type: 'SET_PERFORMANCE_PARTICIPANTS',
+      performanceParticipants: { ...performanceParticipants, [perf.showId]: next },
     });
   };
 
@@ -479,8 +477,8 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                                 {performances.map(p => {
                                   const joinDateStr = m.joinDate || '9999-99-99';
                                   const joinedAfter = joinDateStr > p.key;
-                                  const participated = m.performances?.[p.key] === '참여';
-                                  
+                                  const participated = getPerformanceParticipantIds(p, members, performanceParticipants).includes(m.id);
+
                                   let statusText = '참여';
                                   let badgeClass = 'badge-success-light';
                                   if (joinedAfter) {
@@ -492,10 +490,10 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                                   }
 
                                   return (
-                                    <div 
-                                      key={p.key} 
-                                      className="perf-grid-item" 
-                                      onClick={(e) => togglePerformance(e, m, p.key)}
+                                    <div
+                                      key={p.key}
+                                      className="perf-grid-item"
+                                      onClick={(e) => togglePerformance(e, m, p)}
                                       style={{ cursor: 'pointer' }}
                                       title={rawIsAdmin ? "클릭하여 참여 상태 토글" : ""}
                                     >
@@ -561,8 +559,8 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                           {performances.map(p => {
                             const joinDateStr = m.joinDate || '9999-99-99';
                             const joinedAfter = joinDateStr > p.key;
-                            const participated = m.performances?.[p.key] === '참여';
-                            
+                            const participated = getPerformanceParticipantIds(p, members, performanceParticipants).includes(m.id);
+
                             let statusText = '참여';
                             let badgeClass = 'badge-success-light';
                             if (joinedAfter) {
@@ -604,7 +602,7 @@ export default function MembersPage({ initialView = '회원 목록' }) {
 
       {/* ===== 공연별 현황 뷰 ===== */}
       {view === '공연별 현황' && (
-        <PerfView performances={performances} members={members} onToggle={togglePerformance} />
+        <PerfView performances={performances} members={members} performanceParticipants={performanceParticipants} />
       )}
 
       {modal && (
