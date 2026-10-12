@@ -560,30 +560,21 @@ export default function TicketOrderForm({ showId }) {
               <div style={{ display: 'flex', gap: 10, fontSize: 14 }}>
                 <span style={{ color: '#64748b', minWidth: 60, flexShrink: 0 }}>티켓 금액</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', fontWeight: 700 }}>
-                    <span>{price.toLocaleString()}원 / 1매</span>
-                    {activeTier?.label && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#ea580c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>
-                        {activeTier.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {show.pricingMode === 'tiered' && show.priceTiers?.length > 0 && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8', lineHeight: 1.7, wordBreak: 'keep-all' }}>
-                      {show.priceTiers.map((t, idx) => (
-                        <span key={t.id} style={{ fontWeight: activeTier?.id === t.id ? 800 : 500, color: activeTier?.id === t.id ? '#ea580c' : '#94a3b8' }}>
-                          {idx > 0 && <span style={{ color: '#cbd5e1', fontWeight: 400 }}> → </span>}
-                          {t.label ? `${t.label} ` : ''}{Number(t.price || 0).toLocaleString()}원
-                        </span>
-                      ))}
-                    </div>
+                  <span style={{
+                    fontWeight: 800,
+                    color: activeTier ? '#9a3412' : '#111827',
+                    background: activeTier ? 'linear-gradient(to top, #fde68a 42%, transparent 42%)' : 'transparent',
+                  }}>
+                    {price.toLocaleString()}원
+                  </span>
+                  <span style={{ fontWeight: 700 }}> / 1매</span>
+                  {activeTier?.label && (
+                    <span style={{ marginLeft: 6, fontSize: 12, color: '#94a3b8' }}>({activeTier.label})</span>
                   )}
 
                   {nextCutoff && (
-                    <div style={{ marginTop: 8, display: 'inline-block', maxWidth: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 12, background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1.5 }}>
-                      <span>⏱ {activeTier?.label || '현재'} 마감까지 </span>
-                      <span style={{ fontFamily: 'monospace', fontWeight: 900 }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#ea580c', fontWeight: 700, lineHeight: 1.5 }}>
+                      ⏱ {activeTier?.label || '현재'} 마감까지 <span style={{ fontFamily: 'monospace' }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
                     </div>
                   )}
                 </div>
