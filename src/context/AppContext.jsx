@@ -455,12 +455,25 @@ export function AppProvider({ children }) {
           return updatedMember;
         });
 
+        // 공연 참여 여부 단일화: performanceParticipants[showId]가 아직 한 번도 지정되지
+        // 않은 공연은, 과거 회원별 참여 플래그(member.performances)로 1회성 백필한다.
+        // (공연 관리 쪽은 performanceParticipants만 보므로, 안 해주면 회원 관리에만
+        // 보이고 공연 관리에는 안 보이는 불일치가 생긴다.)
+        const performanceParticipants = { ...(fbState.performanceParticipants || {}) };
+        derivePerformances(shows).forEach(p => {
+          if (p.showId && !(p.showId in performanceParticipants)) {
+            performanceParticipants[p.showId] = mergedMembers
+              .filter(m => m.performances?.[p.key] === '참여')
+              .map(m => m.id);
+          }
+        });
+
         dispatch({
           type: 'INIT',
           members: mergedMembers,
           transactions: transactions,
           performances: performances,
-          performanceParticipants: fbState.performanceParticipants || {},
+          performanceParticipants,
           memberAvailability: fbState.memberAvailability || {},
           bandMembers: fbState.bandMembers ?? storage.getBandMembers() ?? {},
           bandMemberAvailability: fbState.bandMemberAvailability ?? storage.getBandMemberAvailability() ?? {},
@@ -527,11 +540,20 @@ export function AppProvider({ children }) {
           };
         });
         
+        const performanceParticipants = { ...(savedPerformanceParticipants || {}) };
+        derivePerformances(shows).forEach(p => {
+          if (p.showId && !(p.showId in performanceParticipants)) {
+            performanceParticipants[p.showId] = members
+              .filter(m => m.performances?.[p.key] === '참여')
+              .map(m => m.id);
+          }
+        });
+
         const migState = {
           members,
           transactions: savedTxs || SAMPLE_TRANSACTIONS,
           performances: savedPerformances || [],
-          performanceParticipants: savedPerformanceParticipants || {},
+          performanceParticipants,
           memberAvailability: savedMemberAvailability || {},
           bandMembers: savedBandMembers || {},
           bandMemberAvailability: savedBandMemberAvailability || {},
