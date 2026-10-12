@@ -17,6 +17,8 @@ const blankShow = {
   time: '19:00',
   location: '',
   price: PRICE,
+  pricingMode: 'fixed',
+  priceTiers: [],
   description: '',
   status: OPEN,
   imageUrl: '',
@@ -68,6 +70,13 @@ const cleanSection = (s = {}) => {
   };
 };
 
+const cleanPriceTier = (t = {}) => ({
+  id: String(t.id || '').trim() || id('tier'),
+  label: String(t.label || '').trim(),
+  price: Number(t.price) > 0 ? Number(t.price) : 0,
+  until: String(t.until || '').trim() || null,
+});
+
 const cleanShow = (s) => {
   if (!s || typeof s !== 'object') return null;
   const title = String(s.title || '').trim(), date = String(s.date || '').trim(), location = String(s.location || '').trim();
@@ -77,6 +86,8 @@ const cleanShow = (s) => {
     id: String(s.id || '').trim() || id('show'),
     title, date, time: String(s.time || '19:00').trim() || '19:00',
     location, price: Number(s.price) > 0 ? Number(s.price) : PRICE,
+    pricingMode: s.pricingMode === 'tiered' ? 'tiered' : 'fixed',
+    priceTiers: Array.isArray(s.priceTiers) ? s.priceTiers.map(cleanPriceTier) : [],
     description: String(s.description || '').trim(),
     status: s.status === CLOSED ? CLOSED : OPEN,
     imageUrl: String(s.imageUrl || '').trim(),
@@ -263,6 +274,8 @@ function ShowFormModal({ show, onClose, onSave }) {
       time: show.time || '19:00',
       location: show.location || '',
       price: Number(show.price) > 0 ? Number(show.price) : PRICE,
+      pricingMode: show.pricingMode === 'tiered' ? 'tiered' : 'fixed',
+      priceTiers: Array.isArray(show.priceTiers) ? show.priceTiers.map(cleanPriceTier) : [],
       description: show.description || '',
       status: show.status === CLOSED ? CLOSED : OPEN,
       imageUrl: show.imageUrl || '',
@@ -280,6 +293,26 @@ function ShowFormModal({ show, onClose, onSave }) {
     if (idx + dir < 0 || idx + dir >= copy.length) return p;
     [copy[idx], copy[idx + dir]] = [copy[idx + dir], copy[idx]];
     return { ...p, customSections: copy };
+  });
+
+  const togglePricingMode = (checked) => setForm(p => ({
+    ...p,
+    pricingMode: checked ? 'tiered' : 'fixed',
+    priceTiers: checked && p.priceTiers.length === 0
+      ? [
+          { id: id('tier'), label: '얼리버드', price: p.price, until: '' },
+          { id: id('tier'), label: '일반', price: p.price, until: '' },
+        ]
+      : p.priceTiers,
+  }));
+  const updateTier = (tierId, patch) => setForm(p => ({ ...p, priceTiers: p.priceTiers.map(t => t.id === tierId ? { ...t, ...patch } : t) }));
+  const addTier = () => setForm(p => ({ ...p, priceTiers: [...p.priceTiers, { id: id('tier'), label: '', price: p.price, until: '' }] }));
+  const removeTier = (tierId) => setForm(p => ({ ...p, priceTiers: p.priceTiers.filter(t => t.id !== tierId) }));
+  const moveTier = (idx, dir) => setForm(p => {
+    const copy = [...p.priceTiers];
+    if (idx + dir < 0 || idx + dir >= copy.length) return p;
+    [copy[idx], copy[idx + dir]] = [copy[idx + dir], copy[idx]];
+    return { ...p, priceTiers: copy };
   });
 
   const handleImageUpload = (file) => {
@@ -359,7 +392,51 @@ function ShowFormModal({ show, onClose, onSave }) {
                 </select>
               </div>
             </div>
-            
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 16, borderRadius: 10, background: 'var(--slate-50)', border: '1px solid var(--slate-200)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--slate-700)' }}>
+                <input type="checkbox" checked={form.pricingMode === 'tiered'} onChange={(e) => togglePricingMode(e.target.checked)} style={{ width: 16, height: 16 }} />
+                기간별 가격 사용 (얼리버드 등 기간에 따라 가격을 다르게 설정)
+              </label>
+
+              {form.pricingMode === 'tiered' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {form.priceTiers.map((t, idx) => {
+                    const isLast = idx === form.priceTiers.length - 1;
+                    return (
+                      <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: 10, background: '#fff', border: '1px solid var(--slate-200)', borderRadius: 8 }}>
+                        <div style={{ flex: '1 1 100px' }}>
+                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>구간 이름</label>
+                          <input value={t.label} onChange={e => updateTier(t.id, { label: e.target.value })} placeholder="예: 얼리버드" style={{ ...inputStyle, padding: '8px 10px' }} />
+                        </div>
+                        <div style={{ flex: '1 1 100px' }}>
+                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>가격 (원)</label>
+                          <input type="number" value={t.price} onChange={e => updateTier(t.id, { price: e.target.value })} style={{ ...inputStyle, padding: '8px 10px' }} />
+                        </div>
+                        <div style={{ flex: '1 1 180px' }}>
+                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>
+                            {isLast ? '마감 시각 (비워두면 계속 적용)' : '이 가격 마감 시각'}
+                          </label>
+                          <input type="datetime-local" value={t.until || ''} onChange={e => updateTier(t.id, { until: e.target.value })} style={{ ...inputStyle, padding: '8px 10px' }} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button type="button" onClick={() => moveTier(idx, -1)} disabled={idx === 0} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.4 : 1 }}>⬆️</button>
+                          <button type="button" onClick={() => moveTier(idx, 1)} disabled={isLast} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: isLast ? 'not-allowed' : 'pointer', opacity: isLast ? 0.4 : 1 }}>⬇️</button>
+                          {form.priceTiers.length > 1 && (
+                            <button type="button" onClick={() => removeTier(t.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 6px' }}>삭제</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button type="button" onClick={addTier} className="btn-sm" style={{ alignSelf: 'flex-start' }}>+ 가격 구간 추가</button>
+                  <div style={{ fontSize: 12, color: 'var(--slate-500)' }}>
+                    구간은 위에서부터 순서대로 적용됩니다. 마지막 구간의 마감 시각을 비워두면 그 가격이 이후 계속 적용됩니다.
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <label style={labelStyle}>포스터 이미지 첨부 <span style={{ fontWeight: 400, color: 'var(--slate-500)', fontSize: 12 }}>(클립보드 이미지 붙여넣기 Ctrl+V 지원)</span></label>
               <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files[0])} style={{ ...inputStyle, padding: '8px' }} />
