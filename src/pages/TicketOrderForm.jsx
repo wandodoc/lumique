@@ -467,7 +467,7 @@ export default function TicketOrderForm({ showId }) {
     return () => clearInterval(timer);
   }, [show?.pricingMode]);
 
-  const soldByTier = countSoldByTier(orders, showId);
+  const soldByTier = countSoldByTier(orders, showId, show?.priceTiers || []);
   const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier, remainingQty, soldOut } = resolveActivePrice(show, now, soldByTier);
   const price = resolvedPrice || PRICE;
   const total = qty * price;

@@ -251,7 +251,7 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
 function ShowFormModal({ show, orders = [], onClose, onSave }) {
   const [form, setForm] = useState(blankShow);
   const [isSaving, setIsSaving] = useState(false);
-  const soldByTier = useMemo(() => countSoldByTier(orders, show?.id), [orders, show?.id]);
+  const soldByTier = useMemo(() => countSoldByTier(orders, show?.id, show?.priceTiers || []), [orders, show?.id, show?.priceTiers]);
 
   const ensureFixedFields = (sections = []) => {
     let s = [...sections];

@@ -380,6 +380,15 @@ export default function ReservationManagementPage() {
     await firebaseStorage.saveOrders(nextOrders);
   };
 
+  // 예매 내역 삭제 (관리자 전용) — 테스트 신청이나 취소 요청 등을 되돌릴 수 없이 완전히 제거한다.
+  const deleteOrder = async (order) => {
+    if (!isAdmin) return;
+    if (!window.confirm(`${order.audienceName || '이름없음'}님의 예매 내역(${order.ticketCount}매)을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    const nextOrders = orders.filter((o) => o.id !== order.id);
+    setOrders(nextOrders);
+    await firebaseStorage.saveOrders(nextOrders);
+  };
+
   // 건별 후원금 항목 추가 처리
   const addDonationItem = async () => {
     if (!currentShow || !concertId) return;
@@ -720,6 +729,9 @@ export default function ReservationManagementPage() {
                         </th>
                       );
                     })}
+                    {isAdmin && !checkinMode && (
+                      <th style={{ padding: '14px 8px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', whiteSpace: 'nowrap', width: 64, boxSizing: 'border-box' }}>삭제</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -733,6 +745,16 @@ export default function ReservationManagementPage() {
                       }}
                     >
                       {visibleColOrder.map(id => renderCell(o, id))}
+                      {isAdmin && !checkinMode && (
+                        <td style={{ padding: '14px 8px', textAlign: 'center', width: 64, boxSizing: 'border-box' }}>
+                          <button
+                            type="button"
+                            onClick={() => deleteOrder(o)}
+                            title="예매 내역 삭제"
+                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 15, cursor: 'pointer', padding: '4px 8px', fontWeight: 800 }}
+                          >✕</button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -747,6 +769,7 @@ export default function ReservationManagementPage() {
                       if (id === 'attendStatus') return <td key={id} style={{ padding: '14px 8px', textAlign: 'center', color: '#059669', width: cellWidth, boxSizing: 'border-box' }}>{totals.enteredTotal}명 입장</td>;
                       return <td key={id} style={{ width: cellWidth, boxSizing: 'border-box' }} />;
                     })}
+                    {isAdmin && !checkinMode && <td style={{ width: 64, boxSizing: 'border-box' }} />}
                   </tr>
                 </tfoot>
               </table>

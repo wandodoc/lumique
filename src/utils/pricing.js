@@ -61,11 +61,16 @@ export function resolveActivePrice(show, now = new Date(), soldByTier = {}) {
 }
 
 // 공연의 주문 목록에서 가격 구간(tierId)별로 판매된 매수를 합산한다.
-export function countSoldByTier(orders = [], showId) {
+// tierId가 없는 과거 주문(수량 제한 기능 도입 이전에 신청된 건)은 당시 기록해 둔
+// priceTierLabel을 현재 구간 이름과 매칭해 최대한 맞춰 집계한다.
+export function countSoldByTier(orders = [], showId, tiers = []) {
+  const idByLabel = new Map(tiers.filter(t => t.label).map(t => [t.label, t.id]));
   const result = {};
   for (const o of orders) {
-    if (o.concertId !== showId || !o.tierId) continue;
-    result[o.tierId] = (result[o.tierId] || 0) + (Number(o.ticketCount) || 0);
+    if (o.concertId !== showId) continue;
+    const tierId = o.tierId || (o.priceTierLabel ? idByLabel.get(o.priceTierLabel) : null);
+    if (!tierId) continue;
+    result[tierId] = (result[tierId] || 0) + (Number(o.ticketCount) || 0);
   }
   return result;
 }
