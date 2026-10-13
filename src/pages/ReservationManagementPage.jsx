@@ -56,7 +56,7 @@ const ALL_COLUMNS = [
   { id: 'audienceName',  label: '예매자명',  width: 120, required: false },
   { id: 'phone',         label: '연락처',    width: 140, required: false },
   { id: 'ticketCount',   label: '티켓 매수', width: 90,  required: false },
-  { id: 'priceTier',     label: '가격 구간', width: 110, required: false },
+  { id: 'priceTier',     label: '가격 구간/금액', width: 130, required: false },
   { id: 'inviterName',   label: '초대자',    width: 110, required: false },
   { id: 'afterParty',    label: '뒤풀이 참여', width: 90,  required: false },
   { id: 'comment',       label: '추가 입력 정보', width: 180, required: false },
@@ -549,16 +549,23 @@ export default function ReservationManagementPage() {
     setShows(updated);
   };
 
+  // 신청 당시 적용된 단가(unitPrice)가 있으면 그대로 쓰고, 없는 과거 데이터는 해당 공연의 현재 가격으로 추정한다.
+  const unitPriceFor = useCallback((o) => {
+    if (Number(o.unitPrice) > 0) return Number(o.unitPrice);
+    const s = concertId ? currentShow : showsById[o.concertId];
+    return Number(s?.price) || 5000;
+  }, [concertId, currentShow, showsById]);
+
+  // 입금 확인 시 신청자가 보낸 금액과 맞춰볼 수 있도록 매수까지 반영한 결제 총액.
+  const totalPriceFor = useCallback((o) => {
+    if (Number(o.totalPrice) > 0) return Number(o.totalPrice);
+    return unitPriceFor(o) * (Number(o.ticketCount) || 0);
+  }, [unitPriceFor]);
+
   const totals = useMemo(() => {
     const allConcertOrders = concertId ? orders.filter(o => o.concertId === concertId) : orders;
-    // 신청 당시 적용된 단가(unitPrice)가 있으면 그대로 쓰고, 없는 과거 데이터는 해당 공연의 현재 가격으로 추정한다.
-    const priceFor = (o) => {
-      if (Number(o.unitPrice) > 0) return Number(o.unitPrice);
-      const s = concertId ? currentShow : showsById[o.concertId];
-      return Number(s?.price) || 5000;
-    };
     const ticketPrice = currentShow?.price ?? 5000;
-    const paidRevenue = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? priceFor(o) * (Number(o.ticketCount) || 0) : 0), 0);
+    const paidRevenue = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? totalPriceFor(o) : 0), 0);
     return {
       tickets: visibleOrders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0),
       enteredTotal: visibleOrders.reduce((sum, o) => sum + (Number(o.enteredCount) || 0), 0),
@@ -568,7 +575,7 @@ export default function ReservationManagementPage() {
       extraDonation: extraDonationSum,
       ticketPrice,
     };
-  }, [visibleOrders, orders, concertId, currentShow, extraDonationSum, showsById]);
+  }, [visibleOrders, orders, concertId, currentShow, extraDonationSum, totalPriceFor]);
 
   // 초대자별 뒤풀이 집계
   const inviterStats = useMemo(() => {
@@ -599,7 +606,7 @@ export default function ReservationManagementPage() {
   }, [orders, concertId]);
 
   const exportCsv = () => {
-    const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
+    const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
       headers,
       ...visibleOrders.map((o) => [
@@ -607,6 +614,7 @@ export default function ReservationManagementPage() {
         o.phone || '',
         o.ticketCount || 0,
         o.priceTierLabel || '-',
+        totalPriceFor(o),
         o.isAfterParty ? o.afterPartyCount || 1 : 0,
         o.isAfterParty ? (o.inviterName || '') : '',
         o.comment || '',
@@ -770,8 +778,17 @@ export default function ReservationManagementPage() {
         );
       case 'priceTier':
         return (
-          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontSize: 13, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: cellWidth, boxSizing: 'border-box' }}>
-            {o.priceTierLabel || '-'}
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
+            <div style={{ display: 'grid', gap: 2 }}>
+              {o.priceTierLabel && (
+                <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {o.priceTierLabel}
+                </span>
+              )}
+              <span style={{ fontSize: 13, color: '#1e293b', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {totalPriceFor(o).toLocaleString()}원
+              </span>
+            </div>
           </td>
         );
       case 'inviterName':
@@ -823,7 +840,7 @@ export default function ReservationManagementPage() {
       default:
         return <td key={colId} style={{ width: cellWidth, boxSizing: 'border-box' }} />;
     }
-  }, [isAdmin, checkinMode, orders, colMap]);
+  }, [isAdmin, checkinMode, orders, colMap, totalPriceFor]);
 
   if (loading) {
     return (
