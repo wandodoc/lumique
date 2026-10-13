@@ -31,6 +31,7 @@ const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
 
 import { firebaseStorage } from '../utils/firebaseStorage';
+import { countSoldByTier } from '../utils/pricing';
 
 
 const score = (d, t = '19:00') => {
@@ -74,7 +75,9 @@ const cleanPriceTier = (t = {}) => ({
   id: String(t.id || '').trim() || id('tier'),
   label: String(t.label || '').trim(),
   price: Number(t.price) > 0 ? Number(t.price) : 0,
+  limitType: t.limitType === 'quantity' ? 'quantity' : 'date',
   until: String(t.until || '').trim() || null,
+  quantityLimit: Number(t.quantityLimit) > 0 ? Number(t.quantityLimit) : null,
 });
 
 const cleanShow = (s) => {
@@ -245,9 +248,10 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
   );
 }
 
-function ShowFormModal({ show, onClose, onSave }) {
+function ShowFormModal({ show, orders = [], onClose, onSave }) {
   const [form, setForm] = useState(blankShow);
   const [isSaving, setIsSaving] = useState(false);
+  const soldByTier = useMemo(() => countSoldByTier(orders, show?.id), [orders, show?.id]);
 
   const ensureFixedFields = (sections = []) => {
     let s = [...sections];
@@ -300,13 +304,13 @@ function ShowFormModal({ show, onClose, onSave }) {
     pricingMode: checked ? 'tiered' : 'fixed',
     priceTiers: checked && p.priceTiers.length === 0
       ? [
-          { id: id('tier'), label: '얼리버드', price: p.price, until: '' },
-          { id: id('tier'), label: '일반', price: p.price, until: '' },
+          { id: id('tier'), label: '얼리버드', price: p.price, limitType: 'date', until: '', quantityLimit: '' },
+          { id: id('tier'), label: '일반', price: p.price, limitType: 'date', until: '', quantityLimit: '' },
         ]
       : p.priceTiers,
   }));
   const updateTier = (tierId, patch) => setForm(p => ({ ...p, priceTiers: p.priceTiers.map(t => t.id === tierId ? { ...t, ...patch } : t) }));
-  const addTier = () => setForm(p => ({ ...p, priceTiers: [...p.priceTiers, { id: id('tier'), label: '', price: p.price, until: '' }] }));
+  const addTier = () => setForm(p => ({ ...p, priceTiers: [...p.priceTiers, { id: id('tier'), label: '', price: p.price, limitType: 'date', until: '', quantityLimit: '' }] }));
   const removeTier = (tierId) => setForm(p => ({ ...p, priceTiers: p.priceTiers.filter(t => t.id !== tierId) }));
   const moveTier = (idx, dir) => setForm(p => {
     const copy = [...p.priceTiers];
@@ -403,35 +407,75 @@ function ShowFormModal({ show, onClose, onSave }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {form.priceTiers.map((t, idx) => {
                     const isLast = idx === form.priceTiers.length - 1;
+                    const isQuantity = t.limitType === 'quantity';
+                    const sold = soldByTier[t.id] || 0;
                     return (
-                      <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', padding: 10, background: '#fff', border: '1px solid var(--slate-200)', borderRadius: 8 }}>
-                        <div style={{ flex: '1 1 100px' }}>
-                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>구간 이름</label>
-                          <input value={t.label} onChange={e => updateTier(t.id, { label: e.target.value })} placeholder="예: 얼리버드" style={{ ...inputStyle, padding: '8px 10px' }} />
+                      <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, background: '#fff', border: '1px solid var(--slate-200)', borderRadius: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 100px' }}>
+                            <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>구간 이름</label>
+                            <input value={t.label} onChange={e => updateTier(t.id, { label: e.target.value })} placeholder="예: 얼리버드" style={{ ...inputStyle, padding: '8px 10px' }} />
+                          </div>
+                          <div style={{ flex: '1 1 100px' }}>
+                            <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>가격 (원)</label>
+                            <input type="number" value={t.price} onChange={e => updateTier(t.id, { price: e.target.value })} style={{ ...inputStyle, padding: '8px 10px' }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button type="button" onClick={() => moveTier(idx, -1)} disabled={idx === 0} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.4 : 1 }}>⬆️</button>
+                            <button type="button" onClick={() => moveTier(idx, 1)} disabled={isLast} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: isLast ? 'not-allowed' : 'pointer', opacity: isLast ? 0.4 : 1 }}>⬇️</button>
+                            {form.priceTiers.length > 1 && (
+                              <button type="button" onClick={() => removeTier(t.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 6px' }}>삭제</button>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ flex: '1 1 100px' }}>
-                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>가격 (원)</label>
-                          <input type="number" value={t.price} onChange={e => updateTier(t.id, { price: e.target.value })} style={{ ...inputStyle, padding: '8px 10px' }} />
+
+                        <div>
+                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>마감 기준</label>
+                          <div style={{ display: 'inline-flex', borderRadius: 8, border: '1px solid var(--slate-200)', overflow: 'hidden' }}>
+                            <button
+                              type="button"
+                              onClick={() => updateTier(t.id, { limitType: 'date' })}
+                              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', background: !isQuantity ? 'var(--slate-800)' : '#fff', color: !isQuantity ? '#fff' : 'var(--slate-600)' }}
+                            >기간</button>
+                            <button
+                              type="button"
+                              onClick={() => updateTier(t.id, { limitType: 'quantity' })}
+                              style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', background: isQuantity ? 'var(--slate-800)' : '#fff', color: isQuantity ? '#fff' : 'var(--slate-600)' }}
+                            >한정 수량</button>
+                          </div>
                         </div>
-                        <div style={{ flex: '1 1 180px' }}>
-                          <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>
-                            {isLast ? '마감 시각 (비워두면 계속 적용)' : '이 가격 마감 시각'}
-                          </label>
-                          <input type="datetime-local" value={t.until || ''} onChange={e => updateTier(t.id, { until: e.target.value })} style={{ ...inputStyle, padding: '8px 10px' }} />
-                        </div>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button type="button" onClick={() => moveTier(idx, -1)} disabled={idx === 0} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.4 : 1 }}>⬆️</button>
-                          <button type="button" onClick={() => moveTier(idx, 1)} disabled={isLast} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: isLast ? 'not-allowed' : 'pointer', opacity: isLast ? 0.4 : 1 }}>⬇️</button>
-                          {form.priceTiers.length > 1 && (
-                            <button type="button" onClick={() => removeTier(t.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 6px' }}>삭제</button>
-                          )}
-                        </div>
+
+                        {isQuantity ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ flex: '1 1 160px' }}>
+                              <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>한정 수량 (매)</label>
+                              <input type="number" min="1" value={t.quantityLimit ?? ''} onChange={e => updateTier(t.id, { quantityLimit: e.target.value })} placeholder="예: 30" style={{ ...inputStyle, padding: '8px 10px' }} />
+                            </div>
+                            {show?.id && (
+                              <div style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 600 }}>
+                                현재 판매 {sold}매
+                                {Number(t.quantityLimit) > 0 && (
+                                  <span style={{ color: sold >= Number(t.quantityLimit) ? 'var(--red-500)' : 'var(--slate-500)' }}>
+                                    {' '}· 잔여 {Math.max(0, Number(t.quantityLimit) - sold)}매
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ flex: '1 1 180px' }}>
+                            <label style={{ fontSize: 11, color: 'var(--slate-500)', display: 'block', marginBottom: 4 }}>
+                              {isLast ? '마감 시각 (비워두면 계속 적용)' : '이 가격 마감 시각'}
+                            </label>
+                            <input type="datetime-local" value={t.until || ''} onChange={e => updateTier(t.id, { until: e.target.value })} style={{ ...inputStyle, padding: '8px 10px' }} />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                   <button type="button" onClick={addTier} className="btn-sm" style={{ alignSelf: 'flex-start' }}>+ 가격 구간 추가</button>
                   <div style={{ fontSize: 12, color: 'var(--slate-500)' }}>
-                    구간은 위에서부터 순서대로 적용됩니다. 마지막 구간의 마감 시각을 비워두면 그 가격이 이후 계속 적용됩니다.
+                    구간은 위에서부터 순서대로 적용됩니다. 각 구간은 "기간"(마감 시각) 또는 "한정 수량" 중 하나로 마감 조건을 정할 수 있고, 조건에 도달하면 다음 구간으로 자동 전환됩니다. 마지막 구간을 조건 없이(기간 비움) 두면 그 가격이 계속 적용됩니다.
                   </div>
                 </div>
               )}
@@ -1087,7 +1131,7 @@ export default function PerformancePage() {
         </div>
       )}
 
-      {editing && <ShowFormModal show={editing === blankShow ? null : editing} onClose={() => setEditing(null)} onSave={saveShow} />}
+      {editing && <ShowFormModal show={editing === blankShow ? null : editing} orders={orders} onClose={() => setEditing(null)} onSave={saveShow} />}
       {detail && <ShowDetailModal
         show={detail}
         orders={orders.filter(o => o.concertId === detail.id)}

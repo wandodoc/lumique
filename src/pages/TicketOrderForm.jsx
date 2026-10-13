@@ -11,7 +11,7 @@ const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, bor
 const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
 
 import { firebaseStorage } from '../utils/firebaseStorage';
-import { resolveActivePrice, formatCountdown } from '../utils/pricing';
+import { resolveActivePrice, formatCountdown, countSoldByTier } from '../utils/pricing';
 
 const section = (s = {}) => ({
   id: String(s.id || '').trim(),
@@ -70,17 +70,23 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
       </div>
     );
 
-    if (s.type === 'fixed_qty') return (
-      <div key={s.id}>
-        {label}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" onClick={() => fixed.setQty(Math.max(1, fixed.qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
-          <div style={{ fontSize: 16, fontWeight: 700, minWidth: 40, textAlign: 'center' }}>{fixed.qty}매</div>
-          <button type="button" onClick={() => fixed.setQty(Math.min(10, fixed.qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
-          <span style={{ fontSize: 14, color: '#64748b', marginLeft: 4 }}>x {Number(fixed.price || 0).toLocaleString()}원</span>
+    if (s.type === 'fixed_qty') {
+      const maxQty = fixed.remainingQty != null ? Math.max(0, Math.min(10, fixed.remainingQty)) : 10;
+      return (
+        <div key={s.id}>
+          {label}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button type="button" onClick={() => fixed.setQty(Math.max(1, fixed.qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
+            <div style={{ fontSize: 16, fontWeight: 700, minWidth: 40, textAlign: 'center' }}>{fixed.qty}매</div>
+            <button type="button" onClick={() => fixed.setQty(Math.min(maxQty || 1, fixed.qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
+            <span style={{ fontSize: 14, color: '#64748b', marginLeft: 4 }}>x {Number(fixed.price || 0).toLocaleString()}원</span>
+          </div>
+          {fixed.remainingQty != null && (
+            <div style={{ marginTop: 6, fontSize: 12, color: '#ea580c' }}>잔여 {fixed.remainingQty}매까지 신청 가능합니다.</div>
+          )}
         </div>
-      </div>
-    );
+      );
+    }
 
     if (s.type === 'fixed_afterparty') return (
       <div key={s.id} style={{ padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
@@ -291,7 +297,7 @@ function AccountCard({ account }) {
   );
 }
 
-function BottomSheet({ isOpen, onClose, show, price, total, qty,
+function BottomSheet({ isOpen, onClose, show, price, total, qty, remainingQty, soldOut,
   name, setName, phone, setPhone, setQty,
   isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount,
   inviterName, setInviterName, noInviter, setNoInviter,
@@ -368,7 +374,7 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty,
               sections={(show?.customSections || []).filter(s => s.placement !== 'inline')}
               values={customResponses}
               setValues={setCustomResponses}
-              fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment }}
+              fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment, remainingQty }}
             />
 
             {/* 결제 요약 */}
@@ -383,18 +389,18 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty,
             {/* 제출 버튼 */}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || soldOut}
               style={{
                 width: '100%', height: 56, borderRadius: 16,
-                background: submitting ? '#4b5563' : '#111827',
+                background: (submitting || soldOut) ? '#4b5563' : '#111827',
                 color: '#fff', fontSize: 16, fontWeight: 800,
-                border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                border: 'none', cursor: (submitting || soldOut) ? 'not-allowed' : 'pointer',
                 marginBottom: 8,
                 transition: 'background 0.2s, opacity 0.2s',
-                opacity: submitting ? 0.7 : 1,
+                opacity: (submitting || soldOut) ? 0.7 : 1,
               }}
             >
-              {submitting ? '처리 중...' : `${total.toLocaleString()}원 결제 신청`}
+              {soldOut ? '매진되었습니다' : submitting ? '처리 중...' : `${total.toLocaleString()}원 결제 신청`}
             </button>
           </div>
         </form>
@@ -422,6 +428,7 @@ export default function TicketOrderForm({ showId }) {
   const [customResponses, setCustomResponses] = useState({});
 
   const [now, setNow] = useState(() => new Date());
+  const [orders, setOrders] = useState([]);
 
   useEffect(() => {
     document.title = 'Lumique 공연 예매';
@@ -436,6 +443,23 @@ export default function TicketOrderForm({ showId }) {
     fetchShow();
   }, [showId]);
 
+  const hasQuantityLimitedTier = show?.pricingMode === 'tiered'
+    && (show.priceTiers || []).some(t => t.limitType === 'quantity' && Number(t.quantityLimit) > 0);
+
+  // 한정 수량 구간이 있으면 잔여 수량을 파악하기 위해 주문 목록을 불러오고,
+  // 다른 사람의 구매로 잔여량이 바뀔 수 있으므로 주기적으로 갱신한다.
+  useEffect(() => {
+    if (!hasQuantityLimitedTier) return;
+    let cancelled = false;
+    const refresh = async () => {
+      const list = await firebaseStorage.loadOrders();
+      if (!cancelled) setOrders(list);
+    };
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [hasQuantityLimitedTier]);
+
   // 기간별(얼리버드 등) 가격이 설정된 공연이면 1초마다 현재 적용 가격/카운트다운을 갱신한다.
   useEffect(() => {
     if (show?.pricingMode !== 'tiered') return;
@@ -443,9 +467,15 @@ export default function TicketOrderForm({ showId }) {
     return () => clearInterval(timer);
   }, [show?.pricingMode]);
 
-  const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier } = resolveActivePrice(show, now);
+  const soldByTier = countSoldByTier(orders, showId);
+  const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier, remainingQty, soldOut } = resolveActivePrice(show, now, soldByTier);
   const price = resolvedPrice || PRICE;
   const total = qty * price;
+
+  // 잔여 수량이 현재 신청 매수보다 줄어들면(다른 사람 구매 등) 매수를 잔여량에 맞춰 줄인다.
+  useEffect(() => {
+    if (remainingQty != null && qty > remainingQty) setQty(Math.max(1, remainingQty));
+  }, [remainingQty, qty]);
 
   const copyAccount = () => {
     navigator.clipboard.writeText(SUPPORT_ACCOUNT);
@@ -457,6 +487,9 @@ export default function TicketOrderForm({ showId }) {
     const activeFixedName = show?.customSections?.find(s => s.type === 'fixed_name' && s.active !== false);
     const activeFixedPhone = show?.customSections?.find(s => s.type === 'fixed_phone' && s.active !== false);
     const activeFixedQty = show?.customSections?.find(s => s.type === 'fixed_qty' && s.active !== false);
+
+    if (soldOut) return toast('죄송합니다. 해당 가격대가 매진되어 더 이상 신청할 수 없습니다.');
+    if (remainingQty != null && qty > remainingQty) return toast(`${activeTier?.label || '해당 구간'} 잔여 수량(${remainingQty}매)을 초과했습니다.`);
 
     if (activeFixedName && activeFixedName.required && !name.trim()) return toast(`${activeFixedName.title}을(를) 입력해주세요.`);
     if (activeFixedPhone && activeFixedPhone.required && !phone.trim()) return toast(`${activeFixedPhone.title}을(를) 입력해주세요.`);
@@ -477,7 +510,6 @@ export default function TicketOrderForm({ showId }) {
   const submitOrderAsync = async () => {
     setSubmitting(true);
     try {
-      const orders = await firebaseStorage.loadOrders();
       const newOrder = {
         id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         concertId: showId,
@@ -485,6 +517,7 @@ export default function TicketOrderForm({ showId }) {
         phone: phone.trim(),
         ticketCount: Number(qty),
         unitPrice: price,
+        tierId: activeTier?.id || null,
         priceTierLabel: activeTier?.label || '',
         totalPrice: total,
         depositStatus: '입금대기',
@@ -497,7 +530,9 @@ export default function TicketOrderForm({ showId }) {
         createdAt: new Date().toISOString()
       };
 
-      await firebaseStorage.saveOrders([...orders, newOrder]);
+      const latestOrders = await firebaseStorage.loadOrders();
+      await firebaseStorage.saveOrders([...latestOrders, newOrder]);
+      setOrders(prev => [...prev, newOrder]);
       setIsSheetOpen(false);
       setDone(true);
       window.scrollTo(0, 0);
@@ -582,6 +617,23 @@ export default function TicketOrderForm({ showId }) {
                       )}
                     </div>
                   )}
+
+                  {remainingQty != null && !soldOut && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: remainingQty <= 5 ? '#dc2626' : '#ea580c', fontWeight: 700, lineHeight: 1.5 }}>
+                      🎟 {activeTier?.label || '현재'} 잔여 <span style={{ fontFamily: 'monospace' }}>{remainingQty}</span>매
+                      {nextTier && (
+                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>
+                          {' '}· 이후 {Number(nextTier.price || 0).toLocaleString()}원{nextTier.label ? ` (${nextTier.label})` : ''}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {soldOut && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#dc2626', fontWeight: 800 }}>
+                      ⛔ 매진되었습니다
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -642,26 +694,27 @@ export default function TicketOrderForm({ showId }) {
         </div>
         <button
           id="open-reservation-sheet"
-          onClick={() => setIsSheetOpen(true)}
+          onClick={() => !soldOut && setIsSheetOpen(true)}
+          disabled={soldOut}
           style={{
             flex: 2,
             height: 52,
             borderRadius: 16,
-            background: '#111827',
+            background: soldOut ? '#9ca3af' : '#111827',
             color: '#fff',
             fontSize: 16,
             fontWeight: 800,
             border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+            cursor: soldOut ? 'not-allowed' : 'pointer',
+            boxShadow: soldOut ? 'none' : '0 4px 20px rgba(0,0,0,0.25)',
             transition: 'transform 0.15s, opacity 0.15s',
           }}
-          onMouseDown={e => { e.currentTarget.style.opacity = '0.85'; }}
+          onMouseDown={e => { if (!soldOut) e.currentTarget.style.opacity = '0.85'; }}
           onMouseUp={e => { e.currentTarget.style.opacity = ''; }}
-          onTouchStart={e => { e.currentTarget.style.opacity = '0.85'; }}
+          onTouchStart={e => { if (!soldOut) e.currentTarget.style.opacity = '0.85'; }}
           onTouchEnd={e => { e.currentTarget.style.opacity = ''; }}
         >
-          지금 예매하기 🎟
+          {soldOut ? '매진되었습니다' : '지금 예매하기 🎟'}
         </button>
       </div>
 
@@ -673,6 +726,8 @@ export default function TicketOrderForm({ showId }) {
         price={price}
         total={total}
         qty={qty}
+        remainingQty={remainingQty}
+        soldOut={soldOut}
         name={name} setName={setName}
         phone={phone} setPhone={setPhone}
         setQty={setQty}
