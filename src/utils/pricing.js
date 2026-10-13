@@ -2,10 +2,24 @@
 // show.pricingMode === 'tiered'일 때만 priceTiers를 사용하고, 그 외(기본값 'fixed')에는
 // show.price를 그대로 쓴다. 기존 데이터와 완전히 하위 호환된다.
 
-// priceTiers는 시간순으로 적용되는 가격 구간 배열: [{ id, label, price, until, limitType, quantityLimit }]
-// 각 구간은 limitType이 'quantity'면 quantityLimit매가 판매될 때까지, 그 외(기본 'date')에는
-// now < until 인 동안 적용된다. 마감 조건에 도달하면 다음 구간으로 넘어가고,
-// 마지막 구간은 보통 조건 없이(until 없음) 계속 적용되도록 둔다.
+// priceTiers는 시간순으로 적용되는 가격 구간 배열: [{ id, label, price, until, quantityLimit }]
+// until과 quantityLimit은 서로 독립적인 마감 조건이며, 둘 다(혹은 하나만) 설정할 수 있다.
+// 둘 다 설정된 경우 둘 중 하나라도 먼저 도달하면 그 구간은 마감되고 다음 구간으로 넘어간다.
+// (예: "24시간 내 20장" → 24시간이 지나거나 20장이 먼저 팔리면 마감)
+// 마지막 구간은 보통 조건 없이(until, quantityLimit 모두 비움) 계속 적용되도록 둔다.
+
+const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+// 가격 구간 하나를 저장 가능한 형태로 정규화한다. (공연 관리 / 티켓 관리 양쪽에서 공용으로 사용)
+export function cleanPriceTier(t = {}) {
+  return {
+    id: String(t.id || '').trim() || genTierId(),
+    label: String(t.label || '').trim(),
+    price: Number(t.price) > 0 ? Number(t.price) : 0,
+    until: String(t.until || '').trim() || null,
+    quantityLimit: Number(t.quantityLimit) > 0 ? Number(t.quantityLimit) : null,
+  };
+}
 
 // soldByTier: { [tierId]: 판매된 매수 } — countSoldByTier()로 주문 목록에서 계산한다.
 export function resolveActivePrice(show, now = new Date(), soldByTier = {}) {
@@ -16,37 +30,39 @@ export function resolveActivePrice(show, now = new Date(), soldByTier = {}) {
     return { price: fallbackPrice, tier: null, tierIndex: -1, nextCutoff: null, nextTier: null, remainingQty: null, soldOut: false };
   }
 
-  const isClosed = (t) => {
-    const sold = Number(soldByTier[t.id]) || 0;
-    if (t.limitType === 'quantity') {
-      const limit = Number(t.quantityLimit) || 0;
-      return limit > 0 && sold >= limit;
-    }
+  const isClosedByDate = (t) => {
     const until = t.until ? new Date(t.until) : null;
     return Boolean(until && now.getTime() >= until.getTime());
   };
+  const isClosedByQuantity = (t) => {
+    const limit = Number(t.quantityLimit) || 0;
+    const sold = Number(soldByTier[t.id]) || 0;
+    return limit > 0 && sold >= limit;
+  };
+  const isClosed = (t) => isClosedByDate(t) || isClosedByQuantity(t);
 
   for (let i = 0; i < tiers.length; i++) {
     const t = tiers[i];
     if (isClosed(t)) continue;
 
-    const isQuantityLimited = t.limitType === 'quantity' && Number(t.quantityLimit) > 0;
-    const until = !isQuantityLimited && t.until ? new Date(t.until) : null;
+    const hasDateLimit = Boolean(t.until) && !isClosedByDate(t);
+    const hasQuantityLimit = Number(t.quantityLimit) > 0;
+    const until = hasDateLimit ? new Date(t.until) : null;
     const sold = Number(soldByTier[t.id]) || 0;
-    const remainingQty = isQuantityLimited ? Math.max(0, Number(t.quantityLimit) - sold) : null;
+    const remainingQty = hasQuantityLimit ? Math.max(0, Number(t.quantityLimit) - sold) : null;
 
     return {
       price: Number(t.price) || 0,
       tier: t,
       tierIndex: i,
       nextCutoff: until,
-      nextTier: (until || isQuantityLimited) ? (tiers[i + 1] || null) : null,
+      nextTier: (hasDateLimit || hasQuantityLimit) ? (tiers[i + 1] || null) : null,
       remainingQty,
       soldOut: false,
     };
   }
 
-  // 모든 구간이 마감된 경우: 마지막 구간 가격을 보여주되, 그 구간마저 수량 마감이라면 매진 처리.
+  // 모든 구간이 마감된 경우: 마지막 구간 가격을 보여주되, 그 구간마저 마감 조건에 걸렸다면 매진 처리.
   const last = tiers[tiers.length - 1];
   const lastSoldOut = last ? isClosed(last) : false;
   return {

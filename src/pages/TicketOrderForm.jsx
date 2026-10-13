@@ -444,7 +444,7 @@ export default function TicketOrderForm({ showId }) {
   }, [showId]);
 
   const hasQuantityLimitedTier = show?.pricingMode === 'tiered'
-    && (show.priceTiers || []).some(t => t.limitType === 'quantity' && Number(t.quantityLimit) > 0);
+    && (show.priceTiers || []).some(t => Number(t.quantityLimit) > 0);
 
   // 한정 수량 구간이 있으면 잔여 수량을 파악하기 위해 주문 목록을 불러오고,
   // 다른 사람의 구매로 잔여량이 바뀔 수 있으므로 주기적으로 갱신한다.

@@ -11,6 +11,9 @@ const ATTEND_WAIT = '미입장';
 const ATTEND_DONE = '입장완료';
 
 import { firebaseStorage } from '../utils/firebaseStorage';
+import { countSoldByTier, resolveActivePrice, cleanPriceTier, formatTierUntil } from '../utils/pricing';
+
+const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const loadLS = (key) => {
   try {
@@ -53,6 +56,7 @@ const ALL_COLUMNS = [
   { id: 'audienceName',  label: '예매자명',  width: 120, required: false },
   { id: 'phone',         label: '연락처',    width: 140, required: false },
   { id: 'ticketCount',   label: '티켓 매수', width: 90,  required: false },
+  { id: 'priceTier',     label: '가격 구간', width: 110, required: false },
   { id: 'inviterName',   label: '초대자',    width: 110, required: false },
   { id: 'afterParty',    label: '뒤풀이 참여', width: 90,  required: false },
   { id: 'comment',       label: '추가 입력 정보', width: 180, required: false },
@@ -183,6 +187,231 @@ function ColumnSettingsPanel({ colOrder, setColOrder, hiddenCols, setHiddenCols,
   );
 }
 
+// ── 가격 구간(기간별/한정 수량) 조회 및 관리 패널 ──
+function PriceTierSection({ show, isAdmin, soldByTier, activeTier, onSave }) {
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState({ pricingMode: 'fixed', price: 5000, priceTiers: [] });
+  const [saving, setSaving] = useState(false);
+
+  const resetDraft = useCallback(() => {
+    if (!show) return;
+    setDraft({
+      pricingMode: show.pricingMode === 'tiered' ? 'tiered' : 'fixed',
+      price: Number(show.price) || 5000,
+      priceTiers: Array.isArray(show.priceTiers) ? show.priceTiers.map(t => ({ ...t })) : [],
+    });
+  }, [show]);
+
+  useEffect(() => { resetDraft(); }, [show?.id]);
+
+  if (!show) return null;
+
+  const isTiered = show.pricingMode === 'tiered' && Array.isArray(show.priceTiers) && show.priceTiers.length > 0;
+  const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box', background: '#fff' };
+
+  const toggleMode = (checked) => setDraft(p => ({
+    ...p,
+    pricingMode: checked ? 'tiered' : 'fixed',
+    priceTiers: checked && p.priceTiers.length === 0
+      ? [
+          { id: genTierId(), label: '얼리버드', price: p.price, until: '', quantityLimit: null },
+          { id: genTierId(), label: '일반', price: p.price, until: '', quantityLimit: null },
+        ]
+      : p.priceTiers,
+  }));
+  const updateTier = (tierId, patch) => setDraft(p => ({ ...p, priceTiers: p.priceTiers.map(t => t.id === tierId ? { ...t, ...patch } : t) }));
+  const addTier = () => setDraft(p => ({ ...p, priceTiers: [...p.priceTiers, { id: genTierId(), label: '', price: p.price, until: '', quantityLimit: null }] }));
+  const removeTier = (tierId) => setDraft(p => ({ ...p, priceTiers: p.priceTiers.filter(t => t.id !== tierId) }));
+  const moveTier = (idx, dir) => setDraft(p => {
+    const copy = [...p.priceTiers];
+    if (idx + dir < 0 || idx + dir >= copy.length) return p;
+    [copy[idx], copy[idx + dir]] = [copy[idx + dir], copy[idx]];
+    return { ...p, priceTiers: copy };
+  });
+
+  const cancel = () => {
+    resetDraft();
+    setEditMode(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        pricingMode: draft.pricingMode,
+        priceTiers: draft.priceTiers.map(cleanPriceTier),
+      });
+      setEditMode(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>가격 구간 관리</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+            {isTiered ? '기간별/한정 수량 가격이 적용 중입니다.' : '고정 가격이 적용 중입니다.'}
+          </div>
+        </div>
+        {isAdmin && !editMode && (
+          <button type="button" onClick={() => setEditMode(true)} className="btn-secondary" style={{ height: 36, padding: '0 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            {isTiered ? '구간 수정' : '구간별 가격 설정'}
+          </button>
+        )}
+      </div>
+
+      {!editMode && isTiered && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {show.priceTiers.map((t) => {
+            const sold = soldByTier[t.id] || 0;
+            const limit = Number(t.quantityLimit) || 0;
+            const hasQuantity = limit > 0;
+            const hasDate = Boolean(t.until);
+            const remaining = hasQuantity ? Math.max(0, limit - sold) : null;
+            const quantityClosed = hasQuantity && sold >= limit;
+            const dateClosed = hasDate && new Date() >= new Date(t.until);
+            const closed = quantityClosed || dateClosed;
+            const isActive = activeTier?.id === t.id;
+            return (
+              <div key={t.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+                padding: '10px 14px', borderRadius: 12,
+                border: isActive ? '1.5px solid #10b981' : '1px solid #e2e8f0',
+                background: isActive ? '#ecfdf5' : '#fff'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>{t.label || '(이름없음)'}</span>
+                  {isActive && <span style={{ fontSize: 11, fontWeight: 800, color: '#059669', background: '#d1fae5', padding: '2px 8px', borderRadius: 20 }}>현재 적용중</span>}
+                  {closed && <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: 20 }}>마감</span>}
+                </div>
+                <div style={{ fontSize: 13, color: '#475569', fontWeight: 700, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span>{Number(t.price || 0).toLocaleString()}원</span>
+                  {hasQuantity && (
+                    <span style={{ color: remaining != null && remaining <= 0 ? '#ef4444' : '#64748b', fontWeight: 600 }}>
+                      판매 {sold}매 / {limit}매 (잔여 {remaining}매)
+                    </span>
+                  )}
+                  {hasDate && (
+                    <span style={{ color: '#64748b', fontWeight: 600 }}>
+                      {formatTierUntil(t.until)} 마감
+                    </span>
+                  )}
+                  {!hasQuantity && !hasDate && (
+                    <span style={{ color: '#64748b', fontWeight: 600 }}>기한 없음</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!editMode && !isTiered && (
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+          {Number(show.price || 0).toLocaleString()}원 (전체 동일 가격)
+        </div>
+      )}
+
+      {editMode && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#374151' }}>
+            <input type="checkbox" checked={draft.pricingMode === 'tiered'} onChange={(e) => toggleMode(e.target.checked)} style={{ width: 16, height: 16 }} />
+            기간별/한정 수량 가격 사용
+          </label>
+
+          {draft.pricingMode === 'tiered' && (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {draft.priceTiers.map((t, idx) => {
+                const isLast = idx === draft.priceTiers.length - 1;
+                const hasDate = t.until !== null && t.until !== undefined;
+                const hasQuantity = t.quantityLimit !== null && t.quantityLimit !== undefined;
+                const sold = soldByTier[t.id] || 0;
+                return (
+                  <div key={t.id} style={{ display: 'grid', gap: 8, padding: 10, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 100px' }}>
+                        <label style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginBottom: 4 }}>구간 이름</label>
+                        <input value={t.label} onChange={e => updateTier(t.id, { label: e.target.value })} placeholder="예: 얼리버드" style={inputStyle} />
+                      </div>
+                      <div style={{ flex: '1 1 100px' }}>
+                        <label style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginBottom: 4 }}>가격 (원)</label>
+                        <input type="number" value={t.price} onChange={e => updateTier(t.id, { price: e.target.value })} style={inputStyle} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button type="button" onClick={() => moveTier(idx, -1)} disabled={idx === 0} style={{ background: '#e2e8f0', border: 'none', borderRadius: 6, width: 28, height: 28, cursor: idx === 0 ? 'not-allowed' : 'pointer', opacity: idx === 0 ? 0.4 : 1 }}>⬆️</button>
+                        <button type="button" onClick={() => moveTier(idx, 1)} disabled={isLast} style={{ background: '#e2e8f0', border: 'none', borderRadius: 6, width: 28, height: 28, cursor: isLast ? 'not-allowed' : 'pointer', opacity: isLast ? 0.4 : 1 }}>⬇️</button>
+                        {draft.priceTiers.length > 1 && (
+                          <button type="button" onClick={() => removeTier(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 6px' }}>삭제</button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4, borderTop: '1px dashed #e2e8f0' }}>
+                      <label style={{ fontSize: 11, color: '#94a3b8' }}>마감 조건 (기간/수량을 각각 켜고 끌 수 있으며, 둘 다 켜면 먼저 도달한 쪽에서 마감됩니다)</label>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#374151' }}>
+                        <input type="checkbox" checked={hasDate} onChange={e => updateTier(t.id, { until: e.target.checked ? (t.until || '') : null })} style={{ width: 14, height: 14 }} />
+                        기간 제한 사용
+                      </label>
+                      {hasDate && (
+                        <div style={{ flex: '1 1 180px' }}>
+                          <label style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginBottom: 4 }}>
+                            {isLast ? '마감 시각 (비워두면 계속 적용)' : '이 가격 마감 시각'}
+                          </label>
+                          <input type="datetime-local" value={t.until || ''} onChange={e => updateTier(t.id, { until: e.target.value })} style={inputStyle} />
+                        </div>
+                      )}
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#374151' }}>
+                        <input type="checkbox" checked={hasQuantity} onChange={e => updateTier(t.id, { quantityLimit: e.target.checked ? (t.quantityLimit || '') : null })} style={{ width: 14, height: 14 }} />
+                        수량 제한 사용
+                      </label>
+                      {hasQuantity && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 160px' }}>
+                            <label style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginBottom: 4 }}>한정 수량 (매)</label>
+                            <input type="number" min="1" value={t.quantityLimit ?? ''} onChange={e => updateTier(t.id, { quantityLimit: e.target.value })} placeholder="예: 30" style={inputStyle} />
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                            현재 판매 {sold}매
+                            {Number(t.quantityLimit) > 0 && (
+                              <span style={{ color: sold >= Number(t.quantityLimit) ? '#ef4444' : '#64748b' }}>
+                                {' '}· 잔여 {Math.max(0, Number(t.quantityLimit) - sold)}매
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!hasDate && !hasQuantity && (
+                        <div style={{ fontSize: 11, color: '#cbd5e1' }}>마감 조건 없음 — 이 가격이 계속 적용됩니다.</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <button type="button" onClick={addTier} className="btn-sm" style={{ alignSelf: 'flex-start' }}>+ 가격 구간 추가</button>
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                구간은 위에서부터 순서대로 적용됩니다. 기간/수량 조건 중 먼저 도달한 쪽에서 마감되어 다음 구간으로 자동 전환되며, 마지막 구간을 조건 없이 두면 그 가격이 계속 적용됩니다.
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={cancel} disabled={saving} style={{ height: 38, padding: '0 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', color: '#475569', fontWeight: 700, fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer' }}>취소</button>
+            <button type="button" onClick={save} disabled={saving} style={{ height: 38, padding: '0 16px', borderRadius: 10, border: 'none', background: saving ? '#9ca3af' : '#111827', color: '#fff', fontWeight: 800, fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer' }}>
+              {saving ? '저장 중...' : '저장'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReservationManagementPage() {
   const { isAdmin } = useAuth();
   const { id: concertId } = useParams();
@@ -218,7 +447,11 @@ export default function ReservationManagementPage() {
     document.title = '티켓 신청 및 입장 관리';
     const saved = loadColConfig();
     if (saved) {
-      if (Array.isArray(saved.order) && saved.order.length > 0) setColOrder(saved.order);
+      if (Array.isArray(saved.order) && saved.order.length > 0) {
+        // 이후 추가된 컬럼(예: 가격 구간)은 기존에 저장된 순서에 없으므로 뒤에 보충한다.
+        const missing = DEFAULT_COLUMN_ORDER.filter(id => !saved.order.includes(id));
+        setColOrder([...saved.order, ...missing]);
+      }
       if (Array.isArray(saved.hidden)) setHiddenCols(saved.hidden);
     }
     async function loadData() {
@@ -295,20 +528,47 @@ export default function ReservationManagementPage() {
     });
   }, [orders, query, filter, concertId]);
 
+  // 공연별 가격 구간(기간별/한정 수량) 정보 — 신청 매수 집계 및 조회/관리 패널에 사용.
+  const showsById = useMemo(() => Object.fromEntries(shows.map(s => [s.id, s])), [shows]);
+  const currentPriceTiers = useMemo(() => (Array.isArray(currentShow?.priceTiers) ? currentShow.priceTiers : []), [currentShow]);
+  const isTiered = currentShow?.pricingMode === 'tiered' && currentPriceTiers.length > 0;
+  const soldByTier = useMemo(
+    () => (concertId ? countSoldByTier(orders, concertId, currentPriceTiers) : {}),
+    [orders, concertId, currentPriceTiers]
+  );
+  const activeTier = useMemo(
+    () => (currentShow ? resolveActivePrice(currentShow, new Date(), soldByTier).tier : null),
+    [currentShow, soldByTier]
+  );
+
+  const savePriceTiers = async (patch) => {
+    if (!currentShow || !concertId) return;
+    const concerts = await firebaseStorage.loadConcerts();
+    const updated = concerts.map(c => c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c);
+    await firebaseStorage.saveConcerts(updated);
+    setShows(updated);
+  };
+
   const totals = useMemo(() => {
     const allConcertOrders = concertId ? orders.filter(o => o.concertId === concertId) : orders;
-    const paidCount = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? (Number(o.ticketCount) || 0) : 0), 0);
+    // 신청 당시 적용된 단가(unitPrice)가 있으면 그대로 쓰고, 없는 과거 데이터는 해당 공연의 현재 가격으로 추정한다.
+    const priceFor = (o) => {
+      if (Number(o.unitPrice) > 0) return Number(o.unitPrice);
+      const s = concertId ? currentShow : showsById[o.concertId];
+      return Number(s?.price) || 5000;
+    };
     const ticketPrice = currentShow?.price ?? 5000;
+    const paidRevenue = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? priceFor(o) * (Number(o.ticketCount) || 0) : 0), 0);
     return {
       tickets: visibleOrders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0),
       enteredTotal: visibleOrders.reduce((sum, o) => sum + (Number(o.enteredCount) || 0), 0),
       paidTickets: visibleOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? (Number(o.ticketCount) || 0) : 0), 0),
       afterParties: visibleOrders.reduce((sum, o) => sum + (o.isAfterParty ? (Number(o.afterPartyCount) || 1) : 0), 0),
-      totalFund: paidCount * ticketPrice + extraDonationSum,
+      totalFund: paidRevenue + extraDonationSum,
       extraDonation: extraDonationSum,
       ticketPrice,
     };
-  }, [visibleOrders, orders, concertId, currentShow, extraDonationSum]);
+  }, [visibleOrders, orders, concertId, currentShow, extraDonationSum, showsById]);
 
   // 초대자별 뒤풀이 집계
   const inviterStats = useMemo(() => {
@@ -339,13 +599,14 @@ export default function ReservationManagementPage() {
   }, [orders, concertId]);
 
   const exportCsv = () => {
-    const headers = ['예매자명', '연락처', '신청 매수', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
+    const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
       headers,
       ...visibleOrders.map((o) => [
         o.audienceName || '',
         o.phone || '',
         o.ticketCount || 0,
+        o.priceTierLabel || '-',
         o.isAfterParty ? o.afterPartyCount || 1 : 0,
         o.isAfterParty ? (o.inviterName || '') : '',
         o.comment || '',
@@ -507,6 +768,12 @@ export default function ReservationManagementPage() {
             {o.ticketCount}
           </td>
         );
+      case 'priceTier':
+        return (
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontSize: 13, color: '#475569', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: cellWidth, boxSizing: 'border-box' }}>
+            {o.priceTierLabel || '-'}
+          </td>
+        );
       case 'inviterName':
         return (
           <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontSize: 13, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
@@ -614,6 +881,17 @@ export default function ReservationManagementPage() {
           <StatCard label="입금 완료" value={`${totals.paidTickets}매`} color="#059669" />
           <StatCard label="뒤풀이 인원" value={`${totals.afterParties}명`} color="#64748b" />
         </div>
+
+        {/* 1-1-1. 가격 구간(기간별/한정 수량) 조회 및 관리 */}
+        {currentShow && (
+          <PriceTierSection
+            show={currentShow}
+            isAdmin={isAdmin}
+            soldByTier={soldByTier}
+            activeTier={activeTier}
+            onSave={savePriceTiers}
+          />
+        )}
 
         {/* 1-2. 예매자 관리 내역 (테이블) 카드 */}
         <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
@@ -787,7 +1065,9 @@ export default function ReservationManagementPage() {
                 총 모금액 {totals.totalFund.toLocaleString()}원
               </div>
               <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, lineHeight: 1.5 }}>
-                입금완료 {totals.paidTickets}매 × {totals.ticketPrice.toLocaleString()}원
+                {isTiered
+                  ? `입금완료 ${totals.paidTickets}매 (가격 구간별 단가 적용)`
+                  : `입금완료 ${totals.paidTickets}매 × ${totals.ticketPrice.toLocaleString()}원`}
                 {totals.extraDonation > 0 && <span style={{ color: '#10b981' }}> + 후원금 총 {totals.extraDonation.toLocaleString()}원 ({donationList.length}건)</span>}
               </div>
             </div>
