@@ -1,6 +1,9 @@
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { useEffect, useMemo, useState } from 'react';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import './PageStyles.css';
 
 const LS_SHOWS = 'lumique_concerts';
@@ -113,33 +116,56 @@ const card = (title, children) => (
   </section>
 );
 
-function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove }) {
+function DragHandle({ dragHandleProps }) {
+  return (
+    <button
+      type="button"
+      {...dragHandleProps}
+      onClick={(e) => e.stopPropagation()}
+      style={{ background: '#e2e8f0', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: 'var(--slate-500)', touchAction: 'none' }}
+      title="드래그해서 순서 변경"
+    >
+      ⠿
+    </button>
+  );
+}
+
+function SortableSectionItem({ section, onChange, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1 : 'auto',
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      <SectionEditor section={section} onChange={onChange} onRemove={onRemove} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  );
+}
+
+function SectionEditor({ section, onChange, onRemove, dragHandleProps }) {
   const [isEditing, setIsEditing] = useState(!section.title);
   const isFixed = section.type?.startsWith('fixed_');
   const isActive = section.active !== false;
 
   if (!isEditing) {
     return (
-      <div 
+      <div
         onClick={() => setIsEditing(true)}
         style={{ border: '1px solid var(--slate-200)', borderRadius: 8, padding: 16, background: isActive ? '#fafafa' : '#f1f5f9', cursor: 'pointer', transition: 'border-color 0.2s', display: 'flex', flexDirection: 'column', gap: 8, opacity: isActive ? 1 : 0.6 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DragHandle dragHandleProps={dragHandleProps} />
             <span style={{ fontSize: 13, fontWeight: 700, color: isFixed ? 'var(--blue-600)' : 'var(--indigo-600)' }}>
               {isFixed ? (section.type === 'fixed_qty' ? '고정 예매 항목 (수량 질문)' : section.type === 'fixed_afterparty' ? '고정 예매 항목 (체크박스)' : section.type === 'fixed_comment' ? '고정 예매 항목 (장문형)' : '고정 예매 항목 (단답형)') : section.type === 'text' ? '안내 텍스트' : section.type === 'input_radio' || section.type === 'input_checkbox' ? '객관식 질문' : '주관식 질문'}
               {section.required && isActive && <span style={{ color: 'var(--red-500)', marginLeft: 4 }}>*</span>}
               {!isActive && <span style={{ color: 'var(--slate-500)', marginLeft: 8 }}>(비활성화됨)</span>}
-              {!isFixed && section.placement === 'inline' && <span style={{ color: 'var(--emerald-600)', marginLeft: 8, fontWeight: 600 }}>(상세 설명 하단에 표시)</span>}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button type="button" onClick={(e) => { e.stopPropagation(); onMove(index, -1); }} disabled={index === 0} style={{ background: '#e2e8f0', border: 'none', borderRadius: 4, width: 26, height: 26, cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬆️</button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); onMove(index, 1); }} disabled={index === totalLength - 1} style={{ background: '#e2e8f0', border: 'none', borderRadius: 4, width: 26, height: 26, cursor: index === totalLength - 1 ? 'not-allowed' : 'pointer', opacity: index === totalLength - 1 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬇️</button>
-            </div>
-            <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>클릭하여 수정</span>
-          </div>
+          <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>클릭하여 수정</span>
         </div>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--slate-900)' }}>
           {section.title || '(제목 없음)'}
@@ -152,6 +178,7 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
   return (
     <div style={{ border: `1px solid ${isFixed ? 'var(--blue-300)' : 'var(--indigo-300)'}`, borderRadius: 8, padding: 16, background: '#fff', display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <DragHandle dragHandleProps={dragHandleProps} />
         {isFixed ? (
           <div style={{ height: 40, flex: 1, background: '#f8fafc', border: '1px solid var(--slate-200)', borderRadius: 8, display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 14, fontWeight: 700, color: 'var(--slate-700)' }}>
             고정 항목: {section.title}
@@ -171,10 +198,6 @@ function SectionEditor({ section, index, totalLength, onChange, onRemove, onMove
             <option value="input_number">수량(숫자) 질문</option>
           </select>
         )}
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button type="button" onClick={() => onMove(index, -1)} disabled={index === 0} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: index === 0 ? 'not-allowed' : 'pointer', opacity: index === 0 ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬆️</button>
-          <button type="button" onClick={() => onMove(index, 1)} disabled={index === totalLength - 1} style={{ background: '#f1f5f9', border: 'none', borderRadius: 4, width: 28, height: 28, cursor: index === totalLength - 1 ? 'not-allowed' : 'pointer', opacity: index === totalLength - 1 ? 0.4 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⬇️</button>
-        </div>
         {!isFixed && <button type="button" onClick={() => onRemove(section.id)} style={{ background: 'none', border: 'none', color: 'var(--red-500)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '8px 4px' }}>항목 삭제</button>}
       </div>
 
@@ -283,12 +306,32 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
   const sec = (id, patch) => setForm(p => ({ ...p, customSections: p.customSections.map(s => s.id === id ? { ...s, ...patch } : s) }));
   const add = (type) => setForm(p => ({ ...p, customSections: [...p.customSections, cleanSection({ type })] }));
   const del = (id) => setForm(p => ({ ...p, customSections: p.customSections.filter(s => s.id !== id) }));
-  const move = (idx, dir) => setForm(p => {
-    const copy = [...p.customSections];
-    if (idx + dir < 0 || idx + dir >= copy.length) return p;
-    [copy[idx], copy[idx + dir]] = [copy[idx + dir], copy[idx]];
-    return { ...p, customSections: copy };
+
+  const isFixedType = (s) => s.type?.startsWith('fixed_');
+  const inlineItems = useMemo(() => form.customSections.filter(s => !isFixedType(s) && s.placement === 'inline'), [form.customSections]);
+  const popupItems = useMemo(() => form.customSections.filter(s => isFixedType(s) || s.placement !== 'inline'), [form.customSections]);
+
+  const reorderGroup = (groupItems, activeId, overId) => setForm(p => {
+    const oldIndex = groupItems.findIndex(s => s.id === activeId);
+    const newIndex = groupItems.findIndex(s => s.id === overId);
+    if (oldIndex === -1 || newIndex === -1) return p;
+    const reordered = arrayMove(groupItems, oldIndex, newIndex);
+    const groupIdSet = new Set(groupItems.map(s => s.id));
+    let i = 0;
+    return { ...p, customSections: p.customSections.map(s => groupIdSet.has(s.id) ? reordered[i++] : s) };
   });
+  const handleInlineDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    reorderGroup(inlineItems, active.id, over.id);
+  };
+  const handlePopupDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+    reorderGroup(popupItems, active.id, over.id);
+  };
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const togglePricingMode = (checked) => setForm(p => ({
     ...p,
@@ -495,20 +538,48 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--slate-900)' }}>커스텀 신청 항목 (폼 빌더)</h4>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--slate-500)' }}>예매자에게 추가로 받을 정보를 자유롭게 구성하세요.</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--slate-500)' }}>예매자에게 추가로 받을 정보를 자유롭게 구성하세요. 드래그 핸들(⠿)로 순서를 바꿀 수 있어요.</p>
                 </div>
                 <button type="button" onClick={() => add('input_text')} className="btn-secondary" style={{ height: 36, padding: '0 16px', fontSize: 13, fontWeight: 700 }}>+ 항목 추가</button>
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {form.customSections.length === 0 ? (
-                  <div style={{ padding: '32px 0', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--slate-300)' }}>
-                    <span style={{ fontSize: 14, color: 'var(--slate-400)', fontWeight: 600 }}>추가 항목이 없습니다.</span>
+
+              <div style={{ marginBottom: 24 }}>
+                <h5 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: 'var(--emerald-600)' }}>공연 상세 설명 아래에 표시되는 항목</h5>
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--slate-500)' }}>예매 팝업을 열지 않아도 공연 상세 화면에서 바로 보이는 항목입니다. (항목의 "표시 위치"를 변경해 이동)</p>
+                {inlineItems.length === 0 ? (
+                  <div style={{ padding: '20px 0', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--slate-300)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--slate-400)', fontWeight: 600 }}>상세 설명 아래에 표시되는 항목이 없습니다.</span>
                   </div>
                 ) : (
-                  form.customSections.map((s, idx) => (
-                    <SectionEditor key={s.id} section={s} index={idx} totalLength={form.customSections.length} onChange={sec} onRemove={del} onMove={move} />
-                  ))
+                  <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleInlineDragEnd}>
+                    <SortableContext items={inlineItems.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {inlineItems.map((s) => (
+                          <SortableSectionItem key={s.id} section={s} onChange={sec} onRemove={del} />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                )}
+              </div>
+
+              <div>
+                <h5 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800, color: 'var(--indigo-600)' }}>예매하기 팝업 안에서 표시되는 항목</h5>
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--slate-500)' }}>신청자 성함/연락처 등 고정 항목을 포함해, 예매 버튼을 눌렀을 때 뜨는 팝업 안에서 보이는 항목입니다.</p>
+                {popupItems.length === 0 ? (
+                  <div style={{ padding: '20px 0', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed var(--slate-300)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--slate-400)', fontWeight: 600 }}>예매 팝업에 표시되는 항목이 없습니다.</span>
+                  </div>
+                ) : (
+                  <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handlePopupDragEnd}>
+                    <SortableContext items={popupItems.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {popupItems.map((s) => (
+                          <SortableSectionItem key={s.id} section={s} onChange={sec} onRemove={del} />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
             </div>
