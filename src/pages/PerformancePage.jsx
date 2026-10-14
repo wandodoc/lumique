@@ -10,26 +10,40 @@ const LS_SHOWS = 'lumique_concerts';
 const LS_ORDERS = 'lumique_ticket_orders';
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
-// 모든 공연 데이터가 하나의 Firestore 문서(1MiB 제한)에 저장되므로,
-// 사진을 원본 그대로 base64로 넣으면 여러 장을 올렸을 때 문서 용량 초과로 저장이 조용히 실패한다.
-// 업로드 시 리사이즈+압축해 용량을 크게 줄인다.
-const MAX_IMAGE_DIM = 1600;
-const IMAGE_QUALITY = 0.82;
+// 모든 공연 데이터가 하나의 Firestore 문서(1MiB 제한)에 저장되고, 회원/거래내역 등
+// 비-이미지 데이터만 이미 수백 KB를 차지하고 있어 사진에 쓸 수 있는 여유 공간이 크지 않다.
+// 사진 1장당 base64 길이가 PER_IMAGE_BUDGET을 넘지 않도록 해상도/품질을 단계적으로 낮춰가며 압축한다.
+const PER_IMAGE_BUDGET = 70 * 1024; // base64 문자 수 기준 (사진 여러 장을 올려도 문서 용량 한도를 넘지 않도록)
+const COMPRESSION_STAGES = [
+  [1200, 0.6],
+  [1200, 0.45],
+  [1000, 0.4],
+  [800, 0.4],
+  [600, 0.35],
+  [480, 0.3],
+];
 const compressImage = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      let { width, height } = img;
-      if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
-        if (width > height) { height = Math.round(height * MAX_IMAGE_DIM / width); width = MAX_IMAGE_DIM; }
-        else { width = Math.round(width * MAX_IMAGE_DIM / height); height = MAX_IMAGE_DIM; }
+      const render = (maxDim, quality) => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        return canvas.toDataURL('image/jpeg', quality);
+      };
+      let result = render(COMPRESSION_STAGES[0][0], COMPRESSION_STAGES[0][1]);
+      for (let i = 1; i < COMPRESSION_STAGES.length && result.length > PER_IMAGE_BUDGET; i++) {
+        result = render(COMPRESSION_STAGES[i][0], COMPRESSION_STAGES[i][1]);
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', IMAGE_QUALITY));
+      resolve(result);
     };
     img.onerror = () => reject(new Error('이미지를 불러올 수 없습니다.'));
     img.src = e.target.result;
