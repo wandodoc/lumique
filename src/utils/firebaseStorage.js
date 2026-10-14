@@ -38,8 +38,10 @@ export const firebaseStorage = {
     try {
       const sanitized = JSON.parse(JSON.stringify({ shows }));
       await setDoc(DOC_REF, sanitized, { merge: true });
+      return true;
     } catch (e) {
       console.error("Firebase Save Concerts Error:", e);
+      return false;
     }
   },
   loadOrders: async () => {

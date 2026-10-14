@@ -10,6 +10,33 @@ const LS_SHOWS = 'lumique_concerts';
 const LS_ORDERS = 'lumique_ticket_orders';
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
+// 모든 공연 데이터가 하나의 Firestore 문서(1MiB 제한)에 저장되므로,
+// 사진을 원본 그대로 base64로 넣으면 여러 장을 올렸을 때 문서 용량 초과로 저장이 조용히 실패한다.
+// 업로드 시 리사이즈+압축해 용량을 크게 줄인다.
+const MAX_IMAGE_DIM = 1600;
+const IMAGE_QUALITY = 0.82;
+const compressImage = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
+        if (width > height) { height = Math.round(height * MAX_IMAGE_DIM / width); width = MAX_IMAGE_DIM; }
+        else { width = Math.round(width * MAX_IMAGE_DIM / height); height = MAX_IMAGE_DIM; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', IMAGE_QUALITY));
+    };
+    img.onerror = () => reject(new Error('이미지를 불러올 수 없습니다.'));
+    img.src = e.target.result;
+  };
+  reader.onerror = () => reject(new Error('파일을 읽을 수 없습니다.'));
+  reader.readAsDataURL(file);
+});
 const OPEN = '진행중';
 const CLOSED = '종료';
 const TYPES = ['text', 'input_text', 'input_textarea', 'input_radio', 'input_checkbox', 'input_number', 'fixed_name', 'fixed_phone', 'fixed_qty', 'fixed_afterparty', 'fixed_comment'];
@@ -360,12 +387,13 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
   });
 
   const handleImageUpload = (files) => {
-    Array.from(files || []).forEach(file => {
-      if (!file || !file.type?.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (e) => setForm(p => ({ ...p, imageUrls: [...p.imageUrls, e.target.result] }));
-      reader.readAsDataURL(file);
-    });
+    Array.from(files || [])
+      .filter(file => file && file.type?.startsWith('image/'))
+      .forEach(file => {
+        compressImage(file)
+          .then(dataUrl => setForm(p => ({ ...p, imageUrls: [...p.imageUrls, dataUrl] })))
+          .catch(() => alert(`"${file.name}" 이미지를 처리하지 못했습니다.`));
+      });
   };
   const removeImage = (idx) => setForm(p => ({ ...p, imageUrls: p.imageUrls.filter((_, i) => i !== idx) }));
 
@@ -382,17 +410,15 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
     if (files.length) handleImageUpload(files);
   };
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     const clean = cleanShow(form);
     if (!clean) return alert('공연명, 날짜, 장소는 반드시 입력해야 합니다.');
-    
+
     setIsSaving(true);
-    setTimeout(() => {
-      onSave({ ...clean, id: show?.id || id('show'), createdAt: show?.createdAt || clean.createdAt, updatedAt: new Date().toISOString() });
-      setIsSaving(false);
-      onClose();
-    }, 600); // 로딩 피드백 제공 (UX)
+    await onSave({ ...clean, id: show?.id || id('show'), createdAt: show?.createdAt || clean.createdAt, updatedAt: new Date().toISOString() });
+    setIsSaving(false);
+    onClose();
   };
 
   const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 14, boxSizing: 'border-box', background: '#fff' };
@@ -1018,7 +1044,11 @@ export default function PerformancePage() {
     setShows(nextShows);
     lsSet(LS_SHOWS, nextShows);
     dispatch({ type: 'SET_SHOWS', shows: nextShows });
-    await firebaseStorage.saveConcerts(nextShows);
+    const ok = await firebaseStorage.saveConcerts(nextShows);
+    if (!ok) {
+      alert('클라우드 저장에 실패했습니다. 사진 용량이 너무 커서 전체 저장 용량 한도를 초과했을 수 있습니다.\n사진 장수를 줄이거나 다시 시도해주세요. (이 기기에는 임시로 저장되어 있습니다)');
+    }
+    return ok;
   };
 
   const toggleParticipant = (showId, memberId) => {
