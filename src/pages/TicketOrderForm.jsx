@@ -90,6 +90,9 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
 
     if (s.type === 'fixed_afterparty') return (
       <div key={s.id} style={{ padding: '20px', borderRadius: 16, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+        <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          공연 종료 후 참여자들과 함께하는 뒤풀이 자리가 마련될 예정입니다.{'\n'}참여를 원하시는 분은 예매 신청 시 뒤풀이 참여 여부를 선택해 주세요.
+        </p>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
           <input type="checkbox" checked={fixed.isAfterParty} onChange={e => fixed.setIsAfterParty(e.target.checked)} style={{ width: 18, height: 18 }} />
           <span style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</span>
