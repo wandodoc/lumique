@@ -416,6 +416,8 @@ export default function TicketOrderForm({ showId }) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [posterIdx, setPosterIdx] = useState(0);
+  const posterScrollRef = useRef(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -591,10 +593,44 @@ export default function TicketOrderForm({ showId }) {
       }}>
         <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
           {posterImages.length > 0 && (
-            <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
-              {posterImages.map((url, idx) => (
-                <img key={idx} src={url} alt={`${show.title} ${idx + 1}`} style={{ width: '100%', flex: '0 0 100%', scrollSnapAlign: 'start', display: 'block' }} />
-              ))}
+            <div style={{ position: 'relative' }}>
+              <div
+                ref={posterScrollRef}
+                onScroll={e => {
+                  const w = e.currentTarget.clientWidth;
+                  if (w > 0) setPosterIdx(Math.round(e.currentTarget.scrollLeft / w));
+                }}
+                style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
+              >
+                {posterImages.map((url, idx) => (
+                  <img key={idx} src={url} alt={`${show.title} ${idx + 1}`} style={{ width: '100%', flex: '0 0 100%', scrollSnapAlign: 'start', display: 'block' }} />
+                ))}
+              </div>
+              {posterImages.length > 1 && (
+                <>
+                  {posterIdx > 0 && (
+                    <button
+                      type="button"
+                      aria-label="이전 사진"
+                      onClick={() => posterScrollRef.current?.scrollTo({ left: (posterIdx - 1) * posterScrollRef.current.clientWidth, behavior: 'smooth' })}
+                      style={{ position: 'absolute', top: '50%', left: 10, transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    >‹</button>
+                  )}
+                  {posterIdx < posterImages.length - 1 && (
+                    <button
+                      type="button"
+                      aria-label="다음 사진"
+                      onClick={() => posterScrollRef.current?.scrollTo({ left: (posterIdx + 1) * posterScrollRef.current.clientWidth, behavior: 'smooth' })}
+                      style={{ position: 'absolute', top: '50%', right: 10, transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    >›</button>
+                  )}
+                  <div style={{ position: 'absolute', bottom: 10, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 6 }}>
+                    {posterImages.map((_, idx) => (
+                      <span key={idx} style={{ width: 6, height: 6, borderRadius: '50%', background: idx === posterIdx ? '#fff' : 'rgba(255,255,255,0.5)', boxShadow: '0 0 2px rgba(0,0,0,0.4)' }} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
           <div style={{ padding: 'clamp(16px, 6vw, 28px)' }}>
