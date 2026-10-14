@@ -587,7 +587,7 @@ export default function TicketOrderForm({ showId }) {
       <div style={{
         display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
         minHeight: '100dvh', background: '#f8fafc',
-        padding: '40px 16px 120px',
+        padding: '40px clamp(8px, 4vw, 16px) 120px',
       }}>
         <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
           {posterImages.length > 0 && (
@@ -597,7 +597,7 @@ export default function TicketOrderForm({ showId }) {
               ))}
             </div>
           )}
-          <div style={{ padding: 28 }}>
+          <div style={{ padding: 'clamp(16px, 6vw, 28px)' }}>
             <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title}</h1>
             <div style={{ background: '#f8fafc', borderRadius: 16, padding: 16, display: 'grid', gap: 8, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', gap: 10, fontSize: 14 }}><span style={{ color: '#64748b', minWidth: 60, flexShrink: 0 }}>일시</span><span style={{ fontWeight: 700 }}>{fmtDT(show.date, show.time)}</span></div>
@@ -649,7 +649,7 @@ export default function TicketOrderForm({ showId }) {
             </div>
 
             {(show.description || inlineTextSections.length > 0) && (
-              <div style={{ marginTop: 20, padding: '16px', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', lineHeight: 1.6 }}>
+              <div style={{ marginTop: 20, padding: 'clamp(12px, 4vw, 16px)', borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 14, color: '#4b5563', lineHeight: 1.6 }}>
                 {show.description && (
                   <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{show.description}</p>
                 )}
@@ -675,7 +675,7 @@ export default function TicketOrderForm({ showId }) {
               </div>
             )}
 
-            <div style={{ marginTop: 24, padding: '14px 18px', borderRadius: 14, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 13, color: '#1d4ed8', lineHeight: 1.7 }}>
+            <div style={{ marginTop: 24, padding: '14px clamp(12px, 4vw, 18px)', borderRadius: 14, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 13, color: '#1d4ed8', lineHeight: 1.7 }}>
               💡 아래 <strong>지금 예매하기</strong> 버튼을 눌러 예매를 신청하세요.
             </div>
           </div>
