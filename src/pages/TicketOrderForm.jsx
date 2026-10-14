@@ -400,7 +400,7 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, remainingQty, s
                 opacity: (submitting || soldOut) ? 0.7 : 1,
               }}
             >
-              {soldOut ? '매진되었습니다' : submitting ? '처리 중...' : `${total.toLocaleString()}원 결제 신청`}
+              {soldOut ? '매진되었습니다' : submitting ? '처리 중...' : '예매 신청'}
             </button>
           </div>
         </form>
@@ -620,7 +620,7 @@ export default function TicketOrderForm({ showId }) {
                   {nextCutoff && (
                     <div style={{ marginTop: 4, fontSize: 12, color: '#ea580c', fontWeight: 700, lineHeight: 1.5 }}>
                       ⏱ {activeTier?.label || '현재'} 마감까지 <span style={{ fontFamily: 'monospace' }}>{formatCountdown(nextCutoff.getTime() - now.getTime())}</span>
-                      {nextTier && (
+                      {nextTier && !(remainingQty != null && !soldOut) && (
                         <span style={{ color: '#94a3b8', fontWeight: 600 }}>
                           {' '}· 이후 {Number(nextTier.price || 0).toLocaleString()}원{nextTier.label ? ` (${nextTier.label})` : ''}
                         </span>
