@@ -403,7 +403,7 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, remainingQty, s
                 opacity: (submitting || soldOut) ? 0.7 : 1,
               }}
             >
-              {soldOut ? '매진되었습니다' : submitting ? '처리 중...' : '예매 신청'}
+              {soldOut ? '매진되었습니다' : submitting ? '처리 중...' : '예매하기'}
             </button>
           </div>
         </form>
