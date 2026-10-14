@@ -528,10 +528,16 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
 
 function ShowDetailModal({ show, orders = [], members = [], externalBandMembers = [], participantIds = [], onToggleParticipant, onAddExternalParticipant, onClose, onEdit, isAdmin }) {
   const [newExternalName, setNewExternalName] = useState('');
+  const [showOfficialOpen, setShowOfficialOpen] = useState(false);
+  const [showExternalOpen, setShowExternalOpen] = useState(false);
+
   if (!show) return null;
   const formUrl = `${window.location.origin}/form/${show.id}`;
   const officialParticipants = members.filter(member => participantIds.includes(member.id));
   const externalParticipants = externalBandMembers.filter(member => participantIds.includes(member.id));
+
+  // 정식 회원 중 탈퇴 회원 제외
+  const activeMembers = members.filter(m => m.status !== 'inactive');
 
   const copyUrl = () => {
     navigator.clipboard.writeText(formUrl);
@@ -652,56 +658,78 @@ function ShowDetailModal({ show, orders = [], members = [], externalBandMembers 
 
                   {isAdmin && (
                     <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)', marginBottom: 8 }}>정식 회원 추가/해제</div>
-                      {members.length === 0 ? (
-                        <div style={{ color: 'var(--slate-400)', fontSize: 13 }}>등록된 회원이 없습니다.</div>
-                      ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6 }}>
-                          {members.map(member => {
-                            const checked = participantIds.includes(member.id);
-                            return (
-                              <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', borderRadius: 8, background: checked ? 'var(--blue-50)' : 'transparent', cursor: 'pointer', fontSize: 13 }}>
-                                <input type="checkbox" checked={checked} onChange={() => onToggleParticipant(show.id, member.id)} />
-                                <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{member.name}</span>
-                                <span style={{ color: 'var(--slate-500)', fontSize: 11 }}>({member.part})</span>
-                              </label>
-                            );
-                          })}
+                      <div 
+                        onClick={() => setShowOfficialOpen(!showOfficialOpen)}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)' }}>정식 회원 추가/해제</div>
+                        <span style={{ fontSize: 10, color: 'var(--slate-400)' }}>{showOfficialOpen ? '▲ 닫기' : '▼ 펼치기'}</span>
+                      </div>
+                      
+                      {showOfficialOpen && (
+                        <div style={{ marginBottom: 16 }}>
+                          {activeMembers.length === 0 ? (
+                            <div style={{ color: 'var(--slate-400)', fontSize: 13 }}>등록된 활성 회원이 없습니다.</div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6 }}>
+                              {activeMembers.map(member => {
+                                const checked = participantIds.includes(member.id);
+                                return (
+                                  <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', borderRadius: 8, background: checked ? 'var(--blue-50)' : 'transparent', cursor: 'pointer', fontSize: 13 }}>
+                                    <input type="checkbox" checked={checked} onChange={() => onToggleParticipant(show.id, member.id)} />
+                                    <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{member.name}</span>
+                                    <span style={{ color: 'var(--slate-500)', fontSize: 11 }}>({member.part})</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)', margin: '14px 0 8px' }}>외부 참여자 추가/해제</div>
-                      {externalBandMembers.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6, marginBottom: 10 }}>
-                          {externalBandMembers.map(member => {
-                            const checked = participantIds.includes(member.id);
-                            return (
-                              <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', borderRadius: 8, background: checked ? 'var(--blue-50)' : 'transparent', cursor: 'pointer', fontSize: 13 }}>
-                                <input type="checkbox" checked={checked} onChange={() => onToggleParticipant(show.id, member.id)} />
-                                <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{member.name}</span>
-                                <span style={{ color: 'var(--blue-500)', fontSize: 11 }}>(외부)</span>
-                              </label>
-                            );
-                          })}
+                      <div 
+                        onClick={() => setShowExternalOpen(!showExternalOpen)}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', margin: '14px 0 8px' }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--slate-500)' }}>외부 참여자 추가/해제</div>
+                        <span style={{ fontSize: 10, color: 'var(--slate-400)' }}>{showExternalOpen ? '▲ 닫기' : '▼ 펼치기'}</span>
+                      </div>
+
+                      {showExternalOpen && (
+                        <div>
+                          {externalBandMembers.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6, marginBottom: 10 }}>
+                              {externalBandMembers.map(member => {
+                                const checked = participantIds.includes(member.id);
+                                return (
+                                  <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', borderRadius: 8, background: checked ? 'var(--blue-50)' : 'transparent', cursor: 'pointer', fontSize: 13 }}>
+                                    <input type="checkbox" checked={checked} onChange={() => onToggleParticipant(show.id, member.id)} />
+                                    <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{member.name}</span>
+                                    <span style={{ color: 'var(--blue-500)', fontSize: 11 }}>(외부)</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <form
+                            onSubmit={e => {
+                              e.preventDefault();
+                              onAddExternalParticipant(show.id, newExternalName);
+                              setNewExternalName('');
+                            }}
+                            style={{ display: 'flex', gap: 8 }}
+                          >
+                            <input
+                              type="text"
+                              value={newExternalName}
+                              onChange={e => setNewExternalName(e.target.value)}
+                              placeholder="외부 참여자 이름"
+                              style={{ flex: 1, padding: '7px 9px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13 }}
+                            />
+                            <button type="submit" className="btn-sm">+ 추가</button>
+                          </form>
                         </div>
                       )}
-                      <form
-                        onSubmit={e => {
-                          e.preventDefault();
-                          onAddExternalParticipant(show.id, newExternalName);
-                          setNewExternalName('');
-                        }}
-                        style={{ display: 'flex', gap: 8 }}
-                      >
-                        <input
-                          type="text"
-                          value={newExternalName}
-                          onChange={e => setNewExternalName(e.target.value)}
-                          placeholder="외부 참여자 이름"
-                          style={{ flex: 1, padding: '7px 9px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 13 }}
-                        />
-                        <button type="submit" className="btn-sm">+ 추가</button>
-                      </form>
                     </div>
                   )}
                 </div>
