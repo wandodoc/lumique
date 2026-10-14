@@ -91,6 +91,17 @@ export function countSoldByTier(orders = [], showId, tiers = []) {
   return result;
 }
 
+// 공연의 "일반(상시 적용)" 가격 — 얼리버드 등 한시적 할인 구간과 무관하게,
+// 마지막 가격 구간(보통 마감 조건 없이 계속 적용되는 구간)의 가격을 반환한다.
+// 부원 회비 차감 처리처럼 할인가를 적용받으면 안 되는 경우에 사용한다.
+export function regularPriceOf(show) {
+  const tiers = Array.isArray(show?.priceTiers) ? show.priceTiers : [];
+  if (show?.pricingMode === 'tiered' && tiers.length > 0) {
+    return Number(tiers[tiers.length - 1]?.price) || 0;
+  }
+  return Number(show?.price) || 0;
+}
+
 export function formatCountdown(ms) {
   if (ms == null || ms <= 0) return '00:00:00';
   const totalSeconds = Math.floor(ms / 1000);
