@@ -24,7 +24,7 @@ const blankShow = {
   priceTiers: [],
   description: '',
   status: OPEN,
-  imageUrl: '',
+  imageUrls: [],
   customSections: [],
   supportAccount: SUPPORT_ACCOUNT
 };
@@ -78,6 +78,11 @@ const cleanShow = (s) => {
   if (!s || typeof s !== 'object') return null;
   const title = String(s.title || '').trim(), date = String(s.date || '').trim(), location = String(s.location || '').trim();
   if (!title || !date || !location) return null;
+  // 기존 단일 imageUrl 데이터를 imageUrls 배열로 마이그레이션.
+  // imageUrl은 SNS 공유 카드(api/order.js, api/image.js)가 Firestore 원본 필드를 직접 읽으므로 대표 이미지로 계속 함께 저장한다.
+  const imageUrls = Array.isArray(s.imageUrls) && s.imageUrls.length > 0
+    ? s.imageUrls.map(u => String(u || '').trim()).filter(Boolean)
+    : (String(s.imageUrl || '').trim() ? [String(s.imageUrl).trim()] : []);
   return {
     ...s,
     id: String(s.id || '').trim() || id('show'),
@@ -87,7 +92,8 @@ const cleanShow = (s) => {
     priceTiers: Array.isArray(s.priceTiers) ? s.priceTiers.map(cleanPriceTier) : [],
     description: String(s.description || '').trim(),
     status: s.status === CLOSED ? CLOSED : OPEN,
-    imageUrl: String(s.imageUrl || '').trim(),
+    imageUrls,
+    imageUrl: imageUrls[0] || '',
     supportAccount: String(s.supportAccount || SUPPORT_ACCOUNT).trim() || SUPPORT_ACCOUNT,
     customSections: Array.isArray(s.customSections) ? s.customSections.map(cleanSection) : [],
     createdAt: String(s.createdAt || new Date().toISOString()),
@@ -296,7 +302,7 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
       priceTiers: Array.isArray(show.priceTiers) ? show.priceTiers.map(cleanPriceTier) : [],
       description: show.description || '',
       status: show.status === CLOSED ? CLOSED : OPEN,
-      imageUrl: show.imageUrl || '',
+      imageUrls: Array.isArray(show.imageUrls) && show.imageUrls.length > 0 ? show.imageUrls : (show.imageUrl ? [show.imageUrl] : []),
       customSections: ensureFixedFields(loadedSections),
       supportAccount: show.supportAccount || SUPPORT_ACCOUNT
     });
@@ -353,22 +359,27 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
     return { ...p, priceTiers: copy };
   });
 
-  const handleImageUpload = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = (e) => update('imageUrl', e.target.result);
-    reader.readAsDataURL(file);
+  const handleImageUpload = (files) => {
+    Array.from(files || []).forEach(file => {
+      if (!file || !file.type?.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (e) => setForm(p => ({ ...p, imageUrls: [...p.imageUrls, e.target.result] }));
+      reader.readAsDataURL(file);
+    });
   };
+  const removeImage = (idx) => setForm(p => ({ ...p, imageUrls: p.imageUrls.filter((_, i) => i !== idx) }));
 
   const handlePaste = (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
+    const files = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        handleImageUpload(items[i].getAsFile());
-        break;
+        const f = items[i].getAsFile();
+        if (f) files.push(f);
       }
     }
+    if (files.length) handleImageUpload(files);
   };
 
   const submit = (e) => {
@@ -519,12 +530,17 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={labelStyle}>포스터 이미지 첨부 <span style={{ fontWeight: 400, color: 'var(--slate-500)', fontSize: 12 }}>(클립보드 이미지 붙여넣기 Ctrl+V 지원)</span></label>
-              <input type="file" accept="image/*" onChange={e => handleImageUpload(e.target.files[0])} style={{ ...inputStyle, padding: '8px' }} />
-              {form.imageUrl && (
-                <div style={{ position: 'relative', marginTop: 8, width: 'max-content' }}>
-                  <img src={form.imageUrl} style={{ maxWidth: '100%', maxHeight: 240, borderRadius: 8, objectFit: 'contain', border: '1px solid var(--slate-200)', background: '#f8fafc' }} />
-                  <button type="button" onClick={() => update('imageUrl', '')} style={{ position: 'absolute', top: -8, right: -8, background: 'var(--red-500)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>✕</button>
+              <label style={labelStyle}>포스터 이미지 첨부 <span style={{ fontWeight: 400, color: 'var(--slate-500)', fontSize: 12 }}>(여러 장 선택 가능 · 클립보드 이미지 붙여넣기 Ctrl+V 지원)</span></label>
+              <input type="file" accept="image/*" multiple onChange={e => { handleImageUpload(e.target.files); e.target.value = ''; }} style={{ ...inputStyle, padding: '8px' }} />
+              {form.imageUrls.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+                  {form.imageUrls.map((url, idx) => (
+                    <div key={idx} style={{ position: 'relative', width: 140, height: 140 }}>
+                      <img src={url} style={{ width: '100%', height: '100%', borderRadius: 8, objectFit: 'cover', border: '1px solid var(--slate-200)', background: '#f8fafc' }} />
+                      {idx === 0 && <span style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(15,23,42,.7)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>대표</span>}
+                      <button type="button" onClick={() => removeImage(idx)} style={{ position: 'absolute', top: -8, right: -8, background: 'var(--red-500)', color: '#fff', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>✕</button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

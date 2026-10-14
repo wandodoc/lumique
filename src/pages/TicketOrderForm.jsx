@@ -578,6 +578,10 @@ export default function TicketOrderForm({ showId }) {
   const inlineInputSections = inlineSections.filter(s => s.type !== 'text');
 
   // ── 메인 페이지 (공연 정보 표시) ──────────────────────────────────────────────
+  const posterImages = Array.isArray(show.imageUrls) && show.imageUrls.length > 0
+    ? show.imageUrls
+    : (show.imageUrl ? [show.imageUrl] : []);
+
   return (
     <>
       <div style={{
@@ -586,7 +590,13 @@ export default function TicketOrderForm({ showId }) {
         padding: '40px 16px 120px',
       }}>
         <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 24, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          {show.imageUrl && <img src={show.imageUrl} alt={show.title} style={{ width: '100%', display: 'block' }} />}
+          {posterImages.length > 0 && (
+            <div style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
+              {posterImages.map((url, idx) => (
+                <img key={idx} src={url} alt={`${show.title} ${idx + 1}`} style={{ width: '100%', flex: '0 0 100%', scrollSnapAlign: 'start', display: 'block' }} />
+              ))}
+            </div>
+          )}
           <div style={{ padding: 28 }}>
             <h1 style={{ fontSize: 24, fontWeight: 950, margin: '0 0 16px' }}>{show.title}</h1>
             <div style={{ background: '#f8fafc', borderRadius: 16, padding: 16, display: 'grid', gap: 8, border: '1px solid #e2e8f0' }}>
