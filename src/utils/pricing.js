@@ -77,18 +77,86 @@ export function resolveActivePrice(show, now = new Date(), soldByTier = {}) {
 }
 
 // 공연의 주문 목록에서 가격 구간(tierId)별로 판매된 매수를 합산한다.
-// tierId가 없는 과거 주문(수량 제한 기능 도입 이전에 신청된 건)은 당시 기록해 둔
-// priceTierLabel을 현재 구간 이름과 매칭해 최대한 맞춰 집계한다.
+// 한 주문이 여러 구간에 걸쳐 있는 경우(priceBreakdownFor로 신청) priceBreakdown을 우선 사용하고,
+// 없는 과거 주문(단일 구간 또는 수량 제한 기능 도입 이전)은 tierId/priceTierLabel로 집계한다.
 export function countSoldByTier(orders = [], showId, tiers = []) {
   const idByLabel = new Map(tiers.filter(t => t.label).map(t => [t.label, t.id]));
   const result = {};
   for (const o of orders) {
     if (o.concertId !== showId) continue;
+    if (Array.isArray(o.priceBreakdown) && o.priceBreakdown.length > 0) {
+      for (const item of o.priceBreakdown) {
+        const tierId = item.tierId || (item.label ? idByLabel.get(item.label) : null);
+        if (!tierId) continue;
+        result[tierId] = (result[tierId] || 0) + (Number(item.qty) || 0);
+      }
+      continue;
+    }
     const tierId = o.tierId || (o.priceTierLabel ? idByLabel.get(o.priceTierLabel) : null);
     if (!tierId) continue;
     result[tierId] = (result[tierId] || 0) + (Number(o.ticketCount) || 0);
   }
   return result;
+}
+
+// 신청 수량(qty)이 현재 구간의 잔여 수량을 넘어서면, 넘어선 만큼은 다음 구간(들) 가격을
+// 순서대로 이어 붙여 계산한다. (예: 얼리버드 잔여 1매인데 2매 신청 → 얼리버드 1매 + 일반 1매)
+// items: [{ tierId, label, price, qty }] — 실제 적용된 구간별 매수/가격 내역.
+// fulfilled가 qty보다 작으면 모든 구간의 잔여분을 합쳐도 요청 수량을 채울 수 없다는 뜻(품절).
+export function priceBreakdownFor(show, qty, now = new Date(), soldByTier = {}) {
+  const wanted = Math.max(0, Number(qty) || 0);
+  const tiers = Array.isArray(show?.priceTiers) ? show.priceTiers : [];
+
+  if (show?.pricingMode !== 'tiered' || tiers.length === 0) {
+    const price = Number(show?.price) || 0;
+    return { items: wanted > 0 ? [{ tierId: null, label: '', price, qty: wanted }] : [], total: price * wanted, fulfilled: wanted, soldOut: false };
+  }
+
+  const isClosedByDate = (t) => {
+    const until = t.until ? new Date(t.until) : null;
+    return Boolean(until && now.getTime() >= until.getTime());
+  };
+
+  let remaining = wanted;
+  const items = [];
+  for (let i = 0; i < tiers.length && remaining > 0; i++) {
+    const t = tiers[i];
+    if (isClosedByDate(t)) continue;
+    const limit = Number(t.quantityLimit) || 0;
+    const sold = Number(soldByTier[t.id]) || 0;
+    const available = limit > 0 ? Math.max(0, limit - sold) : Infinity;
+    if (available <= 0) continue;
+    const take = Math.min(remaining, available);
+    items.push({ tierId: t.id, label: t.label, price: Number(t.price) || 0, qty: take });
+    remaining -= take;
+  }
+
+  const fulfilled = wanted - remaining;
+  const total = items.reduce((sum, it) => sum + it.price * it.qty, 0);
+  return { items, total, fulfilled, soldOut: fulfilled < wanted };
+}
+
+// 현재 시점에 신청 가능한 최대 매수(전 구간 잔여분 합산, 무제한 구간이 있으면 cap 그대로).
+// 수량 입력란의 +버튼 상한으로 사용한다.
+export function maxPurchasableQty(show, now = new Date(), soldByTier = {}, cap = 10) {
+  const tiers = Array.isArray(show?.priceTiers) ? show.priceTiers : [];
+  if (show?.pricingMode !== 'tiered' || tiers.length === 0) return cap;
+
+  const isClosedByDate = (t) => {
+    const until = t.until ? new Date(t.until) : null;
+    return Boolean(until && now.getTime() >= until.getTime());
+  };
+
+  let totalAvailable = 0;
+  for (const t of tiers) {
+    if (isClosedByDate(t)) continue;
+    const limit = Number(t.quantityLimit) || 0;
+    if (limit <= 0) return cap; // 무제한으로 적용되는 구간이 있으면 cap까지 전부 신청 가능
+    const sold = Number(soldByTier[t.id]) || 0;
+    totalAvailable += Math.max(0, limit - sold);
+    if (totalAvailable >= cap) return cap;
+  }
+  return Math.min(cap, totalAvailable);
 }
 
 // 공연의 "일반(상시 적용)" 가격 — 얼리버드 등 한시적 할인 구간과 무관하게,

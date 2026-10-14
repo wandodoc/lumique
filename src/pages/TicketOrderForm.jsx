@@ -11,7 +11,7 @@ const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, bor
 const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
 
 import { firebaseStorage } from '../utils/firebaseStorage';
-import { resolveActivePrice, formatCountdown, countSoldByTier } from '../utils/pricing';
+import { resolveActivePrice, formatCountdown, countSoldByTier, priceBreakdownFor, maxPurchasableQty } from '../utils/pricing';
 
 const section = (s = {}) => ({
   id: String(s.id || '').trim(),
@@ -71,18 +71,22 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
     );
 
     if (s.type === 'fixed_qty') {
-      const maxQty = fixed.remainingQty != null ? Math.max(0, Math.min(10, fixed.remainingQty)) : 10;
+      const maxQty = Math.max(1, fixed.maxQty ?? 10);
       return (
         <div key={s.id}>
           {label}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button type="button" onClick={() => fixed.setQty(Math.max(1, fixed.qty - 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>-</button>
             <div style={{ fontSize: 16, fontWeight: 700, minWidth: 40, textAlign: 'center' }}>{fixed.qty}매</div>
-            <button type="button" onClick={() => fixed.setQty(Math.min(maxQty || 1, fixed.qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
+            <button type="button" onClick={() => fixed.setQty(Math.min(maxQty, fixed.qty + 1))} style={{ width: 44, height: 44, borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#fff', fontSize: 20, cursor: 'pointer' }}>+</button>
             <span style={{ fontSize: 14, color: '#64748b', marginLeft: 4 }}>x {Number(fixed.price || 0).toLocaleString()}원</span>
           </div>
           {fixed.remainingQty != null && (
-            <div style={{ marginTop: 6, fontSize: 12, color: '#ea580c' }}>잔여 {fixed.remainingQty}매까지 신청 가능합니다.</div>
+            <div style={{ marginTop: 6, fontSize: 12, color: '#ea580c' }}>
+              {fixed.qty > fixed.remainingQty
+                ? `${fixed.remainingQty}매는 현재 가격, 초과 ${fixed.qty - fixed.remainingQty}매는 다음 구간 가격이 적용됩니다.`
+                : `잔여 ${fixed.remainingQty}매까지 현재 가격으로 신청 가능합니다.`}
+            </div>
           )}
         </div>
       );
@@ -300,7 +304,7 @@ function AccountCard({ account }) {
   );
 }
 
-function BottomSheet({ isOpen, onClose, show, price, total, qty, remainingQty, soldOut,
+function BottomSheet({ isOpen, onClose, show, price, total, qty, remainingQty, maxQty, priceItems, soldOut,
   name, setName, phone, setPhone, setQty,
   isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount,
   inviterName, setInviterName, noInviter, setNoInviter,
@@ -377,11 +381,21 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, remainingQty, s
               sections={(show?.customSections || []).filter(s => s.placement !== 'inline')}
               values={customResponses}
               setValues={setCustomResponses}
-              fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment, remainingQty }}
+              fixed={{ name, setName, phone, setPhone, qty, setQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment, remainingQty, maxQty }}
             />
 
             {/* 결제 요약 */}
             <div style={{ background: '#111827', borderRadius: 20, padding: '20px', color: '#fff', marginTop: 4, display: 'grid', gap: 14 }}>
+              {priceItems && priceItems.length > 1 && (
+                <div style={{ display: 'grid', gap: 6, paddingBottom: 10, borderBottom: '1px solid #374151' }}>
+                  {priceItems.map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#d1d5db' }}>
+                      <span>{it.label || '일반'} {it.qty}매 × {it.price.toLocaleString()}원</span>
+                      <span>{(it.price * it.qty).toLocaleString()}원</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, color: '#9ca3af' }}>총 결제 금액</span>
                 <span style={{ fontSize: 22, fontWeight: 950 }}>{total.toLocaleString()}원</span>
@@ -418,6 +432,7 @@ export default function TicketOrderForm({ showId }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [posterIdx, setPosterIdx] = useState(0);
   const posterScrollRef = useRef(null);
@@ -475,12 +490,15 @@ export default function TicketOrderForm({ showId }) {
   const soldByTier = countSoldByTier(orders, showId, show?.priceTiers || []);
   const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier, remainingQty, soldOut } = resolveActivePrice(show, now, soldByTier);
   const price = resolvedPrice || PRICE;
-  const total = qty * price;
+  // 신청 매수가 현재 구간의 잔여 수량을 넘어서면, 넘어선 만큼은 다음 구간 가격이 자동으로 이어 붙는다.
+  const pricing = priceBreakdownFor(show, qty, now, soldByTier);
+  const total = pricing.total;
+  const maxQty = maxPurchasableQty(show, now, soldByTier, 10);
 
-  // 잔여 수량이 현재 신청 매수보다 줄어들면(다른 사람 구매 등) 매수를 잔여량에 맞춰 줄인다.
+  // 전 구간 잔여분을 모두 합쳐도 신청 매수를 채울 수 없을 만큼 줄어들면(다른 사람 구매 등) 매수를 줄인다.
   useEffect(() => {
-    if (remainingQty != null && qty > remainingQty) setQty(Math.max(1, remainingQty));
-  }, [remainingQty, qty]);
+    if (qty > maxQty) setQty(Math.max(1, maxQty));
+  }, [maxQty, qty]);
 
   const copyAccount = () => {
     navigator.clipboard.writeText(SUPPORT_ACCOUNT);
@@ -494,7 +512,7 @@ export default function TicketOrderForm({ showId }) {
     const activeFixedQty = show?.customSections?.find(s => s.type === 'fixed_qty' && s.active !== false);
 
     if (soldOut) return toast('죄송합니다. 해당 가격대가 매진되어 더 이상 신청할 수 없습니다.');
-    if (remainingQty != null && qty > remainingQty) return toast(`${activeTier?.label || '해당 구간'} 잔여 수량(${remainingQty}매)을 초과했습니다.`);
+    if (pricing.soldOut) return toast('죄송합니다. 신청하신 매수만큼 남은 자리가 없습니다.');
 
     if (activeFixedName && activeFixedName.required && !name.trim()) return toast(`${activeFixedName.title}을(를) 입력해주세요.`);
     if (activeFixedPhone && activeFixedPhone.required && !phone.trim()) return toast(`${activeFixedPhone.title}을(를) 입력해주세요.`);
@@ -515,15 +533,20 @@ export default function TicketOrderForm({ showId }) {
   const submitOrderAsync = async () => {
     setSubmitting(true);
     try {
+      const priceItems = pricing.items;
+      const combinedLabel = priceItems.length > 1
+        ? priceItems.map(it => `${it.label || '일반'} ${it.qty}매`).join(' + ')
+        : (priceItems[0]?.label || activeTier?.label || '');
       const newOrder = {
         id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         concertId: showId,
         audienceName: name.trim(),
         phone: phone.trim(),
         ticketCount: Number(qty),
-        unitPrice: price,
-        tierId: activeTier?.id || null,
-        priceTierLabel: activeTier?.label || '',
+        unitPrice: priceItems.length === 1 ? priceItems[0].price : Math.round(total / Math.max(1, qty)),
+        tierId: priceItems.length === 1 ? (priceItems[0]?.tierId || null) : null,
+        priceTierLabel: combinedLabel,
+        priceBreakdown: priceItems,
         totalPrice: total,
         depositStatus: '입금대기',
         attendanceStatus: '미입장',
@@ -538,6 +561,9 @@ export default function TicketOrderForm({ showId }) {
       const latestOrders = await firebaseStorage.loadOrders();
       await firebaseStorage.saveOrders([...latestOrders, newOrder]);
       setOrders(prev => [...prev, newOrder]);
+      // 제출 직후 재집계(soldByTier 변화)로 가격 구간이 바뀌어도 완료 화면에는
+      // 실제로 신청/저장된 금액이 그대로 보이도록 스냅샷을 고정해둔다.
+      setConfirmedOrder(newOrder);
       setIsSheetOpen(false);
       setDone(true);
       window.scrollTo(0, 0);
@@ -568,7 +594,7 @@ export default function TicketOrderForm({ showId }) {
         <div style={{ margin: '24px 0', textAlign: 'left' }}>
           <AccountCard account={SUPPORT_ACCOUNT} />
           <div style={{ marginTop: 12, padding: '12px 16px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 14, color: '#374151', textAlign: 'center' }}>
-            입금 금액: <strong>{total.toLocaleString()}원</strong>
+            입금 금액: <strong>{(confirmedOrder?.totalPrice ?? total).toLocaleString()}원</strong>
           </div>
         </div>
         <button onClick={() => window.location.reload()} className="btn-secondary" style={{ width: '100%' }}>새로 신청하기</button>
@@ -776,6 +802,8 @@ export default function TicketOrderForm({ showId }) {
         total={total}
         qty={qty}
         remainingQty={remainingQty}
+        maxQty={maxQty}
+        priceItems={pricing.items}
         soldOut={soldOut}
         name={name} setName={setName}
         phone={phone} setPhone={setPhone}
