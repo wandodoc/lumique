@@ -20,8 +20,10 @@ export const firebaseStorage = {
     try {
       const sanitized = JSON.parse(JSON.stringify(state));
       await setDoc(DOC_REF, sanitized, { merge: true });
+      return true;
     } catch (e) {
       console.error("Firebase Save Error:", e);
+      return false;
     }
   },
   loadConcerts: async () => {
@@ -58,8 +60,10 @@ export const firebaseStorage = {
     try {
       const sanitized = JSON.parse(JSON.stringify({ orders }));
       await setDoc(DOC_REF, sanitized, { merge: true });
+      return true;
     } catch (e) {
       console.error("Firebase Save Orders Error:", e);
+      return false;
     }
   }
 };

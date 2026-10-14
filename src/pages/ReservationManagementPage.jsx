@@ -12,6 +12,7 @@ const ATTEND_DONE = '입장완료';
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { countSoldByTier, resolveActivePrice, cleanPriceTier, formatTierUntil } from '../utils/pricing';
+import { sortByPartAndName } from '../utils/calculations';
 
 const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -57,6 +58,7 @@ const ALL_COLUMNS = [
   { id: 'phone',         label: '연락처',    width: 140, required: false },
   { id: 'ticketCount',   label: '티켓 매수', width: 90,  required: false },
   { id: 'priceTier',     label: '가격 구간/금액', width: 130, required: false },
+  { id: 'duesDeduction', label: '결제 방식(회비 차감)', width: 190, required: false },
   { id: 'inviterName',   label: '초대자',    width: 110, required: false },
   { id: 'afterParty',    label: '뒤풀이 참여', width: 90,  required: false },
   { id: 'comment',       label: '추가 입력 정보', width: 180, required: false },
@@ -419,6 +421,9 @@ export default function ReservationManagementPage() {
 
   const [orders, setOrders] = useState([]);
   const [shows, setShows] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [duesSavingId, setDuesSavingId] = useState(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -461,6 +466,9 @@ export default function ReservationManagementPage() {
       if (fbOrders.length === 0 && loadLS(LS_ORDERS).length > 0) fbOrders = loadLS(LS_ORDERS);
       setShows(fbConcerts);
       setOrders(fbOrders);
+      const fbData = await firebaseStorage.loadData();
+      setMembers(fbData?.members || []);
+      setTransactions(fbData?.transactions || []);
       setLoading(false);
     }
     loadData();
@@ -606,22 +614,26 @@ export default function ReservationManagementPage() {
   }, [orders, concertId]);
 
   const exportCsv = () => {
-    const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
+    const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
       headers,
-      ...visibleOrders.map((o) => [
-        o.audienceName || '',
-        o.phone || '',
-        o.ticketCount || 0,
-        o.priceTierLabel || '-',
-        totalPriceFor(o),
-        o.isAfterParty ? o.afterPartyCount || 1 : 0,
-        o.isAfterParty ? (o.inviterName || '') : '',
-        o.comment || '',
-        o.createdAt ? formatDate(o.createdAt) : '',
-        o.depositStatus === DEPOSIT_DONE ? '입금 완료' : '입금 대기',
-        o.attendanceStatus === ATTEND_DONE ? '입장 완료' : '미입장',
-      ]),
+      ...visibleOrders.map((o) => {
+        const duesMember = o.duesMemberId ? members.find(m => m.id === o.duesMemberId) : null;
+        return [
+          o.audienceName || '',
+          o.phone || '',
+          o.ticketCount || 0,
+          o.priceTierLabel || '-',
+          totalPriceFor(o),
+          duesMember ? `회비 차감 (${duesMember.name})` : '일반 결제',
+          o.isAfterParty ? o.afterPartyCount || 1 : 0,
+          o.isAfterParty ? (o.inviterName || '') : '',
+          o.comment || '',
+          o.createdAt ? formatDate(o.createdAt) : '',
+          o.depositStatus === DEPOSIT_DONE ? '입금 완료' : '입금 대기',
+          o.attendanceStatus === ATTEND_DONE ? '입장 완료' : '미입장',
+        ];
+      }),
     ];
     downloadCsv(`lumique_reservations_${new Date().toISOString().slice(0, 10)}.csv`, rows);
   };
@@ -656,6 +668,71 @@ export default function ReservationManagementPage() {
     const nextOrders = orders.filter((o) => o.id !== order.id);
     setOrders(nextOrders);
     await firebaseStorage.saveOrders(nextOrders);
+    // 회비 차감으로 연결되어 있던 예매였다면, 생성해둔 거래 내역도 함께 지워 회비 납부 기록이 남지 않게 한다.
+    if (order.duesTxId) {
+      const latest = await firebaseStorage.loadData();
+      const nextTxs = (latest?.transactions || transactions).filter(t => t.id !== order.duesTxId);
+      const ok = await firebaseStorage.saveData({ transactions: nextTxs });
+      if (ok) setTransactions(nextTxs);
+    }
+  };
+
+  // 회비 차감 결제 처리용 활동 회원 목록 (파트 > 이름 순)
+  const activeMembersSorted = useMemo(() => sortByPartAndName(members.filter(m => m.status === 'active')), [members]);
+
+  // 부원이 티켓을 예매할 때, 티켓 금액을 별도로 받지 않고 해당 월 회비 납부로 인정 처리한다.
+  // (MemberDuesPage는 transactions의 memberId+회비수익 카테고리만 보므로, 거래 내역을 생성해야 반영된다.)
+  const applyDuesDeduction = async (order, memberId) => {
+    if (!isAdmin) return;
+    const member = members.find(m => m.id === memberId);
+    if (!member) return;
+    setDuesSavingId(order.id);
+    try {
+      const amount = totalPriceFor(order);
+      const show = showsById[order.concertId];
+      const tx = {
+        id: 'tx_dues_' + order.id,
+        datetime: order.createdAt || new Date().toISOString(),
+        type: 'income',
+        category: '회비수익',
+        description: `${show?.title || '공연'} 티켓대금 (회비 차감)`,
+        amount,
+        part: member.part || '공통',
+        memberId: member.id,
+        note: '티켓 관리 페이지에서 자동 생성됨',
+      };
+      const latest = await firebaseStorage.loadData();
+      const baseTxs = (latest?.transactions || transactions).filter(t => t.id !== tx.id);
+      const nextTxs = [tx, ...baseTxs];
+      const ok = await firebaseStorage.saveData({ transactions: nextTxs });
+      if (!ok) {
+        alert('회비 차감 처리에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      setTransactions(nextTxs);
+      await updateOrder(order.id, { duesMemberId: member.id, duesTxId: tx.id, depositStatus: DEPOSIT_DONE });
+    } finally {
+      setDuesSavingId(null);
+    }
+  };
+
+  // 회비 차감 처리 취소: 생성했던 거래 내역을 제거하고 예매 건의 연결 정보를 지운다.
+  const removeDuesDeduction = async (order) => {
+    if (!isAdmin || !order.duesTxId) return;
+    setDuesSavingId(order.id);
+    try {
+      const latest = await firebaseStorage.loadData();
+      const nextTxs = (latest?.transactions || transactions).filter(t => t.id !== order.duesTxId);
+      const ok = await firebaseStorage.saveData({ transactions: nextTxs });
+      if (!ok) {
+        alert('회비 차감 취소에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      setTransactions(nextTxs);
+      await updateOrder(order.id, { duesMemberId: null, duesTxId: null });
+    } finally {
+      setDuesSavingId(null);
+    }
   };
 
   // 건별 후원금 항목 추가 처리
@@ -791,6 +868,41 @@ export default function ReservationManagementPage() {
             </div>
           </td>
         );
+      case 'duesDeduction': {
+        const linkedMember = o.duesMemberId ? members.find(m => m.id === o.duesMemberId) : null;
+        const saving = duesSavingId === o.id;
+        return (
+          <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
+            {isAdmin ? (
+              <select
+                value={o.duesMemberId || ''}
+                disabled={saving}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) removeDuesDeduction(o);
+                  else applyDuesDeduction(o, v);
+                }}
+                style={{
+                  width: '100%', padding: '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                  border: `1.5px solid ${linkedMember ? '#10b981' : '#e2e8f0'}`,
+                  background: linkedMember ? '#ecfdf5' : '#fff',
+                  color: linkedMember ? '#059669' : '#475569',
+                  cursor: saving ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <option value="">일반 결제</option>
+                {activeMembersSorted.map(m => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.part}) 회비 차감</option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ fontSize: 13, fontWeight: 700, color: linkedMember ? '#059669' : '#94a3b8' }}>
+                {linkedMember ? `${linkedMember.name} 회비 차감` : '-'}
+              </span>
+            )}
+          </td>
+        );
+      }
       case 'inviterName':
         return (
           <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', fontSize: 13, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: cellWidth, boxSizing: 'border-box' }}>
@@ -840,7 +952,7 @@ export default function ReservationManagementPage() {
       default:
         return <td key={colId} style={{ width: cellWidth, boxSizing: 'border-box' }} />;
     }
-  }, [isAdmin, checkinMode, orders, colMap, totalPriceFor]);
+  }, [isAdmin, checkinMode, orders, colMap, totalPriceFor, members, activeMembersSorted, duesSavingId]);
 
   if (loading) {
     return (
