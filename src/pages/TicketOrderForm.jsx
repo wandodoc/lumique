@@ -543,16 +543,6 @@ export default function TicketOrderForm({ showId }) {
 
   const setTierQty = (tierId, value) => setTierQtyState(p => ({ ...p, [tierId]: Math.max(0, value) }));
 
-  // 공연이 로드되면(또는 구간 구성이 바뀌면) 기본으로 잔여분이 남아있는 첫 구간에 1매를 선택해 둔다.
-  useEffect(() => {
-    if (!isTieredShow) return;
-    setTierQtyState(p => {
-      if (Object.keys(p).length > 0) return p;
-      const firstAvailable = openTiers.find(t => t.max > 0) || openTiers[0];
-      return firstAvailable ? { [firstAvailable.id]: 1 } : {};
-    });
-  }, [show?.id, isTieredShow]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const priceItems = isTieredShow
     ? openTiers.filter(t => (tierQty[t.id] || 0) > 0).map(t => ({ tierId: t.id, label: t.label, price: Number(t.price) || 0, qty: tierQty[t.id] }))
     : (qty > 0 ? [{ tierId: null, label: '', price, qty }] : []);
