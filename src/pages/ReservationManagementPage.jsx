@@ -550,6 +550,100 @@ function InviterMappingPicker({
   );
 }
 
+/* =========================================================
+   2순위 이하 공연자 추가용 검색 패널 (인라인, 모바일 안전)
+   ========================================================= */
+function AddPerformerPicker({ members, excludeIds = [], onAdd, triggerText = '+ 공연자 추가' }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const candidates = members.filter(m => !excludeIds.includes(m.id) && (!query.trim() || m.name.includes(query.trim())));
+
+  return (
+    <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+      <button type="button" onClick={() => setOpen(v => !v)} style={{
+        padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        border: '1.5px dashed #cbd5e1', background: '#fff', color: '#475569', whiteSpace: 'nowrap'
+      }}>{triggerText}</button>
+      {open && (
+        <div style={{
+          marginTop: 6, width: 'min(240px, 100%)', border: '1px solid #e2e8f0', borderRadius: 10,
+          background: '#fff', boxShadow: '0 6px 16px rgba(15,23,42,0.1)', padding: 10, boxSizing: 'border-box'
+        }}>
+          <input
+            type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 검색" autoFocus
+            style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box', marginBottom: 6 }}
+          />
+          <div style={{ maxHeight: 160, overflowY: 'auto', display: 'grid', gap: 4 }}>
+            {candidates.length === 0 && (
+              <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>추가할 수 있는 회원이 없습니다</div>
+            )}
+            {candidates.map(m => (
+              <button key={m.id} type="button" onClick={() => { onAdd(m.id); setOpen(false); setQuery(''); }}
+                style={{ textAlign: 'left', padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1px solid #f1f5f9', background: '#f8fafc', color: '#1e293b' }}
+              >{m.name} ({m.part})</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   뒤풀이 테이블 배치 선택 패널 (인라인, 모바일 안전)
+   ========================================================= */
+function TableAssignPicker({ tables, currentTableId, pendingCount = 1, onAssign, onUnassign, triggerText }) {
+  const [open, setOpen] = useState(false);
+  const currentEntry = tables.find(t => t.table.id === currentTableId);
+  const label = triggerText || (currentEntry ? currentEntry.table.name : '테이블 배치');
+
+  return (
+    <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+      <button type="button" onClick={() => setOpen(v => !v)} style={{
+        padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        border: `1.5px solid ${currentEntry ? '#10b981' : '#e2e8f0'}`,
+        background: currentEntry ? '#ecfdf5' : '#fff', color: currentEntry ? '#059669' : '#475569', whiteSpace: 'nowrap'
+      }}>{label} {open ? '▲' : '▼'}</button>
+      {open && (
+        <div style={{
+          marginTop: 6, width: 'min(240px, 100%)', border: '1px solid #e2e8f0', borderRadius: 10,
+          background: '#fff', boxShadow: '0 6px 16px rgba(15,23,42,0.1)', padding: 10, boxSizing: 'border-box'
+        }}>
+          {tables.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>생성된 테이블이 없습니다. 먼저 테이블을 추가해 주세요.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
+              {tables.map(t => {
+                const remaining = t.table.capacity - t.count;
+                const willExceed = pendingCount > remaining && t.table.id !== currentTableId;
+                return (
+                  <button key={t.table.id} type="button" onClick={() => { onAssign(t.table.id); setOpen(false); }}
+                    style={{
+                      textAlign: 'left', padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      border: `1px solid ${t.table.id === currentTableId ? '#10b981' : '#f1f5f9'}`,
+                      background: t.table.id === currentTableId ? '#ecfdf5' : '#f8fafc',
+                      color: willExceed ? '#dc2626' : '#1e293b',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.table.name}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{t.count}/{t.table.capacity}{willExceed ? ' 초과' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {currentTableId && (
+            <button type="button" onClick={() => { onUnassign(); setOpen(false); }}
+              style={{ width: '100%', marginTop: 10, padding: '6px 0', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >미배치로 이동</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReservationManagementPage() {
   const { isAdmin } = useAuth();
   const { id: concertId } = useParams();
@@ -578,14 +672,15 @@ export default function ReservationManagementPage() {
   const [hiddenCols, setHiddenCols] = useState([]);
   const [showColSettings, setShowColSettings] = useState(false);
 
-  // 초대자별 예매자 상세 목록 토글 상태
-  const [expandedInviters, setExpandedInviters] = useState({});
 
   // 뒤풀이 관리 섹션 — 검색/필터/다중 선택/매핑 저장 오류 상태
   const [mgmtQuery, setMgmtQuery] = useState('');
   const [mgmtFilter, setMgmtFilter] = useState('all');
   const [selectedUnassignedIds, setSelectedUnassignedIds] = useState([]);
   const [mappingErrorMsg, setMappingErrorMsg] = useState('');
+  const [afterPartyTab, setAfterPartyTab] = useState('participants'); // 'participants' | 'tables'
+  const [expandedParticipantRows, setExpandedParticipantRows] = useState({}); // 참여자 카드 상세(복수 공연자 등) 펼침 상태
+  const [selectedSeatingIds, setSelectedSeatingIds] = useState([]); // 테이블 배치: 미배치 참여자 다중 선택
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
@@ -678,6 +773,7 @@ export default function ReservationManagementPage() {
 
   // 공연별 가격 구간(기간별/한정 수량) 정보 — 신청 매수 집계 및 조회/관리 패널에 사용.
   const showsById = useMemo(() => Object.fromEntries(shows.map(s => [s.id, s])), [shows]);
+  const ordersById = useMemo(() => Object.fromEntries(orders.map(o => [o.id, o])), [orders]);
   const currentPriceTiers = useMemo(() => (Array.isArray(currentShow?.priceTiers) ? currentShow.priceTiers : []), [currentShow]);
   const isTiered = currentShow?.pricingMode === 'tiered' && currentPriceTiers.length > 0;
   const soldByTier = useMemo(
@@ -827,51 +923,263 @@ export default function ReservationManagementPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [orders]);
 
-  // orderIds를 실제 공연자(회원)에게 한 번에 매핑한다. 기존에 지정돼 있던 관리용 텍스트 그룹은 해제된다.
-  const assignPerformer = async (orderIds, memberId) => {
+  // 뒤풀이 매핑/배치 관련 쓰기 작업의 단일 통로. orderIds에 patch를 병합해 저장하고,
+  // 실패 시 배너로 보여줄 오류 메시지를 지정한다.
+  const applyAfterPartyPatch = async (orderIds, patch, failMsg) => {
     if (!isAdmin || !orderIds || orderIds.length === 0) return;
     setMappingErrorMsg('');
     const idSet = new Set(orderIds);
-    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: memberId || null, inviterGroupLabel: null } : o));
+    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, ...patch } : o));
     setOrders(nextOrders);
     try {
       await firebaseStorage.saveOrders(nextOrders);
     } catch {
-      setMappingErrorMsg('공연자 매핑 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+      setMappingErrorMsg(failMsg);
     }
   };
 
-  // orderIds를 관리자가 지정한 텍스트 그룹으로 분류한다. 기존 공연자 매핑은 해제된다.
-  const assignGroupLabel = async (orderIds, groupLabel) => {
-    if (!isAdmin || !orderIds || orderIds.length === 0 || !groupLabel) return;
-    setMappingErrorMsg('');
-    const idSet = new Set(orderIds);
-    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterGroupLabel: groupLabel, inviterMemberId: null } : o));
-    setOrders(nextOrders);
-    try {
-      await firebaseStorage.saveOrders(nextOrders);
-    } catch {
-      setMappingErrorMsg('텍스트 그룹 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
-    }
-  };
+  // orderIds를 실제 공연자(회원)에게 한 번에 매핑한다(=1순위 지정). 기존에 지정돼 있던
+  // 관리용 텍스트 그룹은 해제된다. 2순위 이하 참고용 목록(inviterExtraMemberIds)은 그대로 둔다.
+  const assignPerformer = (orderIds, memberId) =>
+    applyAfterPartyPatch(orderIds, { inviterMemberId: memberId || null, inviterGroupLabel: null }, '공연자 매핑 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+
+  // orderIds를 관리자가 지정한 텍스트 그룹으로 분류한다. 공연자 매핑과 참고용 복수 공연자
+  // 목록은 모두 해제한다 — 텍스트 그룹은 공연자 실적과 별개의 분류이기 때문이다.
+  const assignGroupLabel = (orderIds, groupLabel) =>
+    applyAfterPartyPatch(orderIds, { inviterGroupLabel: groupLabel, inviterMemberId: null, inviterExtraMemberIds: [] }, '텍스트 그룹 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
 
   // orderIds를 "명시적 매핑 해제" 상태로 확정한다. inviterMemberId를 빈 문자열('')로 저장해,
   // 원본 텍스트가 회원 이름과 일치하더라도 자동 매칭이 다시 적용되지 않도록 한다(미매핑 유지).
-  const clearInviterClassification = async (orderIds) => {
-    if (!isAdmin || !orderIds || orderIds.length === 0) return;
-    setMappingErrorMsg('');
-    const idSet = new Set(orderIds);
-    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: '', inviterGroupLabel: null } : o));
-    setOrders(nextOrders);
-    try {
-      await firebaseStorage.saveOrders(nextOrders);
-    } catch {
-      setMappingErrorMsg('매핑 해제 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
-    }
+  // 2순위 이하 참고용 목록은 유지한다(1순위 확정 여부와 무관한 별개의 참고 정보).
+  const clearInviterClassification = (orderIds) =>
+    applyAfterPartyPatch(orderIds, { inviterMemberId: '', inviterGroupLabel: null }, '매핑 해제 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+
+  // ── 복수 공연자(2순위 이하) 관리 — 한 건(order) 단위로만 동작한다 ──
+  // inviterExtraMemberIds: 2순위부터의 참고용 공연자 id 배열(수동 전용, 실적 집계에는 영향 없음).
+  const getExtraPerformerIds = (o) => (Array.isArray(o?.inviterExtraMemberIds) ? o.inviterExtraMemberIds : []);
+
+  // 2순위 이하 공연자를 추가한다. 이미 1순위이거나 이미 목록에 있으면(중복 등록 방지) 무시한다.
+  const addExtraPerformer = (orderId, memberId) => {
+    const o = orders.find(x => x.id === orderId);
+    if (!o || !memberId) return;
+    const primary = resolveInviterMember(o);
+    if (primary && primary.id === memberId) return;
+    const extras = getExtraPerformerIds(o);
+    if (extras.includes(memberId)) return;
+    applyAfterPartyPatch([orderId], { inviterExtraMemberIds: [...extras, memberId] }, '공연자 추가 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+  };
+
+  // 2순위 이하 목록에서 공연자를 제거한다.
+  const removeExtraPerformer = (orderId, memberId) => {
+    const o = orders.find(x => x.id === orderId);
+    if (!o) return;
+    const extras = getExtraPerformerIds(o).filter(id => id !== memberId);
+    applyAfterPartyPatch([orderId], { inviterExtraMemberIds: extras }, '공연자 삭제 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+  };
+
+  // 2순위 이하 목록 안에서 순서를 한 칸 옮긴다(위/아래 이동 = 우선순위 변경).
+  const moveExtraPerformer = (orderId, memberId, direction) => {
+    const o = orders.find(x => x.id === orderId);
+    if (!o) return;
+    const extras = [...getExtraPerformerIds(o)];
+    const idx = extras.indexOf(memberId);
+    const nextIdx = idx + direction;
+    if (idx < 0 || nextIdx < 0 || nextIdx >= extras.length) return;
+    [extras[idx], extras[nextIdx]] = [extras[nextIdx], extras[idx]];
+    applyAfterPartyPatch([orderId], { inviterExtraMemberIds: extras }, '우선순위 변경 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+  };
+
+  // 2순위 이하의 특정 공연자를 1순위로 끌어올린다. 기존 1순위(자동/수동 매칭 결과)는
+  // 실제 회원이었다면 2순위 목록 맨 앞으로 내려가고, 선택한 공연자는 목록에서 빠진다.
+  const promoteExtraToPrimary = (orderId, memberId) => {
+    const o = orders.find(x => x.id === orderId);
+    if (!o) return;
+    const oldPrimary = resolveInviterMember(o);
+    const extras = getExtraPerformerIds(o).filter(id => id !== memberId);
+    if (oldPrimary && oldPrimary.id !== memberId) extras.unshift(oldPrimary.id);
+    applyAfterPartyPatch([orderId], { inviterMemberId: memberId, inviterGroupLabel: null, inviterExtraMemberIds: extras }, '우선순위 변경 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
   };
 
   const toggleUnassignedSelection = (orderId) => {
     setSelectedUnassignedIds(prev => (prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]));
+  };
+
+  // 참여자 이름표(카드)를 펼쳐 상세(연락처, 복수 공연자 관리 등)를 보여줄지 토글한다.
+  const toggleParticipantExpand = (key) => {
+    setExpandedParticipantRows(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // orderId 한 건의 "1순위 + 2순위 이하" 복수 공연자 관리 패널을 렌더링한다.
+  // 1순위는 기존 InviterMappingPicker(자동/수동/명시적 해제/텍스트 그룹)를 그대로 쓰고,
+  // 2순위부터는 inviterExtraMemberIds 배열을 수동으로만 관리한다.
+  const renderPerformerPriorityPanel = (orderId) => {
+    const o = ordersById[orderId];
+    if (!o) return null;
+    const primary = resolveInviterMember(o);
+    const extraIds = getExtraPerformerIds(o);
+    const extraMembers = extraIds.map(id => members.find(m => m.id === id)).filter(Boolean);
+    const excludeIds = [...(primary ? [primary.id] : []), ...extraIds];
+    return (
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>초대자 우선순위 (실적은 1순위에만 반영)</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', width: 44, flexShrink: 0 }}>1순위</span>
+          <InviterMappingPicker
+            members={activeMembersSorted}
+            existingGroupLabels={existingGroupLabels}
+            currentMemberId={o.inviterGroupLabel ? null : (primary?.id || null)}
+            currentGroupLabel={o.inviterGroupLabel || null}
+            disabled={!isAdmin}
+            onSelectPerformer={(memberId) => assignPerformer([orderId], memberId)}
+            onSelectGroup={(groupLabel) => assignGroupLabel([orderId], groupLabel)}
+            onClear={() => clearInviterClassification([orderId])}
+          />
+        </div>
+        {extraMembers.map((m, idx) => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', width: 44, flexShrink: 0 }}>{idx + 2}순위</span>
+            <span style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+              {m.name} ({m.part})
+            </span>
+            {isAdmin && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button type="button" disabled={idx === 0} onClick={() => moveExtraPerformer(orderId, m.id, -1)} title="우선순위 올리기"
+                  style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: idx === 0 ? 'not-allowed' : 'pointer', fontSize: 11, opacity: idx === 0 ? 0.4 : 1 }}
+                >▲</button>
+                <button type="button" disabled={idx === extraMembers.length - 1} onClick={() => moveExtraPerformer(orderId, m.id, 1)} title="우선순위 내리기"
+                  style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: idx === extraMembers.length - 1 ? 'not-allowed' : 'pointer', fontSize: 11, opacity: idx === extraMembers.length - 1 ? 0.4 : 1 }}
+                >▼</button>
+                <button type="button" onClick={() => promoteExtraToPrimary(orderId, m.id)}
+                  style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >1순위로</button>
+                <button type="button" onClick={() => removeExtraPerformer(orderId, m.id)} title="삭제"
+                  style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                >✕</button>
+              </div>
+            )}
+          </div>
+        ))}
+        {isAdmin && (
+          <div>
+            <AddPerformerPicker members={activeMembersSorted} excludeIds={excludeIds} onAdd={(memberId) => addExtraPerformer(orderId, memberId)} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 테이블 배치: 미배치 참여자 다중 선택 토글
+  const toggleSeatingSelection = (orderId) => {
+    setSelectedSeatingIds(prev => (prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]));
+  };
+
+  // ── 뒤풀이 테이블 배치 — 공연자 매핑과는 완전히 독립된 데이터(콘서트 레코드에 저장) ──
+  // tables: [{ id, name, capacity }], seatAssignments: { [orderId]: tableId }
+  const afterPartyTables = useMemo(() => (Array.isArray(currentShow?.tables) ? currentShow.tables : []), [currentShow]);
+  const seatAssignments = useMemo(() => (currentShow?.seatAssignments && typeof currentShow.seatAssignments === 'object' ? currentShow.seatAssignments : {}), [currentShow]);
+
+  // 공연자 매핑 상태와 무관하게, 뒤풀이 참여 체크한 모든 신청을 평평한 목록으로 — 테이블 배치는 이 목록만 본다.
+  const afterPartyParticipants = useMemo(() => {
+    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    return src
+      .filter(o => o.isAfterParty)
+      .map(o => ({
+        orderId: o.id,
+        name: o.audienceName || '(이름없음)',
+        phone: o.phone || '',
+        count: Number(o.afterPartyCount) || 1,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [orders, concertId]);
+
+  // 테이블별 배치 인원/잔여석과 미배치 인원을 계산한다. 삭제된 테이블을 가리키는 배치 기록은
+  // 자동으로 미배치로 취급한다(참조가 깨져도 오류 없이 동작).
+  const seatingOverview = useMemo(() => {
+    const byTable = {};
+    afterPartyTables.forEach(t => { byTable[t.id] = { table: t, participants: [], count: 0 }; });
+    const unassigned = [];
+    for (const p of afterPartyParticipants) {
+      const tableId = seatAssignments[p.orderId];
+      if (tableId && byTable[tableId]) {
+        byTable[tableId].participants.push(p);
+        byTable[tableId].count += p.count;
+      } else {
+        unassigned.push(p);
+      }
+    }
+    const totalAll = afterPartyParticipants.reduce((s, p) => s + p.count, 0);
+    const totalPlaced = Object.values(byTable).reduce((s, t) => s + t.count, 0);
+    return { tables: afterPartyTables.map(t => byTable[t.id]), unassigned, totalAll, totalPlaced, totalUnassigned: totalAll - totalPlaced };
+  }, [afterPartyTables, seatAssignments, afterPartyParticipants]);
+
+  // 콘서트 레코드에 테이블/배치 패치를 저장한다(최신본을 다시 불러와 병합 — savePriceTiers와 동일한 방식).
+  const saveSeatingPatch = async (patch) => {
+    if (!isAdmin || !currentShow || !concertId) return;
+    setMappingErrorMsg('');
+    try {
+      const concerts = await firebaseStorage.loadConcerts();
+      const updated = concerts.map(c => (c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
+      await firebaseStorage.saveConcerts(updated);
+      setShows(updated);
+    } catch {
+      setMappingErrorMsg('테이블 배치 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    }
+  };
+
+  const addTable = () => {
+    const name = `테이블 ${afterPartyTables.length + 1}`;
+    const newTable = { id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, capacity: 6 };
+    saveSeatingPatch({ tables: [...afterPartyTables, newTable] });
+  };
+
+  const removeTable = (tableId) => {
+    if (!window.confirm('이 테이블을 삭제하면 배치된 참여자가 모두 미배치 상태가 됩니다. 계속하시겠습니까?')) return;
+    const nextTables = afterPartyTables.filter(t => t.id !== tableId);
+    const nextAssignments = { ...seatAssignments };
+    Object.keys(nextAssignments).forEach(orderId => { if (nextAssignments[orderId] === tableId) delete nextAssignments[orderId]; });
+    saveSeatingPatch({ tables: nextTables, seatAssignments: nextAssignments });
+  };
+
+  const renameTable = (tableId, name) => {
+    saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, name } : t)) });
+  };
+
+  const setTableCapacity = (tableId, capacity) => {
+    const n = Math.max(0, Number(capacity) || 0);
+    saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, capacity: n } : t)) });
+  };
+
+  // orderIds를 tableId에 배치한다. tableId가 없으면(null) 미배치로 되돌린다.
+  // 예매자(일행) 단위를 그대로 유지하며, 한 예매 건을 여러 테이블로 나누는 기능은 제공하지 않는다.
+  const assignToTable = (orderIds, tableId) => {
+    const nextAssignments = { ...seatAssignments };
+    orderIds.forEach(id => {
+      if (tableId) nextAssignments[id] = tableId;
+      else delete nextAssignments[id];
+    });
+    saveSeatingPatch({ seatAssignments: nextAssignments });
+  };
+
+  // 미배치 참여자를 이름순 그대로, 테이블 정원 내에서 앞 테이블부터 순차 배치한다.
+  // 일행 관계를 추론하지 않고(이미 한 예매 건 = 한 배치 단위), 기존 수동 배치는 건드리지 않는다.
+  const autoAssignTables = () => {
+    const nextAssignments = { ...seatAssignments };
+    const load = {};
+    afterPartyTables.forEach(t => { load[t.id] = 0; });
+    Object.entries(nextAssignments).forEach(([orderId, tableId]) => {
+      const p = afterPartyParticipants.find(x => x.orderId === orderId);
+      if (p && load[tableId] !== undefined) load[tableId] += p.count;
+    });
+    for (const p of seatingOverview.unassigned) {
+      for (const t of afterPartyTables) {
+        if (load[t.id] + p.count <= t.capacity) {
+          nextAssignments[p.orderId] = t.id;
+          load[t.id] += p.count;
+          break;
+        }
+      }
+    }
+    saveSeatingPatch({ seatAssignments: nextAssignments });
   };
 
   // 뒤풀이 관리 섹션에 표시할 통합 행(그룹 + 초대자 미기재 개별 항목)을 검색/필터/정렬한다.
@@ -1044,9 +1352,6 @@ export default function ReservationManagementPage() {
     updateOrder(order.id, { enteredCount: newEntered, attendanceStatus: newStatus });
   };
 
-  const toggleInviterExpand = (name) => {
-    setExpandedInviters(prev => ({ ...prev, [name]: !prev[name] }));
-  };
 
   const colMap = Object.fromEntries(ALL_COLUMNS.map(c => [c.id, c]));
 
@@ -1538,10 +1843,25 @@ export default function ReservationManagementPage() {
           )}
         </div>
 
-        {/* ── [섹션 3] 뒤풀이 관리 — 공연자 매핑 / 텍스트 그룹 / 미기재를 하나의 화면에서 통합 관리 ──
+        {/* ── [섹션 3] 뒤풀이 관리 — "참여자 관리"(공연자 매핑/텍스트 그룹/미기재)와
+             "테이블 배치"(참여자 관리와 완전히 독립된 데이터)를 탭으로 전환하며 관리한다.
              참여 인원이 0명이어도 섹션 자체는 항상 표시해 오류 없이 빈 상태를 보여준다. */}
         <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 14 }}>뒤풀이 관리</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>뒤풀이 관리</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[{ value: 'participants', label: '참여자 관리' }, { value: 'tables', label: '테이블 배치' }].map(t => (
+                  <button key={t.value} type="button" onClick={() => setAfterPartyTab(t.value)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                      border: `1.5px solid ${afterPartyTab === t.value ? '#111827' : '#e2e8f0'}`,
+                      background: afterPartyTab === t.value ? '#111827' : '#fff',
+                      color: afterPartyTab === t.value ? '#fff' : '#64748b'
+                    }}
+                  >{t.label}</button>
+                ))}
+              </div>
+            </div>
 
             {mappingErrorMsg && (
               <div style={{
@@ -1554,164 +1874,326 @@ export default function ReservationManagementPage() {
               </div>
             )}
 
-            {/* 상단 요약 (그룹 수가 아닌 실제 인원 기준) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 16 }}>
-              <StatCard label="전체 뒤풀이 인원" value={`${afterPartySummary.total}명`} color="#111827" />
-              <StatCard label="공연자 매핑 완료" value={`${afterPartySummary.performerMapped}명`} color="#059669" />
-              <StatCard label="미매핑" value={`${afterPartySummary.unmapped}명`} color="#b45309" />
-              <StatCard label="텍스트 그룹" value={`${afterPartySummary.textGroup}명`} color="#7c3aed" />
-            </div>
-
-            {/* 검색 + 상태 필터 */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              <input
-                type="text" value={mgmtQuery} onChange={(e) => setMgmtQuery(e.target.value)}
-                placeholder="이름, 연락처, 초대자 텍스트, 그룹명 검색"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }}
-              />
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-                {[
-                  { value: 'all', label: '전체' },
-                  { value: 'unmapped', label: '미매핑' },
-                  { value: 'performer', label: '공연자 매핑 완료' },
-                  { value: 'unassigned', label: '미기재' },
-                  { value: 'group', label: '텍스트 그룹' },
-                ].map(f => (
-                  <button key={f.value} type="button" onClick={() => setMgmtFilter(f.value)}
-                    style={{
-                      flexShrink: 0, padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-                      border: `1.5px solid ${mgmtFilter === f.value ? '#111827' : '#e2e8f0'}`,
-                      background: mgmtFilter === f.value ? '#111827' : '#fff',
-                      color: mgmtFilter === f.value ? '#fff' : '#64748b'
-                    }}
-                  >{f.label}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* 다중 선택 일괄 매핑 툴바 (초대자 미기재 항목을 체크하면 노출) */}
-            {isAdmin && selectedUnassignedIds.length > 0 && (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-                padding: '10px 14px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 12
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedUnassignedIds.length}명 선택됨</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <InviterMappingPicker
-                    members={activeMembersSorted}
-                    existingGroupLabels={existingGroupLabels}
-                    currentMemberId={null}
-                    currentGroupLabel={null}
-                    triggerText="선택 인원 일괄 매핑"
-                    onSelectPerformer={(memberId) => { assignPerformer(selectedUnassignedIds, memberId); setSelectedUnassignedIds([]); }}
-                    onSelectGroup={(groupLabel) => { assignGroupLabel(selectedUnassignedIds, groupLabel); setSelectedUnassignedIds([]); }}
-                    onClear={() => setSelectedUnassignedIds([])}
-                  />
-                  <button type="button" onClick={() => setSelectedUnassignedIds([])}
-                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >선택 해제</button>
+            {afterPartyTab === 'participants' ? (
+              <>
+                {/* 상단 요약 (그룹 수가 아닌 실제 인원 기준) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 16 }}>
+                  <StatCard label="전체 뒤풀이 인원" value={`${afterPartySummary.total}명`} color="#111827" />
+                  <StatCard label="공연자 매핑 완료" value={`${afterPartySummary.performerMapped}명`} color="#059669" />
+                  <StatCard label="미매핑" value={`${afterPartySummary.unmapped}명`} color="#b45309" />
+                  <StatCard label="텍스트 그룹" value={`${afterPartySummary.textGroup}명`} color="#7c3aed" />
                 </div>
-              </div>
-            )}
 
-            {/* 통합 목록: 공연자 매핑 / 미매핑 텍스트 / 미기재 개별 항목 / 관리용 텍스트 그룹 */}
-            {afterPartyRows.length === 0 ? (
-              <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>검색/필터 조건에 맞는 참여자가 없습니다.</div>
-            ) : (
-              <div style={{ display: 'grid', gap: 8 }}>
-                {afterPartyRows.map((row) => {
-                  const isExpanded = !!expandedInviters[row.key];
-                  const badge = AFTER_PARTY_TYPE_BADGE[row.type];
-                  return (
-                    <div key={row.key} style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                      <div style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '12px 16px', background: '#f8fafc', gap: 10, flexWrap: 'wrap'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                          {row.kind === 'individual' && isAdmin && (
-                            <input
-                              type="checkbox"
-                              checked={selectedUnassignedIds.includes(row.orderId)}
-                              onChange={() => toggleUnassignedSelection(row.orderId)}
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
-                            />
-                          )}
-                          <div
-                            onClick={() => row.kind === 'group' && toggleInviterExpand(row.key)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: row.kind === 'group' ? 'pointer' : 'default' }}
-                          >
-                            {row.kind === 'group' && (
-                              <span style={{ fontSize: 14, color: '#64748b', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', flexShrink: 0 }}>▶</span>
+                {/* 검색 + 상태 필터 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="text" value={mgmtQuery} onChange={(e) => setMgmtQuery(e.target.value)}
+                    placeholder="이름, 연락처, 초대자 텍스트, 그룹명 검색"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+                    {[
+                      { value: 'all', label: '전체' },
+                      { value: 'unmapped', label: '미매핑' },
+                      { value: 'performer', label: '공연자 매핑 완료' },
+                      { value: 'unassigned', label: '미기재' },
+                      { value: 'group', label: '텍스트 그룹' },
+                    ].map(f => (
+                      <button key={f.value} type="button" onClick={() => setMgmtFilter(f.value)}
+                        style={{
+                          flexShrink: 0, padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                          border: `1.5px solid ${mgmtFilter === f.value ? '#111827' : '#e2e8f0'}`,
+                          background: mgmtFilter === f.value ? '#111827' : '#fff',
+                          color: mgmtFilter === f.value ? '#fff' : '#64748b'
+                        }}
+                      >{f.label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 다중 선택 일괄 매핑 툴바 (초대자 미기재 항목을 체크하면 노출) */}
+                {isAdmin && selectedUnassignedIds.length > 0 && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                    padding: '10px 14px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 12
+                  }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedUnassignedIds.length}명 선택됨</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <InviterMappingPicker
+                        members={activeMembersSorted}
+                        existingGroupLabels={existingGroupLabels}
+                        currentMemberId={null}
+                        currentGroupLabel={null}
+                        triggerText="선택 인원 일괄 매핑"
+                        onSelectPerformer={(memberId) => { assignPerformer(selectedUnassignedIds, memberId); setSelectedUnassignedIds([]); }}
+                        onSelectGroup={(groupLabel) => { assignGroupLabel(selectedUnassignedIds, groupLabel); setSelectedUnassignedIds([]); }}
+                        onClear={() => setSelectedUnassignedIds([])}
+                      />
+                      <button type="button" onClick={() => setSelectedUnassignedIds([])}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                      >선택 해제</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 통합 목록: 컴팩트한 이름표(태그) 형태. 펼치면 해당 태그만 전체 너비를 차지해(flexBasis:100%)
+                     상세(연락처, 매핑 변경, 복수 공연자 관리)가 아래로 펼쳐지고 나머지 태그는 그대로 흐른다. */}
+                {afterPartyRows.length === 0 ? (
+                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>검색/필터 조건에 맞는 참여자가 없습니다.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {afterPartyRows.map((row) => {
+                      const isExpanded = !!expandedParticipantRows[row.key];
+                      const badge = AFTER_PARTY_TYPE_BADGE[row.type];
+                      return (
+                        <div key={row.key} style={{ flexBasis: isExpanded ? '100%' : 'auto', minWidth: 0 }}>
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6, borderRadius: 20,
+                            border: '1px solid #e2e8f0', background: isExpanded ? '#eef2ff' : '#f8fafc',
+                            padding: '6px 8px 6px 12px'
+                          }}>
+                            {row.kind === 'individual' && isAdmin && (
+                              <input
+                                type="checkbox"
+                                checked={selectedUnassignedIds.includes(row.orderId)}
+                                onChange={() => toggleUnassignedSelection(row.orderId)}
+                                style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                              />
                             )}
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <span style={{ fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{row.label}</span>
-                                <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', color: badge.color }}>{badge.text}</span>
-                              </div>
-                              {row.kind === 'group' ? (
-                                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{row.orderIds.length}건 예매 연결</div>
-                              ) : (
-                                row.phone && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{row.phone}</div>
-                              )}
-                            </div>
+                            <button type="button" onClick={() => toggleParticipantExpand(row.key)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', minWidth: 0 }}
+                            >
+                              <span style={{ fontWeight: 700, fontSize: 13, color: '#111827', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 150, textAlign: 'left' }}>
+                                {row.label}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: badge.color, whiteSpace: 'nowrap' }}>· {badge.text}</span>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: '#111827', whiteSpace: 'nowrap' }}>{row.count}명</span>
+                              <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
+                            </button>
                           </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <InviterMappingPicker
-                            members={activeMembersSorted}
-                            existingGroupLabels={existingGroupLabels}
-                            currentMemberId={row.memberId}
-                            currentGroupLabel={row.type === 'group' ? row.label : null}
-                            disabled={!isAdmin}
-                            onSelectPerformer={(memberId) => assignPerformer(row.orderIds, memberId)}
-                            onSelectGroup={(groupLabel) => assignGroupLabel(row.orderIds, groupLabel)}
-                            onClear={() => clearInviterClassification(row.orderIds)}
-                          />
-                          <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                            {row.count}명
-                          </span>
-                        </div>
-                      </div>
-                      {row.kind === 'group' && isExpanded && (
-                        <div style={{ padding: '4px 16px 12px', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
-                          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600, paddingTop: 8 }}>유입된 예매자 목록 (개별 변경 가능)</div>
-                          <div style={{ display: 'grid', gap: 6 }}>
-                            {row.attendees.map((a) => (
-                              <div key={a.orderId} style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-                                padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9'
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                  <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', whiteSpace: 'nowrap' }}>{a.name}</span>
-                                  {a.phone && <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>({a.phone})</span>}
+
+                          {isExpanded && (
+                            <div style={{ marginTop: 6, padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff' }}>
+                              {row.kind === 'individual' ? (
+                                <div style={{ display: 'grid', gap: 10 }}>
+                                  {row.phone && <div style={{ fontSize: 12, color: '#64748b' }}>연락처: {row.phone}</div>}
+                                  {renderPerformerPriorityPanel(row.orderId)}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#0f172a', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                    {a.count}명
-                                  </span>
-                                  {isAdmin && (
+                              ) : (
+                                <div style={{ display: 'grid', gap: 12 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>그룹 전체 재매핑:</span>
                                     <InviterMappingPicker
                                       members={activeMembersSorted}
                                       existingGroupLabels={existingGroupLabels}
-                                      currentMemberId={row.type === 'performer' ? row.memberId : null}
+                                      currentMemberId={row.memberId}
                                       currentGroupLabel={row.type === 'group' ? row.label : null}
-                                      triggerText="개별 변경"
-                                      onSelectPerformer={(memberId) => assignPerformer([a.orderId], memberId)}
-                                      onSelectGroup={(groupLabel) => assignGroupLabel([a.orderId], groupLabel)}
-                                      onClear={() => clearInviterClassification([a.orderId])}
+                                      disabled={!isAdmin}
+                                      onSelectPerformer={(memberId) => assignPerformer(row.orderIds, memberId)}
+                                      onSelectGroup={(groupLabel) => assignGroupLabel(row.orderIds, groupLabel)}
+                                      onClear={() => clearInviterClassification(row.orderIds)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
+                                      유입된 예매자 {row.orderIds.length}건 — 클릭하면 개별 상세/복수 공연자 관리
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                      {row.attendees.map((a) => {
+                                        const attKey = `att:${a.orderId}`;
+                                        const isAttExpanded = !!expandedParticipantRows[attKey];
+                                        return (
+                                          <div key={a.orderId} style={{ flexBasis: isAttExpanded ? '100%' : 'auto', minWidth: 0 }}>
+                                            <button type="button" onClick={() => toggleParticipantExpand(attKey)}
+                                              style={{
+                                                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 16,
+                                                border: '1px solid #f1f5f9', background: isAttExpanded ? '#eef2ff' : '#f8fafc', cursor: 'pointer'
+                                              }}
+                                            >
+                                              <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 130, textAlign: 'left' }}>{a.name}</span>
+                                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>{a.count}명</span>
+                                              <span style={{ fontSize: 10, color: '#94a3b8' }}>{isAttExpanded ? '▲' : '▼'}</span>
+                                            </button>
+                                            {isAttExpanded && (
+                                              <div style={{ marginTop: 6, padding: '10px 12px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                                                {a.phone && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>연락처: {a.phone}</div>}
+                                                {renderPerformerPriorityPanel(a.orderId)}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                {!currentShow ? (
+                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>공연을 선택해야 테이블 배치를 관리할 수 있습니다.</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
+                      <StatCard label="전체 뒤풀이 인원" value={`${seatingOverview.totalAll}명`} color="#111827" />
+                      <StatCard label="배치 완료" value={`${seatingOverview.totalPlaced}명`} color="#059669" />
+                      <StatCard label="미배치" value={`${seatingOverview.totalUnassigned}명`} color="#b45309" />
+                    </div>
+
+                    {isAdmin && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" onClick={addTable}
+                          style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#111827', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                        >+ 테이블 추가</button>
+                        <button type="button" onClick={autoAssignTables}
+                          disabled={afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0}
+                          style={{
+                            padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700,
+                            cursor: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 'not-allowed' : 'pointer',
+                            opacity: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 0.5 : 1
+                          }}
+                        >자동 배치</button>
+                      </div>
+                    )}
+
+                    {/* 테이블 카드 — 데스크톱에서 여러 개 나란히, 모바일에서 자동으로 1~2열 */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                      {seatingOverview.tables.map((t) => {
+                        const over = t.count > t.table.capacity;
+                        return (
+                          <div key={t.table.id} style={{ borderRadius: 14, border: `1.5px solid ${over ? '#fca5a5' : '#e2e8f0'}`, padding: 14, background: over ? '#fef2f2' : '#fff', display: 'grid', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              {isAdmin ? (
+                                <input
+                                  type="text" defaultValue={t.table.name}
+                                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.table.name) renameTable(t.table.id, v); }}
+                                  style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', border: 'none', borderBottom: '1px dashed #cbd5e1', background: 'transparent', padding: '2px 0', minWidth: 0, flex: 1 }}
+                                />
+                              ) : (
+                                <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{t.table.name}</span>
+                              )}
+                              {isAdmin && (
+                                <button type="button" onClick={() => removeTable(t.table.id)} title="테이블 삭제"
+                                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 14, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}
+                                >✕</button>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 12, color: '#64748b' }}>정원</span>
+                              {isAdmin ? (
+                                <input
+                                  type="number" min={0} defaultValue={t.table.capacity}
+                                  onBlur={(e) => setTableCapacity(t.table.id, e.target.value)}
+                                  style={{ width: 60, padding: '4px 6px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 700 }}
+                                />
+                              ) : (
+                                <span style={{ fontSize: 13, fontWeight: 700 }}>{t.table.capacity}</span>
+                              )}
+                              <span style={{
+                                marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+                                background: over ? '#fecaca' : '#ecfdf5', color: over ? '#991b1b' : '#059669'
+                              }}>
+                                {t.count}/{t.table.capacity}{over ? ' 초과' : ` · 잔여 ${t.table.capacity - t.count}`}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {t.participants.length === 0 && (
+                                <span style={{ fontSize: 12, color: '#94a3b8' }}>배치된 참여자가 없습니다.</span>
+                              )}
+                              {t.participants.map(p => (
+                                <span key={p.orderId} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 14, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, fontWeight: 700 }}>
+                                  <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 110 }}>{p.name} ({p.count}명)</span>
+                                  {isAdmin && (
+                                    <TableAssignPicker
+                                      tables={seatingOverview.tables}
+                                      currentTableId={t.table.id}
+                                      pendingCount={p.count}
+                                      triggerText="이동"
+                                      onAssign={(tableId) => assignToTable([p.orderId], tableId)}
+                                      onUnassign={() => assignToTable([p.orderId], null)}
                                     />
                                   )}
-                                </div>
-                              </div>
-                            ))}
+                                </span>
+                              ))}
+                            </div>
                           </div>
+                        );
+                      })}
+                      {afterPartyTables.length === 0 && (
+                        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0', gridColumn: '1 / -1' }}>
+                          아직 생성된 테이블이 없습니다. "테이블 추가"로 시작하세요.
                         </div>
                       )}
                     </div>
-                  );
-                })}
+
+                    {/* 다중 선택 일괄 배치 툴바 (미배치 참여자를 체크하면 노출) */}
+                    {isAdmin && selectedSeatingIds.length > 0 && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                        padding: '10px 14px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe'
+                      }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedSeatingIds.length}건 선택됨</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <TableAssignPicker
+                            tables={seatingOverview.tables}
+                            currentTableId={null}
+                            pendingCount={seatingOverview.unassigned.filter(p => selectedSeatingIds.includes(p.orderId)).reduce((s, p) => s + p.count, 0)}
+                            triggerText="선택 인원 일괄 배치"
+                            onAssign={(tableId) => { assignToTable(selectedSeatingIds, tableId); setSelectedSeatingIds([]); }}
+                            onUnassign={() => setSelectedSeatingIds([])}
+                          />
+                          <button type="button" onClick={() => setSelectedSeatingIds([])}
+                            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                          >선택 해제</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 미배치 참여자 — 컴팩트 이름표, 체크박스로 다중 선택 + 개별 "배치" 버튼 */}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 8 }}>
+                        미배치 참여자 ({seatingOverview.unassigned.length}건 · {seatingOverview.totalUnassigned}명)
+                      </div>
+                      {seatingOverview.unassigned.length === 0 ? (
+                        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '12px 0' }}>모든 참여자가 배치되었습니다.</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {seatingOverview.unassigned.map(p => (
+                            <div key={p.orderId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                              {isAdmin && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSeatingIds.includes(p.orderId)}
+                                  onChange={() => toggleSeatingSelection(p.orderId)}
+                                  style={{ width: 15, height: 15, cursor: 'pointer' }}
+                                />
+                              )}
+                              <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 120 }}>{p.name}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>{p.count}명</span>
+                              {isAdmin && (
+                                <TableAssignPicker
+                                  tables={seatingOverview.tables}
+                                  currentTableId={null}
+                                  pendingCount={p.count}
+                                  triggerText="배치"
+                                  onAssign={(tableId) => assignToTable([p.orderId], tableId)}
+                                  onUnassign={() => {}}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
