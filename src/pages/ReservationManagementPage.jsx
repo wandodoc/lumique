@@ -589,6 +589,24 @@ export default function ReservationManagementPage() {
     };
   }, [visibleOrders, orders, concertId, currentShow, extraDonationSum, totalPriceFor]);
 
+  // 뒤풀이 참여자 전체 명단 (초대자 기재 여부와 무관하게 참여 체크한 모든 신청자를 집계)
+  const afterPartyRoster = useMemo(() => {
+    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    const list = src
+      .filter(o => o.isAfterParty)
+      .map(o => ({
+        name: o.audienceName || '(이름없음)',
+        phone: o.phone || '',
+        count: Number(o.afterPartyCount) || 1,
+        inviterName: (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '',
+        depositStatus: o.depositStatus,
+        attendanceStatus: o.attendanceStatus,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const total = list.reduce((sum, item) => sum + item.count, 0);
+    return { list, total };
+  }, [orders, concertId]);
+
   // 초대자별 뒤풀이 집계
   const inviterStats = useMemo(() => {
     const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
@@ -1259,6 +1277,40 @@ export default function ReservationManagementPage() {
             </div>
           )}
         </div>
+
+        {/* ── [섹션 2-1] 뒤풀이 참여자 전체 명단 (초대자 기재 여부와 무관하게 전원 표시) ── */}
+        {afterPartyRoster.list.length > 0 && (
+          <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>뒤풀이 참여자 전체 명단</div>
+              <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                총 {afterPartyRoster.total}명
+              </span>
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {afterPartyRoster.list.map((a, idx) => (
+                <div key={idx} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9', gap: 10
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                    {a.phone && <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>({a.phone})</span>}
+                    {a.inviterName && (
+                      <span style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>초대자: {a.inviterName}</span>
+                    )}
+                  </div>
+                  <span style={{
+                    padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', border: '1px solid #e2e8f0',
+                    color: '#0f172a', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0
+                  }}>
+                    {a.count}명
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── [섹션 3] 초대자별 뒤풀이 현황 섹션 ── */}
         {inviterStats.length > 0 && (
