@@ -243,8 +243,7 @@ function PerfView({ performances, members, performanceParticipants }) {
    ========================================================= */
 export default function MembersPage({ initialView = '회원 목록' }) {
   const { state, dispatch } = useApp();
-  const { isAdmin: rawIsAdmin, requestLogin } = useAuth();
-  const isAdmin = rawIsAdmin && window.innerWidth >= 768;
+  const { isAdmin, runWithAdmin } = useAuth();
   const {
     members,
     performances,
@@ -265,16 +264,16 @@ export default function MembersPage({ initialView = '회원 목록' }) {
 
   const togglePerformance = (e, member, perf) => {
     e.stopPropagation();
-    if (window.innerWidth < 768) return; // no edit/login on mobile
-    if (!rawIsAdmin) { requestLogin(); return; }
-    if (!perf?.showId) return;
-    const current = getPerformanceParticipantIds(perf, members, performanceParticipants);
-    const next = current.includes(member.id)
-      ? current.filter(id => id !== member.id)
-      : [...current, member.id];
-    dispatch({
-      type: 'SET_PERFORMANCE_PARTICIPANTS',
-      performanceParticipants: { ...performanceParticipants, [perf.showId]: next },
+    runWithAdmin(() => {
+      if (!perf?.showId) return;
+      const current = getPerformanceParticipantIds(perf, members, performanceParticipants);
+      const next = current.includes(member.id)
+        ? current.filter(id => id !== member.id)
+        : [...current, member.id];
+      dispatch({
+        type: 'SET_PERFORMANCE_PARTICIPANTS',
+        performanceParticipants: { ...performanceParticipants, [perf.showId]: next },
+      });
     });
   };
 
@@ -495,7 +494,7 @@ export default function MembersPage({ initialView = '회원 목록' }) {
                                       className="perf-grid-item"
                                       onClick={(e) => togglePerformance(e, m, p)}
                                       style={{ cursor: 'pointer' }}
-                                      title={rawIsAdmin ? "클릭하여 참여 상태 토글" : ""}
+                                      title={isAdmin ? "클릭하여 참여 상태 토글" : ""}
                                     >
                                       <span className="perf-label">{p.label}</span>
                                       <span className={`badge ${badgeClass}`}>

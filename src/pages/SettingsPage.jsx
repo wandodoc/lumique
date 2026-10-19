@@ -26,7 +26,7 @@ const EXPENSE_CATS = [
 export default function SettingsPage() {
   const { state } = useApp();
   const { transactions } = state;
-  const { changePassword } = useAuth();
+  const { isAdmin, runWithAdmin, logout, changePassword } = useAuth();
 
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -183,6 +183,31 @@ export default function SettingsPage() {
 
   return (
     <div className="page fade-in">
+      {/* 관리자 로그인 (모바일에서는 사이드바가 없어 여기가 유일한 로그인 진입점) */}
+      <div className="card card-pad">
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>👤 관리자 계정</span>
+        {isAdmin ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--emerald-500)' }} />
+              <span style={{ fontSize: 15, fontWeight: 700 }}>관리자로 접속 중</span>
+            </div>
+            <button type="button" className="btn-secondary" style={{ padding: '8px 14px', borderRadius: 8, fontSize: 14 }} onClick={logout}>
+              로그아웃
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ width: '100%', height: 48, borderRadius: 8, fontWeight: 700, fontSize: 15 }}
+            onClick={() => runWithAdmin(() => {})}
+          >
+            관리자 로그인
+          </button>
+        )}
+      </div>
+
       {/* 회비 운영 세칙 */}
       <div className="card card-pad">
         <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>📋 회비 운영 세칙</span>
