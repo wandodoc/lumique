@@ -653,6 +653,22 @@ export default function ReservationManagementPage() {
     await firebaseStorage.saveOrders(nextOrders);
   };
 
+  // 초대자를 아예 적지 않은 뒤풀이 참여자 (그룹화할 텍스트가 없어 위 집계에서 누락되는 건들)
+  // — 한 명씩 서로 다른 공연자일 수 있으므로 건별로 개별 매핑한다.
+  const unassignedAfterParty = useMemo(() => {
+    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    return src
+      .filter(o => o.isAfterParty && !resolveInviterMember(o) && !o.inviterName)
+      .map(o => ({
+        orderId: o.id,
+        name: o.audienceName || '(이름없음)',
+        phone: o.phone || '',
+        count: Number(o.afterPartyCount) || 1,
+        inviterMemberId: o.inviterMemberId || '',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [orders, concertId, members]);
+
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
@@ -1388,6 +1404,67 @@ export default function ReservationManagementPage() {
                         </div>
                       </div>
                     )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── [섹션 3-1] 초대자를 적지 않은 뒤풀이 참여자 — 건별로 개별 매핑 ── */}
+        {unassignedAfterParty.length > 0 && (
+          <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>초대자 미기재 참여자</div>
+              <span style={{ padding: '5px 14px', borderRadius: 20, background: '#64748b', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {unassignedAfterParty.length}건
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
+              초대자 란을 비워둔 채 신청한 참여자입니다. 서로 다른 공연자일 수 있어 한 명씩 매핑해 주세요.
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {unassignedAfterParty.map((a) => {
+                const mappedMember = a.inviterMemberId ? members.find(m => m.id === a.inviterMemberId) : null;
+                return (
+                  <div key={a.orderId} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9', gap: 10, flexWrap: 'wrap'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                      {a.phone && <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>({a.phone})</span>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      {isAdmin ? (
+                        <select
+                          value={a.inviterMemberId || ''}
+                          onChange={(e) => bulkSetInviterMapping([a.orderId], e.target.value)}
+                          style={{
+                            padding: '5px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            border: `1.5px solid ${mappedMember ? '#10b981' : '#e2e8f0'}`,
+                            background: mappedMember ? '#ecfdf5' : '#fff',
+                            color: mappedMember ? '#059669' : '#475569',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="">공연자 매핑 안 됨</option>
+                          {activeMembersSorted.map(m => (
+                            <option key={m.id} value={m.id}>{m.name} ({m.part})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        mappedMember && (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>{mappedMember.name}</span>
+                        )
+                      )}
+                      <span style={{
+                        padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', border: '1px solid #e2e8f0',
+                        color: '#0f172a', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap'
+                      }}>
+                        {a.count}명
+                      </span>
+                    </div>
                   </div>
                 );
               })}
