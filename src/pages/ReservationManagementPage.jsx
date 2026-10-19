@@ -1316,8 +1316,14 @@ export default function ReservationManagementPage() {
     saveSeatingPatch({ seatAssignments: nextAssignments });
   };
 
-  // 미배치 참여자를 이름순 그대로, 테이블 정원 내에서 앞 테이블부터 순차 배치한다.
-  // 일행 관계를 추론하지 않고(이미 한 예매 건 = 한 배치 단위), 기존 수동 배치는 건드리지 않는다.
+  // 미배치 참여자를 자동으로 테이블에 채운다. 두 단계로 동작한다.
+  // 1단계 — 테이블 이름이 어떤 공연자(활동 회원)의 이름과 정확히 일치하면, 공연자별 뒤풀이
+  //         매핑(1순위 기준, afterPartyRowsByKey의 'member:<id>' 그룹)에 연결된 예매자를
+  //         실제 orderId 기준으로 그 테이블에 우선 배치한다(테이블 이름 문자열만으로 임의
+  //         배치하지 않음). 한 예매자는 1순위 공연자 그룹에만 속하므로 중복 배치되지 않는다.
+  // 2단계 — 그 외 남은 미배치 참여자를 테이블 정원 내에서 앞 테이블부터 순차 배치한다(기존 방식).
+  // 어느 단계에서도 이미 배치된(관리자가 수동으로 옮긴 것 포함) 참여자는 건드리지 않고,
+  // 정원이 부족하면 강제로 채우지 않고 미배치 상태로 남긴다.
   const autoAssignTables = () => {
     const nextAssignments = { ...seatAssignments };
     const load = {};
@@ -1326,7 +1332,28 @@ export default function ReservationManagementPage() {
       const p = afterPartyParticipants.find(x => x.orderId === orderId);
       if (p && load[tableId] !== undefined) load[tableId] += p.count;
     });
-    for (const p of seatingOverview.unassigned) {
+
+    // 1단계: 공연자 이름 = 테이블 이름 매칭
+    for (const table of afterPartyTables) {
+      const matchedMember = activeMembersSorted.find(m => m.name === table.name);
+      if (!matchedMember) continue;
+      const performerGroup = afterPartyRowsByKey[`member:${matchedMember.id}`];
+      if (!performerGroup) continue;
+      for (const orderId of performerGroup.orderIds) {
+        if (nextAssignments[orderId]) continue; // 이미 배치됨(수동 배치 포함) — 그대로 둔다
+        const p = afterPartyParticipants.find(x => x.orderId === orderId);
+        if (!p) continue;
+        if (load[table.id] + p.count <= table.capacity) {
+          nextAssignments[orderId] = table.id;
+          load[table.id] += p.count;
+        }
+        // 정원이 부족하면 여기서는 배치하지 않고 2단계/미배치로 넘어간다(초과 강제 배치 없음).
+      }
+    }
+
+    // 2단계: 그 외 미배치 참여자를 순서대로 정원 내 첫 테이블에 채운다.
+    const stillUnassigned = afterPartyParticipants.filter(p => !nextAssignments[p.orderId]);
+    for (const p of stillUnassigned) {
       for (const t of afterPartyTables) {
         if (load[t.id] + p.count <= t.capacity) {
           nextAssignments[p.orderId] = t.id;
@@ -2192,7 +2219,7 @@ export default function ReservationManagementPage() {
                         >+ 테이블 추가</button>
                         <button type="button" onClick={autoAssignTables}
                           disabled={afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0}
-                          title="미배치 참여자를 테이블 정원 내에서 순서대로 채워 넣습니다. 이미 배치된 참여자는 바꾸지 않습니다."
+                          title="① 테이블 이름과 같은 이름의 공연자에게 매핑된 참여자를 그 테이블에 먼저 배치 ② 남은 미배치 참여자는 정원 내 순서대로 채움. 이미 배치된 참여자(수동 배치 포함)는 옮기지 않습니다."
                           style={{
                             padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700,
                             cursor: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 'not-allowed' : 'pointer',
