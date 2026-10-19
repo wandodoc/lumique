@@ -76,6 +76,53 @@ const AFTER_PARTY_TYPE_BADGE = {
   group: { text: '텍스트 그룹', color: '#7c3aed' },
 };
 const AFTER_PARTY_TYPE_SORT_PRIORITY = { unmapped: 0, unassigned: 0, performer: 1, group: 1 };
+
+// ── 뒤풀이 테이블 배치도: 고정 가상 좌표계(px 단위) — 화면 크기가 달라져도 테이블의
+// 상대 위치가 항상 동일하게 유지된다. 모바일에서는 이 캔버스만 가로 스크롤을 허용한다. ──
+const TABLE_CANVAS_WIDTH = 760;
+const TABLE_CANVAS_HEIGHT = 460;
+const TABLE_GRID_COLS = 4;
+const TABLE_DEFAULT_SIZE = { rect: { width: 130, height: 80 }, circle: { width: 100, height: 100 } };
+const TABLE_MIN_SIZE = { width: 60, height: 50 };
+const TABLE_NUDGE_STEP = 20;
+
+// 저장된 테이블에 좌표/크기/모양 정보가 없으면(과거 데이터 또는 새로 추가된 테이블) 그리드 기준
+// 기본값을 "계산"해서 보여준다 — 실제 저장은 사용자가 처음 옮기거나 편집할 때 비로소 일어난다.
+const withTableGeometry = (table, index) => {
+  const shape = table.shape === 'circle' ? 'circle' : 'rect';
+  const size = TABLE_DEFAULT_SIZE[shape];
+  const col = index % TABLE_GRID_COLS;
+  const row = Math.floor(index / TABLE_GRID_COLS);
+  return {
+    ...table,
+    shape,
+    width: Number(table.width) > 0 ? Number(table.width) : size.width,
+    height: Number(table.height) > 0 ? Number(table.height) : size.height,
+    x: Number.isFinite(table.x) ? table.x : 30 + col * 180,
+    y: Number.isFinite(table.y) ? table.y : 30 + row * 130,
+    rotation: Number.isFinite(table.rotation) ? table.rotation : 0,
+  };
+};
+
+// 두 테이블(사각 바운딩 박스 기준)이 겹치는지 — 회전은 단순화를 위해 반영하지 않는다.
+const tablesOverlap = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+
+// 테이블 둘레에 좌석 자리를 고르게 배치한다(원형/사각형 모두 타원 둘레 근사).
+// seatCount가 정원보다 많으면(정원 초과) 둘레를 그만큼 더 나눠 자리를 전부 그려준다.
+const computeSeatSlots = (table, seatCount) => {
+  if (seatCount <= 0) return [];
+  const cx = table.x + table.width / 2;
+  const cy = table.y + table.height / 2;
+  const rx = table.width / 2 + 26;
+  const ry = table.height / 2 + 26;
+  const slots = [];
+  for (let i = 0; i < seatCount; i++) {
+    const angle = (i / seatCount) * Math.PI * 2 - Math.PI / 2;
+    slots.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) });
+  }
+  return slots;
+};
+
 const LS_COL_CONFIG = 'lumique_col_config';
 
 function loadColConfig() {
@@ -682,6 +729,9 @@ export default function ReservationManagementPage() {
   // 참여자 관리: 한 번에 하나의 편집 대상만 연다(아코디언). 그룹 key, 또는 개별 신청 "order:<id>".
   const [activeEditKey, setActiveEditKey] = useState(null);
   const [selectedSeatingIds, setSelectedSeatingIds] = useState([]); // 테이블 배치: 미배치 참여자 다중 선택
+  const [selectedTableId, setSelectedTableId] = useState(null); // 배치도: 편집 중인 테이블(위치/정원/모양 등)
+  // 배치도: 드래그 중인 테이블의 "확정 전" 임시 위치(포인터를 떼는 순간에만 실제로 저장한다).
+  const [dragInfo, setDragInfo] = useState(null); // { tableId, startClientX, startClientY, startX, startY, x, y }
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
@@ -1173,8 +1223,11 @@ export default function ReservationManagementPage() {
   };
 
   // ── 뒤풀이 테이블 배치 — 공연자 매핑과는 완전히 독립된 데이터(콘서트 레코드에 저장) ──
-  // tables: [{ id, name, capacity }], seatAssignments: { [orderId]: tableId }
-  const afterPartyTables = useMemo(() => (Array.isArray(currentShow?.tables) ? currentShow.tables : []), [currentShow]);
+  // tables: [{ id, name, capacity, shape, x, y, width, height, rotation }], seatAssignments: { [orderId]: tableId }
+  const afterPartyTables = useMemo(
+    () => (Array.isArray(currentShow?.tables) ? currentShow.tables : []).map((t, i) => withTableGeometry(t, i)),
+    [currentShow]
+  );
   const seatAssignments = useMemo(() => (currentShow?.seatAssignments && typeof currentShow.seatAssignments === 'object' ? currentShow.seatAssignments : {}), [currentShow]);
 
   // 공연자 매핑 상태와 무관하게, 뒤풀이 참여 체크한 모든 신청을 평평한 목록으로 — 테이블 배치는 이 목록만 본다.
@@ -1208,7 +1261,11 @@ export default function ReservationManagementPage() {
     }
     const totalAll = afterPartyParticipants.reduce((s, p) => s + p.count, 0);
     const totalPlaced = Object.values(byTable).reduce((s, t) => s + t.count, 0);
-    return { tables: afterPartyTables.map(t => byTable[t.id]), unassigned, totalAll, totalPlaced, totalUnassigned: totalAll - totalPlaced };
+    const overCapacityCount = afterPartyTables.filter(t => byTable[t.id].count > t.capacity).length;
+    return {
+      tables: afterPartyTables.map(t => byTable[t.id]), unassigned, totalAll, totalPlaced,
+      totalUnassigned: totalAll - totalPlaced, tableCount: afterPartyTables.length, overCapacityCount,
+    };
   }, [afterPartyTables, seatAssignments, afterPartyParticipants]);
 
   // 콘서트 레코드에 테이블/배치 패치를 저장한다(최신본을 다시 불러와 병합 — savePriceTiers와 동일한 방식).
@@ -1279,6 +1336,54 @@ export default function ReservationManagementPage() {
       }
     }
     saveSeatingPatch({ seatAssignments: nextAssignments });
+  };
+
+  // 모든 테이블의 참여자 배치만 해제한다(테이블 자체·이름·위치·정원은 유지). 확인 절차 포함.
+  const resetAllSeating = () => {
+    if (!window.confirm('모든 테이블의 참여자 배치를 해제합니다. 테이블 이름·위치·정원은 그대로 유지됩니다. 계속하시겠습니까?')) return;
+    saveSeatingPatch({ seatAssignments: {} });
+  };
+
+  // ── 테이블 배치도: 위치/크기/모양/방향 편집 — afterPartyTables는 이미 기본값이 채워져 있으므로
+  // 그 상태 그대로 patch만 덮어써서 저장한다(처음 조작하는 순간 계산된 기본값이 그대로 확정된다). ──
+  const updateTableGeometry = (tableId, patch) => {
+    saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, ...patch } : t)) });
+  };
+
+  const clampTablePosition = (x, y, width, height) => ({
+    x: Math.max(0, Math.min(x, TABLE_CANVAS_WIDTH - width)),
+    y: Math.max(0, Math.min(y, TABLE_CANVAS_HEIGHT - height)),
+  });
+
+  const moveTableTo = (tableId, x, y) => {
+    const t = afterPartyTables.find(tb => tb.id === tableId);
+    if (!t) return;
+    updateTableGeometry(tableId, clampTablePosition(x, y, t.width, t.height));
+  };
+
+  // 모바일 등 드래그가 불편한 환경을 위한 대체 조작 — 버튼으로 한 칸씩 이동.
+  const nudgeTable = (tableId, dx, dy) => {
+    const t = afterPartyTables.find(tb => tb.id === tableId);
+    if (!t) return;
+    moveTableTo(tableId, t.x + dx, t.y + dy);
+  };
+
+  const resizeTable = (tableId, width, height) => {
+    const t = afterPartyTables.find(tb => tb.id === tableId);
+    if (!t) return;
+    const w = Math.max(TABLE_MIN_SIZE.width, Math.min(width, TABLE_CANVAS_WIDTH));
+    const h = Math.max(TABLE_MIN_SIZE.height, Math.min(height, TABLE_CANVAS_HEIGHT));
+    updateTableGeometry(tableId, { width: w, height: h, ...clampTablePosition(t.x, t.y, w, h) });
+  };
+
+  const rotateTable = (tableId, deltaDeg) => {
+    const t = afterPartyTables.find(tb => tb.id === tableId);
+    if (!t) return;
+    updateTableGeometry(tableId, { rotation: ((t.rotation + deltaDeg) % 360 + 360) % 360 });
+  };
+
+  const setTableShape = (tableId, shape) => {
+    updateTableGeometry(tableId, { shape });
   };
 
   // 뒤풀이 관리에 표시할 통합 행(그룹 + 초대자 미기재 개별 항목)을 key로 조회할 수 있게 모아둔다.
@@ -2076,6 +2181,8 @@ export default function ReservationManagementPage() {
                       <StatCard label="전체 뒤풀이 인원" value={`${seatingOverview.totalAll}명`} color="#111827" />
                       <StatCard label="배치 완료" value={`${seatingOverview.totalPlaced}명`} color="#059669" />
                       <StatCard label="미배치" value={`${seatingOverview.totalUnassigned}명`} color="#b45309" />
+                      <StatCard label="전체 테이블 수" value={`${seatingOverview.tableCount}개`} color="#2563eb" />
+                      <StatCard label="정원 초과 테이블" value={`${seatingOverview.overCapacityCount}개`} color="#dc2626" />
                     </div>
 
                     {isAdmin && (
@@ -2085,84 +2192,230 @@ export default function ReservationManagementPage() {
                         >+ 테이블 추가</button>
                         <button type="button" onClick={autoAssignTables}
                           disabled={afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0}
+                          title="미배치 참여자를 테이블 정원 내에서 순서대로 채워 넣습니다. 이미 배치된 참여자는 바꾸지 않습니다."
                           style={{
                             padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700,
                             cursor: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 'not-allowed' : 'pointer',
                             opacity: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 0.5 : 1
                           }}
                         >자동 배치</button>
+                        <button type="button" onClick={resetAllSeating}
+                          disabled={Object.keys(seatAssignments).length === 0}
+                          style={{
+                            padding: '8px 14px', borderRadius: 10, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 700,
+                            cursor: Object.keys(seatAssignments).length === 0 ? 'not-allowed' : 'pointer',
+                            opacity: Object.keys(seatAssignments).length === 0 ? 0.5 : 1
+                          }}
+                        >배치 초기화</button>
                       </div>
                     )}
 
-                    {/* 테이블 카드 — 데스크톱에서 여러 개 나란히, 모바일에서 자동으로 1~2열 */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-                      {seatingOverview.tables.map((t) => {
-                        const over = t.count > t.table.capacity;
-                        return (
-                          <div key={t.table.id} style={{ borderRadius: 14, border: `1.5px solid ${over ? '#fca5a5' : '#e2e8f0'}`, padding: 14, background: over ? '#fef2f2' : '#fff', display: 'grid', gap: 10 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                              {isAdmin ? (
-                                <input
-                                  type="text" defaultValue={t.table.name}
-                                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.table.name) renameTable(t.table.id, v); }}
-                                  style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', border: 'none', borderBottom: '1px dashed #cbd5e1', background: 'transparent', padding: '2px 0', minWidth: 0, flex: 1 }}
-                                />
-                              ) : (
-                                <span style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{t.table.name}</span>
-                              )}
-                              {isAdmin && (
-                                <button type="button" onClick={() => removeTable(t.table.id)} title="테이블 삭제"
-                                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 14, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}
-                                >✕</button>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 12, color: '#64748b' }}>정원</span>
-                              {isAdmin ? (
-                                <input
-                                  type="number" min={0} defaultValue={t.table.capacity}
-                                  onBlur={(e) => setTableCapacity(t.table.id, e.target.value)}
-                                  style={{ width: 60, padding: '4px 6px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 700 }}
-                                />
-                              ) : (
-                                <span style={{ fontSize: 13, fontWeight: 700 }}>{t.table.capacity}</span>
-                              )}
-                              <span style={{
-                                marginLeft: 'auto', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
-                                background: over ? '#fecaca' : '#ecfdf5', color: over ? '#991b1b' : '#059669'
-                              }}>
-                                {t.count}/{t.table.capacity}{over ? ' 초과' : ` · 잔여 ${t.table.capacity - t.count}`}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {t.participants.length === 0 && (
-                                <span style={{ fontSize: 12, color: '#94a3b8' }}>배치된 참여자가 없습니다.</span>
-                              )}
-                              {t.participants.map(p => (
-                                <span key={p.orderId} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 14, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 12, fontWeight: 700 }}>
-                                  <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 110 }}>{p.name} ({p.count}명)</span>
-                                  {isAdmin && (
-                                    <TableAssignPicker
-                                      tables={seatingOverview.tables}
-                                      currentTableId={t.table.id}
-                                      pendingCount={p.count}
-                                      triggerText="이동"
-                                      onAssign={(tableId) => assignToTable([p.orderId], tableId)}
-                                      onUnassign={() => assignToTable([p.orderId], null)}
-                                    />
-                                  )}
-                                </span>
-                              ))}
-                            </div>
+                    {/* 공간 배치도 — 테이블을 위에서 내려다본 평면도. 고정 가상 좌표계라 화면 크기가
+                         달라져도 테이블 간 상대 위치는 항상 같다. 모바일에서는 이 캔버스 영역만
+                         가로로 스크롤되며, 페이지 전체에는 가로 스크롤이 생기지 않는다. */}
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #e2e8f0', borderRadius: 14 }}>
+                      <div
+                        onClick={(e) => { if (e.target === e.currentTarget) setSelectedTableId(null); }}
+                        style={{
+                          position: 'relative', width: TABLE_CANVAS_WIDTH, height: TABLE_CANVAS_HEIGHT, minWidth: TABLE_CANVAS_WIDTH,
+                          background: '#fbfbfe',
+                          backgroundImage: 'linear-gradient(#eef0f5 1px, transparent 1px), linear-gradient(90deg, #eef0f5 1px, transparent 1px)',
+                          backgroundSize: '20px 20px'
+                        }}
+                      >
+                        {afterPartyTables.length === 0 && (
+                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                            아직 생성된 테이블이 없습니다. "테이블 추가"로 시작하세요.
                           </div>
-                        );
-                      })}
-                      {afterPartyTables.length === 0 && (
-                        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0', gridColumn: '1 / -1' }}>
-                          아직 생성된 테이블이 없습니다. "테이블 추가"로 시작하세요.
-                        </div>
-                      )}
+                        )}
+                        {afterPartyTables.map((table) => {
+                          const isDraggingThis = !!(dragInfo && dragInfo.tableId === table.id);
+                          const geom = isDraggingThis ? { ...table, x: dragInfo.x, y: dragInfo.y } : table;
+                          const isOverlapping = isDraggingThis && afterPartyTables.some(o => o.id !== table.id && tablesOverlap(geom, o));
+                          const entry = seatingOverview.tables.find(t => t.table.id === table.id);
+                          const placedCount = entry ? entry.count : 0;
+                          const over = placedCount > table.capacity;
+                          const participants = entry ? entry.participants : [];
+                          const totalNeeded = participants.reduce((s, p) => s + p.count, 0);
+                          const seatCount = Math.max(table.capacity, totalNeeded);
+                          const slots = computeSeatSlots(geom, seatCount);
+
+                          const seatNodes = [];
+                          let slotIdx = 0;
+                          participants.forEach(p => {
+                            for (let i = 0; i < p.count; i++) {
+                              const slot = slots[slotIdx];
+                              const overflow = slotIdx >= table.capacity;
+                              seatNodes.push(
+                                <div key={`${p.orderId}-dot-${i}`} title={`${p.name} (${p.count}명)`} style={{
+                                  position: 'absolute', left: slot.x - 9, top: slot.y - 9, width: 18, height: 18, borderRadius: '50%',
+                                  background: overflow ? '#ef4444' : '#111827', border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)', zIndex: 2
+                                }} />
+                              );
+                              if (i === 0) {
+                                seatNodes.push(
+                                  <div key={`${p.orderId}-label`} style={{
+                                    position: 'absolute', left: slot.x, top: slot.y + 12, transform: 'translateX(-50%)',
+                                    fontSize: 10, fontWeight: 700, color: '#1e293b', background: '#fff', padding: '1px 6px',
+                                    borderRadius: 6, border: '1px solid #e2e8f0', whiteSpace: 'nowrap', zIndex: 2,
+                                    maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis'
+                                  }}>{p.name}{p.count > 1 ? ` (${p.count})` : ''}</div>
+                                );
+                              }
+                              slotIdx++;
+                            }
+                          });
+                          for (; slotIdx < table.capacity; slotIdx++) {
+                            const slot = slots[slotIdx];
+                            seatNodes.push(
+                              <div key={`empty-${slotIdx}`} style={{
+                                position: 'absolute', left: slot.x - 9, top: slot.y - 9, width: 18, height: 18, borderRadius: '50%',
+                                border: '2px dashed #cbd5e1', background: '#fff', zIndex: 2
+                              }} />
+                            );
+                          }
+
+                          return (
+                            <div key={table.id}>
+                              {seatNodes}
+                              <div
+                                onPointerDown={(e) => {
+                                  if (!isAdmin) return;
+                                  e.currentTarget.setPointerCapture(e.pointerId);
+                                  setSelectedTableId(table.id);
+                                  setDragInfo({ tableId: table.id, startClientX: e.clientX, startClientY: e.clientY, startX: table.x, startY: table.y, x: table.x, y: table.y });
+                                }}
+                                onPointerMove={(e) => {
+                                  setDragInfo(prev => {
+                                    if (!prev || prev.tableId !== table.id) return prev;
+                                    const dx = e.clientX - prev.startClientX;
+                                    const dy = e.clientY - prev.startClientY;
+                                    const clamped = clampTablePosition(prev.startX + dx, prev.startY + dy, table.width, table.height);
+                                    return { ...prev, x: clamped.x, y: clamped.y };
+                                  });
+                                }}
+                                onPointerUp={() => {
+                                  setDragInfo(prev => {
+                                    if (prev && prev.tableId === table.id) moveTableTo(table.id, prev.x, prev.y);
+                                    return null;
+                                  });
+                                }}
+                                style={{
+                                  position: 'absolute', left: geom.x, top: geom.y, width: table.width, height: table.height,
+                                  borderRadius: table.shape === 'circle' ? '50%' : 12,
+                                  transform: `rotate(${table.rotation}deg)`,
+                                  background: isOverlapping ? '#fee2e2' : (over ? '#fef3c7' : (selectedTableId === table.id ? '#e0e7ff' : '#ffffff')),
+                                  border: `2px solid ${isOverlapping ? '#ef4444' : (selectedTableId === table.id ? '#4338ca' : '#94a3b8')}`,
+                                  boxShadow: selectedTableId === table.id ? '0 0 0 3px rgba(67,56,202,0.22)' : '0 1px 3px rgba(0,0,0,0.08)',
+                                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                  cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', zIndex: 1, boxSizing: 'border-box'
+                                }}
+                              >
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', padding: '0 6px', textAlign: 'center', wordBreak: 'break-word' }}>{table.name}</div>
+                                <div style={{ fontSize: 11, color: over ? '#92400e' : '#475569', fontWeight: 700 }}>{placedCount}/{table.capacity}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
+
+                    {/* 선택한 테이블 편집 — 이름/정원/모양/크기/위치(버튼 이동, 모바일 대체 조작)/방향/삭제 +
+                         그 테이블에 배치된 참여자 이동/제거. 캔버스와 별개의 고정폭 영역이라 화면을 가리지 않는다. */}
+                    {selectedTableId && (() => {
+                      const table = afterPartyTables.find(t => t.id === selectedTableId);
+                      if (!table) return null;
+                      const entry = seatingOverview.tables.find(t => t.table.id === selectedTableId);
+                      const placed = entry ? entry.participants : [];
+                      const smallBtnStyle = { padding: '5px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
+                      return (
+                        <div style={{ width: '100%', maxWidth: 420, boxSizing: 'border-box', borderRadius: 14, border: '1.5px solid #c7d2fe', background: '#f5f6ff', padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>테이블 편집</span>
+                            <button type="button" onClick={() => setSelectedTableId(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontWeight: 800, cursor: 'pointer' }}>✕</button>
+                          </div>
+                          {isAdmin ? (
+                            <div style={{ display: 'grid', gap: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>이름</span>
+                                <input type="text" defaultValue={table.name}
+                                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== table.name) renameTable(table.id, v); }}
+                                  style={{ flex: 1, padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 700, minWidth: 0, boxSizing: 'border-box' }}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>정원</span>
+                                <input type="number" min={0} defaultValue={table.capacity}
+                                  onBlur={(e) => setTableCapacity(table.id, e.target.value)}
+                                  style={{ width: 70, padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 700 }}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>모양</span>
+                                {['rect', 'circle'].map(s => (
+                                  <button key={s} type="button" onClick={() => setTableShape(table.id, s)}
+                                    style={{
+                                      padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                      border: `1.5px solid ${table.shape === s ? '#111827' : '#e2e8f0'}`,
+                                      background: table.shape === s ? '#111827' : '#fff', color: table.shape === s ? '#fff' : '#64748b'
+                                    }}
+                                  >{s === 'rect' ? '사각형' : '원형'}</button>
+                                ))}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>크기</span>
+                                <button type="button" onClick={() => resizeTable(table.id, table.width - 20, table.height)} style={smallBtnStyle}>폭 -</button>
+                                <button type="button" onClick={() => resizeTable(table.id, table.width + 20, table.height)} style={smallBtnStyle}>폭 +</button>
+                                <button type="button" onClick={() => resizeTable(table.id, table.width, table.height - 20)} style={smallBtnStyle}>높이 -</button>
+                                <button type="button" onClick={() => resizeTable(table.id, table.width, table.height + 20)} style={smallBtnStyle}>높이 +</button>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>위치</span>
+                                <button type="button" onClick={() => nudgeTable(table.id, 0, -TABLE_NUDGE_STEP)} style={smallBtnStyle}>↑</button>
+                                <button type="button" onClick={() => nudgeTable(table.id, 0, TABLE_NUDGE_STEP)} style={smallBtnStyle}>↓</button>
+                                <button type="button" onClick={() => nudgeTable(table.id, -TABLE_NUDGE_STEP, 0)} style={smallBtnStyle}>←</button>
+                                <button type="button" onClick={() => nudgeTable(table.id, TABLE_NUDGE_STEP, 0)} style={smallBtnStyle}>→</button>
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>드래그 대신 쓸 수 있는 버튼 이동</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>방향</span>
+                                <button type="button" onClick={() => rotateTable(table.id, 90)} style={smallBtnStyle}>90° 회전</button>
+                              </div>
+                              <button type="button" onClick={() => { removeTable(table.id); setSelectedTableId(null); }}
+                                style={{ padding: '7px 0', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                              >이 테이블 삭제</button>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 13, color: '#475569' }}>{table.name} · 정원 {table.capacity}명</div>
+                          )}
+
+                          <div style={{ marginTop: 12, borderTop: '1px solid #e0e3ff', paddingTop: 10 }}>
+                            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 6 }}>배치된 참여자 ({placed.length}건)</div>
+                            {placed.length === 0 ? (
+                              <div style={{ fontSize: 12, color: '#94a3b8' }}>배치된 참여자가 없습니다.</div>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {placed.map(p => (
+                                  <span key={p.orderId} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 14, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, fontWeight: 700 }}>
+                                    <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 110 }}>{p.name} ({p.count}명)</span>
+                                    {isAdmin && (
+                                      <TableAssignPicker
+                                        tables={seatingOverview.tables}
+                                        currentTableId={table.id}
+                                        pendingCount={p.count}
+                                        triggerText="이동"
+                                        onAssign={(tableId) => assignToTable([p.orderId], tableId)}
+                                        onUnassign={() => assignToTable([p.orderId], null)}
+                                      />
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* 다중 선택 일괄 배치 툴바 (미배치 참여자를 체크하면 노출) */}
                     {isAdmin && selectedSeatingIds.length > 0 && (
