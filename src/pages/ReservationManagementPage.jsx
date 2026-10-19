@@ -589,27 +589,48 @@ export default function ReservationManagementPage() {
     };
   }, [visibleOrders, orders, concertId, currentShow, extraDonationSum, totalPriceFor]);
 
+  // 초대자 텍스트에 쓰인 이름이 활동 회원 이름과 정확히 일치하면 자동으로 그 회원을 매핑한다.
+  // 두 명 이상 적었으면(쉼표 구분) 맨 처음 적은 이름을 기준으로 매칭한다.
+  const autoMatchInviterMember = (inviterNameText) => {
+    if (!inviterNameText || inviterNameText === '없음') return null;
+    const firstName = inviterNameText.split(',')[0]?.trim();
+    if (!firstName) return null;
+    const matches = members.filter(m => m.status === 'active' && m.name === firstName);
+    return matches.length === 1 ? matches[0] : null;
+  };
+
+  // 관리자가 수동으로 지정한 매핑이 있으면 그것을 우선하고, 없으면 자동 매칭 결과를 사용한다.
+  const resolveInviterMember = (o) => {
+    if (o.inviterMemberId) return members.find(m => m.id === o.inviterMemberId) || null;
+    return autoMatchInviterMember(o.inviterName);
+  };
+
   // 뒤풀이 참여자 전체 명단 (초대자 기재 여부와 무관하게 참여 체크한 모든 신청자를 집계)
   const afterPartyRoster = useMemo(() => {
     const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
     const list = src
       .filter(o => o.isAfterParty)
-      .map(o => ({
-        orderId: o.id,
-        name: o.audienceName || '(이름없음)',
-        phone: o.phone || '',
-        count: Number(o.afterPartyCount) || 1,
-        inviterName: (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '',
-        inviterMemberId: o.inviterMemberId || '',
-        depositStatus: o.depositStatus,
-        attendanceStatus: o.attendanceStatus,
-      }))
+      .map(o => {
+        const resolvedMember = resolveInviterMember(o);
+        return {
+          orderId: o.id,
+          name: o.audienceName || '(이름없음)',
+          phone: o.phone || '',
+          count: Number(o.afterPartyCount) || 1,
+          inviterName: (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '',
+          inviterMemberId: o.inviterMemberId || '',
+          resolvedInviterMemberId: resolvedMember?.id || '',
+          isAutoMatched: !o.inviterMemberId && !!resolvedMember,
+          depositStatus: o.depositStatus,
+          attendanceStatus: o.attendanceStatus,
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
     const total = list.reduce((sum, item) => sum + item.count, 0);
     return { list, total };
-  }, [orders, concertId]);
+  }, [orders, concertId, members]);
 
-  // 초대자 텍스트를 실제 공연자(회원)와 수동으로 매핑 저장
+  // 초대자 텍스트를 실제 공연자(회원)와 수동으로 매핑 저장 (자동 매칭 결과를 덮어씀)
   const setInviterMapping = async (orderId, memberId) => {
     if (!isAdmin) return;
     await updateOrder(orderId, { inviterMemberId: memberId || null });
@@ -621,10 +642,10 @@ export default function ReservationManagementPage() {
     const map = {};
     for (const o of src) {
       if (!o.isAfterParty) continue;
+      const resolvedMember = resolveInviterMember(o);
       let names;
-      if (o.inviterMemberId) {
-        const mappedMember = members.find(m => m.id === o.inviterMemberId);
-        names = mappedMember ? [mappedMember.name] : [];
+      if (resolvedMember) {
+        names = [resolvedMember.name];
       } else {
         if (!o.inviterName) continue;
         names = o.inviterName.split(',').map(n => n.trim()).filter(Boolean);
@@ -1304,7 +1325,7 @@ export default function ReservationManagementPage() {
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
               {afterPartyRoster.list.map((a, idx) => {
-                const mappedMember = a.inviterMemberId ? members.find(m => m.id === a.inviterMemberId) : null;
+                const mappedMember = a.resolvedInviterMemberId ? members.find(m => m.id === a.resolvedInviterMemberId) : null;
                 return (
                   <div key={idx} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1316,11 +1337,14 @@ export default function ReservationManagementPage() {
                       {a.inviterName && (
                         <span style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>입력된 초대자: {a.inviterName}</span>
                       )}
+                      {a.isAutoMatched && (
+                        <span style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}>자동 매칭</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       {isAdmin ? (
                         <select
-                          value={a.inviterMemberId || ''}
+                          value={a.inviterMemberId || (a.isAutoMatched ? a.resolvedInviterMemberId : '')}
                           onChange={(e) => setInviterMapping(a.orderId, e.target.value)}
                           style={{
                             padding: '5px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
