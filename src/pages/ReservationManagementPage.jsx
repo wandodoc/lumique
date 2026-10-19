@@ -107,17 +107,42 @@ const withTableGeometry = (table, index) => {
 // 두 테이블(사각 바운딩 박스 기준)이 겹치는지 — 회전은 단순화를 위해 반영하지 않는다.
 const tablesOverlap = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 
-// 테이블 둘레에 좌석 자리를 고르게 배치한다(원형/사각형 모두 타원 둘레 근사).
-// seatCount가 정원보다 많으면(정원 초과) 둘레를 그만큼 더 나눠 자리를 전부 그려준다.
+// 좌석 하나의 지름 + 좌석 사이 최소 여백 = 한 변에 좌석을 몇 개까지 "여유 있게" 넣을 수
+// 있는지 계산하는 기준 길이. 테이블 가장자리에서 좌석 중심까지의 거리도 여기서 고정한다.
+const SEAT_DOT_SIZE = 18;
+const SEAT_MIN_GAP = 10;
+const SEAT_EDGE_OFFSET = 20;
+
+// 변 길이 len에 (코너 쪽 여유를 감안해) 넣을 수 있는 최대 좌석 수.
+const seatCapacityForSide = (len) => Math.max(1, Math.floor((len * 0.85) / (SEAT_DOT_SIZE + SEAT_MIN_GAP)));
+
+// 길이 [start, end] 구간에 n개의 좌석을 균등 간격으로 배치한 좌표(1차원)를 돌려준다.
+const evenPositionsAlong = (n, start, end) => {
+  if (n <= 0) return [];
+  const positions = [];
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : (i + 0.5) / n;
+    positions.push(start + (end - start) * t);
+  }
+  return positions;
+};
+
+// 테이블의 실제 가로·세로 비율을 기준으로 좌석을 상/하/좌/우 가장자리에 배치한다.
+// - 가로로 긴 테이블(width > height): 상/하단을 먼저 채우고, 넘치는 인원만 좌/우로 보낸다.
+// - 세로로 긴 테이블(height > width): 좌/우측을 먼저 채우고, 넘치는 인원만 상/하로 보낸다.
+// - 정사각형에 가까우면(폭·높이 차이가 작은 변의 15% 이하) 네 변에 고르게 나눈다.
+// 좌석은 항상 테이블 가장자리에서 SEAT_EDGE_OFFSET만큼 떨어진, 그 변의 범위 안에만 생긴다
+// (테이블 내부나 가장자리와 무관한 위치에는 생기지 않음). 테이블 크기/정원이 바뀌면 이 함수가
+// 매번 다시 계산되므로 좌석 배치도 자동으로 따라간다.
 const computeSeatSlots = (table, seatCount) => {
   if (seatCount <= 0) return [];
-  const cx = table.x + table.width / 2;
-  const cy = table.y + table.height / 2;
-  const margin = 26;
+  const { x, y, width, height } = table;
 
-  // 원형 테이블은 가로/세로 구분이 없으니 둘레(원)를 따라 등각으로 배치한다.
+  // 원형 테이블은 상/하/좌/우 구분이 없으니 둘레(원)를 따라 등각으로 배치한다.
   if (table.shape === 'circle') {
-    const r = Math.max(table.width, table.height) / 2 + margin;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const r = Math.max(width, height) / 2 + SEAT_EDGE_OFFSET;
     const slots = [];
     for (let i = 0; i < seatCount; i++) {
       const angle = (i / seatCount) * Math.PI * 2 - Math.PI / 2;
@@ -126,33 +151,33 @@ const computeSeatSlots = (table, seatCount) => {
     return slots;
   }
 
-  // 사각형 테이블은 "등각(equal angle)"이 아니라 실제 네 변의 둘레 길이에 비례해 좌석을
-  // 배치한다 — 등각 방식은 가로가 넓을 때 긴 변(위/아래)에는 자리가 몰리지 않고 짧은 변
-  // (좌/우) 쪽에만 세로로 겹쳐 쌓이는 문제가 있었다. 둘레를 따라 같은 간격으로 걸으면
-  // 가로가 넓은 변에 자연스럽게 더 많은 좌석이 배치된다.
-  const halfW = table.width / 2 + margin;
-  const halfH = table.height / 2 + margin;
-  const topBottomLen = halfW * 2;
-  const sideLen = halfH * 2;
-  const perimeter = 2 * (topBottomLen + sideLen);
-  const slots = [];
-  for (let i = 0; i < seatCount; i++) {
-    let d = (i / seatCount) * perimeter;
-    let x, y;
-    if (d < topBottomLen) {
-      x = cx - halfW + d; y = cy - halfH; // 위쪽 변: 좌→우
-    } else if (d < topBottomLen + sideLen) {
-      d -= topBottomLen;
-      x = cx + halfW; y = cy - halfH + d; // 오른쪽 변: 위→아래
-    } else if (d < topBottomLen * 2 + sideLen) {
-      d -= topBottomLen + sideLen;
-      x = cx + halfW - d; y = cy + halfH; // 아래쪽 변: 우→좌
-    } else {
-      d -= topBottomLen * 2 + sideLen;
-      x = cx - halfW; y = cy + halfH - d; // 왼쪽 변: 아래→위
-    }
-    slots.push({ x, y });
+  const isSquareish = Math.abs(width - height) <= Math.min(width, height) * 0.15;
+
+  let topCount, bottomCount, leftCount, rightCount;
+  if (isSquareish) {
+    const horizTotal = Math.ceil(seatCount / 2);
+    const vertTotal = seatCount - horizTotal;
+    topCount = Math.ceil(horizTotal / 2); bottomCount = horizTotal - topCount;
+    leftCount = Math.floor(vertTotal / 2); rightCount = vertTotal - leftCount;
+  } else if (width > height) {
+    const maxHoriz = seatCapacityForSide(width) * 2;
+    const horizTotal = Math.min(seatCount, maxHoriz);
+    const vertTotal = seatCount - horizTotal;
+    topCount = Math.ceil(horizTotal / 2); bottomCount = horizTotal - topCount;
+    leftCount = Math.floor(vertTotal / 2); rightCount = vertTotal - leftCount;
+  } else {
+    const maxVert = seatCapacityForSide(height) * 2;
+    const vertTotal = Math.min(seatCount, maxVert);
+    const horizTotal = seatCount - vertTotal;
+    leftCount = Math.ceil(vertTotal / 2); rightCount = vertTotal - leftCount;
+    topCount = Math.floor(horizTotal / 2); bottomCount = horizTotal - topCount;
   }
+
+  const slots = [];
+  evenPositionsAlong(topCount, x, x + width).forEach(px => slots.push({ x: px, y: y - SEAT_EDGE_OFFSET }));
+  evenPositionsAlong(rightCount, y, y + height).forEach(py => slots.push({ x: x + width + SEAT_EDGE_OFFSET, y: py }));
+  evenPositionsAlong(bottomCount, x, x + width).forEach(px => slots.push({ x: px, y: y + height + SEAT_EDGE_OFFSET }));
+  evenPositionsAlong(leftCount, y, y + height).forEach(py => slots.push({ x: x - SEAT_EDGE_OFFSET, y: py }));
   return slots;
 };
 
@@ -1353,7 +1378,7 @@ export default function ReservationManagementPage() {
       orderIds.forEach(id => {
         const o = ordersById[id];
         if (!o) return;
-        const matchedMember = activeMembersSorted.find(m => m.name === o.audienceName);
+        const matchedMember = activeMembersSorted.find(m => m.name.trim() === String(o.audienceName || '').trim());
         if (!matchedMember) return;
         const performerGroup = afterPartyRowsByKey[`member:${matchedMember.id}`];
         if (!performerGroup) return;
@@ -1387,7 +1412,7 @@ export default function ReservationManagementPage() {
 
     // 1단계: 공연자 이름 = 테이블 이름 매칭
     for (const table of afterPartyTables) {
-      const matchedMember = activeMembersSorted.find(m => m.name === table.name);
+      const matchedMember = activeMembersSorted.find(m => m.name.trim() === table.name.trim());
       if (!matchedMember) continue;
       const performerGroup = afterPartyRowsByKey[`member:${matchedMember.id}`];
       if (!performerGroup) continue;
@@ -2474,9 +2499,17 @@ export default function ReservationManagementPage() {
                               <div style={{ fontSize: 12, color: '#94a3b8' }}>배치된 참여자가 없습니다.</div>
                             ) : (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {placed.map(p => (
+                                {placed.map(p => {
+                                  const o = ordersById[p.orderId];
+                                  const inviterInfo = o ? classifyAfterPartyOrder(o) : null;
+                                  return (
                                   <span key={p.orderId} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 14, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, fontWeight: 700 }}>
                                     <span style={{ whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 110 }}>{p.name} ({p.count}명)</span>
+                                    {inviterInfo && (inviterInfo.type === 'performer' || inviterInfo.type === 'group') && (
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: AFTER_PARTY_TYPE_BADGE[inviterInfo.type].color, whiteSpace: 'nowrap' }}>
+                                        → {inviterInfo.label}
+                                      </span>
+                                    )}
                                     {isAdmin && (
                                       <TableAssignPicker
                                         tables={seatingOverview.tables}
@@ -2488,7 +2521,8 @@ export default function ReservationManagementPage() {
                                       />
                                     )}
                                   </span>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -2528,7 +2562,10 @@ export default function ReservationManagementPage() {
                         <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '12px 0' }}>모든 참여자가 배치되었습니다.</div>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                          {seatingOverview.unassigned.map(p => (
+                          {seatingOverview.unassigned.map(p => {
+                            const o = ordersById[p.orderId];
+                            const inviterInfo = o ? classifyAfterPartyOrder(o) : null;
+                            return (
                             <div key={p.orderId} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
                               {isAdmin && (
                                 <input
@@ -2540,6 +2577,11 @@ export default function ReservationManagementPage() {
                               )}
                               <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 120 }}>{p.name}</span>
                               <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>{p.count}명</span>
+                              {inviterInfo && (inviterInfo.type === 'performer' || inviterInfo.type === 'group') && (
+                                <span style={{ fontSize: 10, fontWeight: 700, color: AFTER_PARTY_TYPE_BADGE[inviterInfo.type].color, whiteSpace: 'nowrap' }}>
+                                  → {inviterInfo.label}
+                                </span>
+                              )}
                               {isAdmin && (
                                 <TableAssignPicker
                                   tables={seatingOverview.tables}
@@ -2551,7 +2593,8 @@ export default function ReservationManagementPage() {
                                 />
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
