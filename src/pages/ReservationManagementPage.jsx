@@ -605,38 +605,9 @@ export default function ReservationManagementPage() {
     return autoMatchInviterMember(o.inviterName);
   };
 
-  // 뒤풀이 참여자 전체 명단 (초대자 기재 여부와 무관하게 참여 체크한 모든 신청자를 집계)
-  const afterPartyRoster = useMemo(() => {
-    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
-    const list = src
-      .filter(o => o.isAfterParty)
-      .map(o => {
-        const resolvedMember = resolveInviterMember(o);
-        return {
-          orderId: o.id,
-          name: o.audienceName || '(이름없음)',
-          phone: o.phone || '',
-          count: Number(o.afterPartyCount) || 1,
-          inviterName: (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '',
-          inviterMemberId: o.inviterMemberId || '',
-          resolvedInviterMemberId: resolvedMember?.id || '',
-          isAutoMatched: !o.inviterMemberId && !!resolvedMember,
-          depositStatus: o.depositStatus,
-          attendanceStatus: o.attendanceStatus,
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const total = list.reduce((sum, item) => sum + item.count, 0);
-    return { list, total };
-  }, [orders, concertId, members]);
-
-  // 초대자 텍스트를 실제 공연자(회원)와 수동으로 매핑 저장 (자동 매칭 결과를 덮어씀)
-  const setInviterMapping = async (orderId, memberId) => {
-    if (!isAdmin) return;
-    await updateOrder(orderId, { inviterMemberId: memberId || null });
-  };
-
-  // 초대자별 뒤풀이 집계 (공연자 매핑이 되어 있으면 매핑된 회원 이름으로, 없으면 입력 텍스트로 집계)
+  // 초대자별 뒤풀이 집계 — 공연자(회원) 기준으로 그룹화한다.
+  // 매핑된(또는 이름이 정확히 일치해 자동 매칭된) 그룹은 실제 회원을 가리키고,
+  // 일치하는 회원이 없는 텍스트(예: "25학번")는 그 텍스트 자체를 그룹으로 유지한다.
   const inviterStats = useMemo(() => {
     const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
     const map = {};
@@ -653,9 +624,11 @@ export default function ReservationManagementPage() {
       if (names.length === 0) continue;
       const perInviter = (Number(o.afterPartyCount) || 1) / names.length;
       for (const name of names) {
-        if (!map[name]) map[name] = { count: 0, orders: 0, attendees: [] };
+        if (!map[name]) map[name] = { count: 0, orders: 0, attendees: [], orderIds: [], memberId: null };
         map[name].count += perInviter;
         map[name].orders += 1;
+        map[name].orderIds.push(o.id);
+        if (resolvedMember) map[name].memberId = resolvedMember.id;
         map[name].attendees.push({
           name: o.audienceName || '(이름없음)',
           phone: o.phone || '',
@@ -667,9 +640,18 @@ export default function ReservationManagementPage() {
       }
     }
     return Object.entries(map)
-      .map(([name, v]) => [name, { count: Math.round(v.count), orders: v.orders, attendees: v.attendees }])
+      .map(([name, v]) => [name, { count: Math.round(v.count), orders: v.orders, attendees: v.attendees, orderIds: v.orderIds, memberId: v.memberId }])
       .sort((a, b) => b[1].count - a[1].count);
   }, [orders, concertId, members]);
+
+  // 초대자 그룹 전체(동일 텍스트로 묶인 모든 신청)를 실제 공연자(회원)와 한 번에 매핑
+  const bulkSetInviterMapping = async (orderIds, memberId) => {
+    if (!isAdmin) return;
+    const idSet = new Set(orderIds);
+    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: memberId || null } : o));
+    setOrders(nextOrders);
+    await firebaseStorage.saveOrders(nextOrders);
+  };
 
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
@@ -1314,99 +1296,69 @@ export default function ReservationManagementPage() {
           )}
         </div>
 
-        {/* ── [섹션 2-1] 뒤풀이 참여자 전체 명단 (초대자 기재 여부와 무관하게 전원 표시) ── */}
-        {afterPartyRoster.list.length > 0 && (
-          <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>뒤풀이 참여자 전체 명단</div>
-              <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                총 {afterPartyRoster.total}명
-              </span>
-            </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              {afterPartyRoster.list.map((a, idx) => {
-                const mappedMember = a.resolvedInviterMemberId ? members.find(m => m.id === a.resolvedInviterMemberId) : null;
-                return (
-                  <div key={idx} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9', gap: 10, flexWrap: 'wrap'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
-                      {a.phone && <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>({a.phone})</span>}
-                      {a.inviterName && (
-                        <span style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>입력된 초대자: {a.inviterName}</span>
-                      )}
-                      {a.isAutoMatched && (
-                        <span style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}>자동 매칭</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      {isAdmin ? (
-                        <select
-                          value={a.inviterMemberId || (a.isAutoMatched ? a.resolvedInviterMemberId : '')}
-                          onChange={(e) => setInviterMapping(a.orderId, e.target.value)}
-                          style={{
-                            padding: '5px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            border: `1.5px solid ${mappedMember ? '#10b981' : '#e2e8f0'}`,
-                            background: mappedMember ? '#ecfdf5' : '#fff',
-                            color: mappedMember ? '#059669' : '#475569',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="">공연자 매핑 안 됨</option>
-                          {activeMembersSorted.map(m => (
-                            <option key={m.id} value={m.id}>{m.name} ({m.part})</option>
-                          ))}
-                        </select>
-                      ) : (
-                        mappedMember && (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>{mappedMember.name}</span>
-                        )
-                      )}
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', border: '1px solid #e2e8f0',
-                        color: '#0f172a', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap'
-                      }}>
-                        {a.count}명
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── [섹션 3] 초대자별 뒤풀이 현황 섹션 ── */}
+        {/* ── [섹션 3] 공연자(초대자)별 뒤풀이 현황 섹션 ── */}
         {inviterStats.length > 0 && (
           <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 14 }}>초대자별 뒤풀이 현황</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>공연자별 뒤풀이 현황</div>
+              <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                총 {inviterStats.reduce((s, [, v]) => s + v.count, 0)}명
+              </span>
+            </div>
             <div style={{ display: 'grid', gap: 8 }}>
               {inviterStats.map(([name, stat]) => {
                 const isExpanded = !!expandedInviters[name];
+                const mappedMember = stat.memberId ? members.find(m => m.id === stat.memberId) : null;
                 return (
                   <div key={name} style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                    <button
-                      type="button"
-                      onClick={() => toggleInviterExpand(name)}
+                    <div
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '12px 16px', background: '#f8fafc', border: 'none', cursor: 'pointer',
-                        transition: 'background 0.2s', textAlign: 'left', gap: 10
+                        padding: '12px 16px', background: '#f8fafc',
+                        transition: 'background 0.2s', gap: 10, flexWrap: 'wrap'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                      <div
+                        onClick={() => toggleInviterExpand(name)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
+                      >
                         <span style={{ fontSize: 14, color: '#64748b', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                            {mappedMember ? (
+                              <span style={{ fontSize: 11, color: '#059669', fontWeight: 700, whiteSpace: 'nowrap' }}>✓ 공연자</span>
+                            ) : (
+                              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>텍스트</span>
+                            )}
+                          </div>
                           <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{stat.orders}건 예매 연결</div>
                         </div>
                       </div>
-                      <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {stat.count}명
-                      </span>
-                    </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                        {isAdmin && (
+                          <select
+                            value={stat.memberId || ''}
+                            onChange={(e) => bulkSetInviterMapping(stat.orderIds, e.target.value)}
+                            style={{
+                              padding: '5px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                              border: `1.5px solid ${mappedMember ? '#10b981' : '#e2e8f0'}`,
+                              background: mappedMember ? '#ecfdf5' : '#fff',
+                              color: mappedMember ? '#059669' : '#475569',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="">공연자 매핑 안 됨</option>
+                            {activeMembersSorted.map(m => (
+                              <option key={m.id} value={m.id}>{m.name} ({m.part})</option>
+                            ))}
+                          </select>
+                        )}
+                        <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                          {stat.count}명
+                        </span>
+                      </div>
+                    </div>
                     {isExpanded && (
                       <div style={{ padding: '4px 16px 12px', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
                         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600, paddingTop: 8 }}>유입된 예매자 목록</div>
@@ -1439,9 +1391,6 @@ export default function ReservationManagementPage() {
                   </div>
                 );
               })}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 6, fontSize: 13, color: '#64748b', fontWeight: 700 }}>
-                합계: {inviterStats.reduce((s, [, v]) => s + v.count, 0)}명
-              </div>
             </div>
           </div>
         )}
