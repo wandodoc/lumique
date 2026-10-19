@@ -5,6 +5,8 @@ import './PageStyles.css';
 
 const LS_SHOWS = 'lumique_concerts';
 const LS_ORDERS = 'lumique_ticket_orders';
+const LS_SHOWS_PENDING = 'lumique_concerts_pending_sync';
+const LS_ORDERS_PENDING = 'lumique_ticket_orders_pending_sync';
 const DEPOSIT_WAIT = '입금대기';
 const DEPOSIT_DONE = '입금완료';
 const ATTEND_WAIT = '미입장';
@@ -75,7 +77,6 @@ const AFTER_PARTY_TYPE_BADGE = {
   unassigned: { text: '미기재', color: '#64748b' },
   group: { text: '텍스트 그룹', color: '#7c3aed' },
 };
-const AFTER_PARTY_TYPE_SORT_PRIORITY = { unmapped: 0, unassigned: 0, performer: 1, group: 1 };
 
 // ── 뒤풀이 테이블 배치도: 고정 가상 좌표계(px 단위) — 화면 크기가 달라져도 테이블의
 // 상대 위치가 항상 동일하게 유지된다. 모바일에서는 이 캔버스만 가로 스크롤을 허용한다. ──
@@ -112,6 +113,7 @@ const tablesOverlap = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.
 const SEAT_DOT_SIZE = 18;
 const SEAT_MIN_GAP = 10;
 const SEAT_EDGE_OFFSET = 20;
+const createSeatId = () => `seat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 // 변 길이 len에 (코너 쪽 여유를 감안해) 넣을 수 있는 최대 좌석 수.
 const seatCapacityForSide = (len) => Math.max(1, Math.floor((len * 0.85) / (SEAT_DOT_SIZE + SEAT_MIN_GAP)));
@@ -760,6 +762,7 @@ export default function ReservationManagementPage() {
   const [duesSavingId, setDuesSavingId] = useState(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [reservationPage, setReservationPage] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // 건별 후원금 폼 입력값 및 아코디언 토글 상태
@@ -790,6 +793,8 @@ export default function ReservationManagementPage() {
   const [selectedTableId, setSelectedTableId] = useState(null); // 배치도: 편집 중인 테이블(위치/정원/모양 등)
   // 배치도: 드래그 중인 테이블의 "확정 전" 임시 위치(포인터를 떼는 순간에만 실제로 저장한다).
   const [dragInfo, setDragInfo] = useState(null); // { tableId, startClientX, startClientY, startX, startY, x, y }
+  const [seatDragInfo, setSeatDragInfo] = useState(null);
+  const seatMigrationRef = useRef(new Set());
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
@@ -807,6 +812,10 @@ export default function ReservationManagementPage() {
     async function loadData() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
+      const pendingConcerts = loadLS(LS_SHOWS_PENDING);
+      const pendingOrders = loadLS(LS_ORDERS_PENDING);
+      if (pendingConcerts.length) fbConcerts = pendingConcerts;
+      if (pendingOrders.length) fbOrders = pendingOrders;
       if (fbConcerts.length === 0 && loadLS(LS_SHOWS).length > 0) fbConcerts = loadLS(LS_SHOWS);
       if (fbOrders.length === 0 && loadLS(LS_ORDERS).length > 0) fbOrders = loadLS(LS_ORDERS);
       setShows(fbConcerts);
@@ -862,23 +871,20 @@ export default function ReservationManagementPage() {
         (filter === 'deposit-wait' && order.depositStatus !== DEPOSIT_DONE) ||
         (filter === 'attend-wait' && order.attendanceStatus !== ATTEND_DONE);
       return matchesSearch && matchesFilter;
-    }).sort((a, b) => {
-      const aTotal = Number(a.ticketCount) || 0;
-      const aEntered = Number(a.enteredCount) || 0;
-      const aIsDone = a.attendanceStatus === ATTEND_DONE || (aTotal > 0 && aEntered >= aTotal);
-
-      const bTotal = Number(b.ticketCount) || 0;
-      const bEntered = Number(b.enteredCount) || 0;
-      const bIsDone = b.attendanceStatus === ATTEND_DONE || (bTotal > 0 && bEntered >= bTotal);
-
-      // 입장 완료 건은 아래로, 미입장 건은 상단으로 우선 배치
-      if (aIsDone !== bIsDone) {
-        return aIsDone ? 1 : -1;
-      }
-      // 동일 그룹 내에서는 최신 신청 순서로 정렬
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
+    }).map((order, originalIndex) => ({ order, originalIndex, createdAt: Date.parse(order.createdAt) }))
+      .sort((a, b) => {
+        const aHasDate = Number.isFinite(a.createdAt);
+        const bHasDate = Number.isFinite(b.createdAt);
+        if (aHasDate !== bHasDate) return aHasDate ? -1 : 1;
+        if (aHasDate && a.createdAt !== b.createdAt) return b.createdAt - a.createdAt;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map(({ order }) => order);
   }, [orders, query, filter, concertId]);
+
+  useEffect(() => setReservationPage(0), [query, filter, concertId]);
+  const reservationPageCount = Math.ceil(visibleOrders.length / 10);
+  const visibleReservationPage = useMemo(() => visibleOrders.slice(reservationPage * 10, reservationPage * 10 + 10), [visibleOrders, reservationPage]);
 
   // 공연별 가격 구간(기간별/한정 수량) 정보 — 신청 매수 집계 및 조회/관리 패널에 사용.
   const showsById = useMemo(() => Object.fromEntries(shows.map(s => [s.id, s])), [shows]);
@@ -995,6 +1001,7 @@ export default function ReservationManagementPage() {
         name: o.audienceName || '(이름없음)',
         phone: o.phone || '',
         count,
+        createdAt: o.createdAt || null,
         inviterName: (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '',
         depositStatus: o.depositStatus,
         attendanceStatus: o.attendanceStatus,
@@ -1004,14 +1011,16 @@ export default function ReservationManagementPage() {
         continue;
       }
       if (!groupMap[c.key]) {
-        groupMap[c.key] = { key: c.key, type: c.type, label: c.label, memberId: c.member?.id || null, count: 0, orderIds: [], attendees: [] };
+        groupMap[c.key] = { key: c.key, type: c.type, label: c.label, memberId: c.member?.id || null, count: 0, orderIds: [], attendees: [], latestCreatedAt: null };
       }
       groupMap[c.key].count += count;
       groupMap[c.key].orderIds.push(o.id);
       groupMap[c.key].attendees.push(attendee);
+      if (o.createdAt && Number.isFinite(Date.parse(o.createdAt)) && Date.parse(o.createdAt) > (Date.parse(groupMap[c.key].latestCreatedAt || '') || 0)) {
+        groupMap[c.key].latestCreatedAt = o.createdAt;
+      }
     }
-    const groups = Object.values(groupMap).sort((a, b) => b.count - a.count);
-    individuals.sort((a, b) => a.name.localeCompare(b.name));
+    const groups = Object.values(groupMap);
     return { groups, individuals };
   }, [orders, concertId, members]);
 
@@ -1039,9 +1048,20 @@ export default function ReservationManagementPage() {
     setMappingErrorMsg('');
     const idSet = new Set(orderIds);
     const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, ...patch } : o));
-    setOrders(nextOrders);
     try {
-      await firebaseStorage.saveOrders(nextOrders);
+      const saved = await firebaseStorage.saveOrders(nextOrders);
+      if (saved) {
+        try {
+          localStorage.setItem(LS_ORDERS, JSON.stringify(nextOrders));
+          localStorage.removeItem(LS_ORDERS_PENDING);
+        } catch { }
+        setOrders(nextOrders);
+        return;
+      }
+      localStorage.setItem(LS_ORDERS, JSON.stringify(nextOrders));
+      localStorage.setItem(LS_ORDERS_PENDING, JSON.stringify(nextOrders));
+      setOrders(nextOrders);
+      setMappingErrorMsg('Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 연결 복구 후 동기화가 필요합니다.');
     } catch {
       setMappingErrorMsg(failMsg);
     }
@@ -1264,6 +1284,16 @@ export default function ReservationManagementPage() {
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
           유입된 예매자 {row.orderIds.length}건 — 클릭하면 한 명만 따로 편집
         </div>
+        {row.type === 'group' && (
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const label = String(new FormData(event.currentTarget).get('groupLabel') || '').trim();
+            if (label && label !== row.label) assignGroupLabel(row.orderIds, label);
+          }} style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <input name="groupLabel" defaultValue={row.label} aria-label="텍스트 그룹 이름" style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12 }} />
+            <button type="submit" style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #c4b5fd', background: '#f5f3ff', color: '#7c3aed', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>그룹명 변경</button>
+          </form>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {row.attendees.map((a) => (
             <button key={a.orderId} type="button" onClick={() => setActiveEditKey(`order:${a.orderId}`)}
@@ -1283,10 +1313,18 @@ export default function ReservationManagementPage() {
   // ── 뒤풀이 테이블 배치 — 공연자 매핑과는 완전히 독립된 데이터(콘서트 레코드에 저장) ──
   // tables: [{ id, name, capacity, shape, x, y, width, height, rotation }], seatAssignments: { [orderId]: tableId }
   const afterPartyTables = useMemo(
-    () => (Array.isArray(currentShow?.tables) ? currentShow.tables : []).map((t, i) => withTableGeometry(t, i)),
+    () => (Array.isArray(currentShow?.tables) ? currentShow.tables : []).map((t, i) => {
+      const table = withTableGeometry(t, i);
+      if (Array.isArray(t.seats)) return { ...table, seats: t.seats };
+      const initial = computeSeatSlots(table, Math.max(0, Number(table.capacity) || 0));
+      return { ...table, seats: initial.map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
+    }),
     [currentShow]
   );
   const seatAssignments = useMemo(() => (currentShow?.seatAssignments && typeof currentShow.seatAssignments === 'object' ? currentShow.seatAssignments : {}), [currentShow]);
+  const participantSeatAssignments = useMemo(() => (currentShow?.participantSeatAssignments && typeof currentShow.participantSeatAssignments === 'object' ? currentShow.participantSeatAssignments : {}), [currentShow]);
+  const autoSeatAssignments = useMemo(() => (currentShow?.autoSeatAssignments && typeof currentShow.autoSeatAssignments === 'object' ? currentShow.autoSeatAssignments : {}), [currentShow]);
+  const manualSeatAssignments = useMemo(() => (currentShow?.manualSeatAssignments && typeof currentShow.manualSeatAssignments === 'object' ? currentShow.manualSeatAssignments : {}), [currentShow]);
 
   // 공연자 매핑 상태와 무관하게, 뒤풀이 참여 체크한 모든 신청을 평평한 목록으로 — 테이블 배치는 이 목록만 본다.
   const afterPartyParticipants = useMemo(() => {
@@ -1298,8 +1336,23 @@ export default function ReservationManagementPage() {
         name: o.audienceName || '(이름없음)',
         phone: o.phone || '',
         count: Number(o.afterPartyCount) || 1,
+        createdAt: o.createdAt || null,
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .map((person, originalIndex) => ({ ...person, originalIndex, createdAtMs: Date.parse(person.createdAt) }))
+      .sort((a, b) => {
+        const aHasDate = Number.isFinite(a.createdAtMs);
+        const bHasDate = Number.isFinite(b.createdAtMs);
+        if (aHasDate !== bHasDate) return aHasDate ? -1 : 1;
+        if (aHasDate && a.createdAtMs !== b.createdAtMs) return b.createdAtMs - a.createdAtMs;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map(person => ({
+        orderId: person.orderId,
+        name: person.name,
+        phone: person.phone,
+        count: person.count,
+        createdAt: person.createdAt,
+      }));
   }, [orders, concertId]);
 
   // 테이블별 배치 인원/잔여석과 미배치 인원을 계산한다. 삭제된 테이블을 가리키는 배치 기록은
@@ -1307,14 +1360,29 @@ export default function ReservationManagementPage() {
   const seatingOverview = useMemo(() => {
     const byTable = {};
     afterPartyTables.forEach(t => { byTable[t.id] = { table: t, participants: [], count: 0 }; });
+    const seatTableById = new Map(afterPartyTables.flatMap(table => table.seats.map(seat => [seat.id, table.id])));
+    const attendeeTableByKey = new Map();
+    Object.entries(participantSeatAssignments).forEach(([seatId, assignment]) => {
+      const tableId = seatTableById.get(seatId);
+      if (tableId && assignment?.orderId && Number.isInteger(Number(assignment.attendeeIndex))) {
+        attendeeTableByKey.set(`${assignment.orderId}:${Number(assignment.attendeeIndex)}`, tableId);
+      }
+    });
     const unassigned = [];
     for (const p of afterPartyParticipants) {
-      const tableId = seatAssignments[p.orderId];
-      if (tableId && byTable[tableId]) {
-        byTable[tableId].participants.push(p);
-        byTable[tableId].count += p.count;
-      } else {
-        unassigned.push(p);
+      const countsByTable = new Map();
+      let unassignedCount = 0;
+      for (let attendeeIndex = 0; attendeeIndex < p.count; attendeeIndex += 1) {
+        const tableId = attendeeTableByKey.get(`${p.orderId}:${attendeeIndex}`) || seatAssignments[p.orderId];
+        if (tableId && byTable[tableId]) countsByTable.set(tableId, (countsByTable.get(tableId) || 0) + 1);
+        else unassignedCount += 1;
+      }
+      countsByTable.forEach((count, tableId) => {
+        byTable[tableId].participants.push({ ...p, count, reservationCount: p.count });
+        byTable[tableId].count += count;
+      });
+      if (unassignedCount > 0) {
+        unassigned.push({ ...p, count: unassignedCount });
       }
     }
     const totalAll = afterPartyParticipants.reduce((s, p) => s + p.count, 0);
@@ -1324,34 +1392,72 @@ export default function ReservationManagementPage() {
       tables: afterPartyTables.map(t => byTable[t.id]), unassigned, totalAll, totalPlaced,
       totalUnassigned: totalAll - totalPlaced, tableCount: afterPartyTables.length, overCapacityCount,
     };
-  }, [afterPartyTables, seatAssignments, afterPartyParticipants]);
+  }, [afterPartyTables, seatAssignments, participantSeatAssignments, afterPartyParticipants]);
 
   // 콘서트 레코드에 테이블/배치 패치를 저장한다(최신본을 다시 불러와 병합 — savePriceTiers와 동일한 방식).
-  const saveSeatingPatch = async (patch) => {
+  const saveSeatingPatch = useCallback(async (patch) => {
     if (!isAdmin || !currentShow || !concertId) return;
     setMappingErrorMsg('');
     try {
       const concerts = await firebaseStorage.loadConcerts();
-      const updated = concerts.map(c => (c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
-      await firebaseStorage.saveConcerts(updated);
+      const source = concerts.length ? concerts : (shows.length ? shows : loadLS(LS_SHOWS));
+      const updated = source.map(c => (c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
+      const saved = await firebaseStorage.saveConcerts(updated);
+      if (!saved) {
+        localStorage.setItem(LS_SHOWS, JSON.stringify(updated));
+        localStorage.setItem(LS_SHOWS_PENDING, JSON.stringify(updated));
+        setShows(updated);
+        setMappingErrorMsg('Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 연결 복구 후 동기화가 필요합니다.');
+        return;
+      }
+      try {
+        localStorage.setItem(LS_SHOWS, JSON.stringify(updated));
+        localStorage.removeItem(LS_SHOWS_PENDING);
+      } catch { }
       setShows(updated);
     } catch {
       setMappingErrorMsg('테이블 배치 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
     }
-  };
+  }, [isAdmin, currentShow, concertId, setShows, shows]);
+
+  useEffect(() => {
+    if (!isAdmin || !currentShow || !Array.isArray(currentShow.tables)) return;
+    if (currentShow.tables.every(table => Array.isArray(table.seats))) return;
+    if (seatMigrationRef.current.has(currentShow.id)) return;
+    seatMigrationRef.current.add(currentShow.id);
+    const migrated = { ...(currentShow.participantSeatAssignments || {}) };
+    seatingOverview.tables.forEach(({ table, participants }) => {
+      let index = 0;
+      participants.forEach(person => {
+        for (let attendeeIndex = 0; attendeeIndex < person.count && index < table.seats.length; attendeeIndex += 1, index += 1) {
+          if (!Object.values(migrated).some(value => value?.orderId === person.orderId && value?.attendeeIndex === attendeeIndex)) {
+            migrated[table.seats[index].id] = { orderId: person.orderId, attendeeIndex };
+          }
+        }
+      });
+    });
+    saveSeatingPatch({ tables: afterPartyTables, participantSeatAssignments: migrated });
+  }, [isAdmin, currentShow, afterPartyTables, seatingOverview.tables, saveSeatingPatch]);
 
   const addTable = () => {
     const name = `테이블 ${afterPartyTables.length + 1}`;
-    const newTable = { id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, capacity: 6 };
+    const positioned = withTableGeometry({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, capacity: 6 }, afterPartyTables.length);
+    const table = { ...positioned, ...clampTablePosition(positioned.x, positioned.y, positioned.width, positioned.height) };
+    const newTable = { ...table, seats: computeSeatSlots(table, 6).map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
     saveSeatingPatch({ tables: [...afterPartyTables, newTable] });
   };
 
   const removeTable = (tableId) => {
     if (!window.confirm('이 테이블을 삭제하면 배치된 참여자가 모두 미배치 상태가 됩니다. 계속하시겠습니까?')) return;
+    const removedTable = afterPartyTables.find(table => table.id === tableId);
     const nextTables = afterPartyTables.filter(t => t.id !== tableId);
     const nextAssignments = { ...seatAssignments };
     Object.keys(nextAssignments).forEach(orderId => { if (nextAssignments[orderId] === tableId) delete nextAssignments[orderId]; });
-    saveSeatingPatch({ tables: nextTables, seatAssignments: nextAssignments });
+    const nextParticipantSeats = { ...participantSeatAssignments };
+    const removedOrderIds = Object.keys(seatAssignments).filter(orderId => seatAssignments[orderId] === tableId);
+    Object.keys(nextParticipantSeats).forEach(seatId => { if (removedOrderIds.includes(nextParticipantSeats[seatId]?.orderId)) delete nextParticipantSeats[seatId]; });
+    (removedTable?.seats || []).forEach(seat => delete nextParticipantSeats[seat.id]);
+    saveSeatingPatch({ tables: nextTables, seatAssignments: nextAssignments, participantSeatAssignments: nextParticipantSeats });
   };
 
   const renameTable = (tableId, name) => {
@@ -1360,98 +1466,201 @@ export default function ReservationManagementPage() {
 
   const setTableCapacity = (tableId, capacity) => {
     const n = Math.max(0, Number(capacity) || 0);
-    saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, capacity: n } : t)) });
+    const table = afterPartyTables.find(item => item.id === tableId);
+    if (!table) return;
+    const persistTables = (tables) => {
+      if (table.performerId && performerAutoCandidateCount > 0) autoAssignTables(tables);
+      else saveSeatingPatch({ tables });
+    };
+    let seats = [...table.seats];
+    if (n < seats.length) {
+      const removed = seats.slice(n);
+      const nextParticipants = { ...participantSeatAssignments };
+      const removedOrderIds = new Set(removed.map(seat => participantSeatAssignments[seat.id]?.orderId).filter(Boolean));
+      if (removedOrderIds.size && !window.confirm('삭제되는 좌석의 참여자가 포함된 예매 건 전체를 테이블에서 미배치로 돌릴까요?')) return;
+      Object.keys(nextParticipants).forEach(seatId => { if (removedOrderIds.has(nextParticipants[seatId]?.orderId)) delete nextParticipants[seatId]; });
+      removed.forEach(seat => delete nextParticipants[seat.id]);
+      const nextAssignments = { ...seatAssignments };
+      const nextAuto = { ...autoSeatAssignments };
+      const nextManual = { ...manualSeatAssignments };
+      removedOrderIds.forEach(orderId => {
+        delete nextAssignments[orderId];
+        if (autoSeatAssignments[orderId]) delete nextAuto[orderId];
+        else nextManual[orderId] = true;
+      });
+      const tables = afterPartyTables.map(item => item.id === tableId ? { ...item, seats: seats.slice(0, n), capacity: n } : item);
+      if (table.performerId && performerAutoCandidateCount > 0) autoAssignTables(tables, nextParticipants, nextAssignments);
+      else saveSeatingPatch({ participantSeatAssignments: nextParticipants, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual, tables });
+      return;
+    }
+    const slots = computeSeatSlots(table, n).slice(seats.length);
+    seats = [...seats, ...slots.map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) }))];
+    persistTables(afterPartyTables.map(item => item.id === tableId ? { ...item, seats, capacity: n } : item));
   };
 
-  // orderIds를 tableId에 배치한다. tableId가 없으면(null) 미배치로 되돌린다.
-  // 예매자(일행) 단위를 그대로 유지하며, 한 예매 건을 여러 테이블로 나누는 기능은 제공하지 않는다.
-  // 배치 대상이 공연자 본인(= 활동 회원 이름과 일치하는 예매자)이면, 그 공연자를 1순위
-  // 초대자로 매핑한 참여자들도 아직 배치되지 않았다면 같은 테이블로 함께 데려온다.
+  // 관리자의 직접 변경은 자동 배치 표식과 분리해 이후 자동 재배치에서 보존한다.
   const assignToTable = (orderIds, tableId) => {
     const nextAssignments = { ...seatAssignments };
+    const nextAuto = { ...autoSeatAssignments };
+    const nextManual = { ...manualSeatAssignments };
+    const nextParticipantSeats = { ...participantSeatAssignments };
     orderIds.forEach(id => {
       if (tableId) nextAssignments[id] = tableId;
       else delete nextAssignments[id];
+      delete nextAuto[id];
+      nextManual[id] = true;
+      Object.keys(nextParticipantSeats).forEach(seatId => { if (nextParticipantSeats[seatId]?.orderId === id) delete nextParticipantSeats[seatId]; });
     });
-
     if (tableId) {
+      const table = afterPartyTables.find(item => item.id === tableId);
+      const used = new Set(Object.keys(nextParticipantSeats));
+      const freeSeats = (table?.seats || []).filter(seat => !used.has(seat.id));
+      const requiredSeats = orderIds.reduce((total, id) => total + (afterPartyParticipants.find(person => person.orderId === id)?.count || 0), 0);
+      if (!table || freeSeats.length < requiredSeats) {
+        window.alert(`선택한 참여자 ${requiredSeats}명에 비해 빈 좌석이 부족합니다. 빈 좌석 ${freeSeats.length}개입니다. 좌석을 추가하거나 정원이 충분한 테이블을 선택해 주세요.`);
+        return;
+      }
+      let cursor = 0;
       orderIds.forEach(id => {
-        const o = ordersById[id];
-        if (!o) return;
-        const matchedMember = activeMembersSorted.find(m => m.name.trim() === String(o.audienceName || '').trim());
-        if (!matchedMember) return;
-        const performerGroup = afterPartyRowsByKey[`member:${matchedMember.id}`];
-        if (!performerGroup) return;
-        performerGroup.orderIds.forEach(invitedOrderId => {
-          if (invitedOrderId === id) return; // 본인은 이미 배치했으니 건너뜀
-          if (nextAssignments[invitedOrderId]) return; // 이미 다른 곳에 배치됨 — 그대로 둔다
-          nextAssignments[invitedOrderId] = tableId;
-        });
+        const participant = afterPartyParticipants.find(person => person.orderId === id);
+        for (let attendeeIndex = 0; participant && attendeeIndex < participant.count && cursor < freeSeats.length; attendeeIndex += 1) {
+          nextParticipantSeats[freeSeats[cursor++].id] = { orderId: id, attendeeIndex };
+        }
       });
     }
-
-    saveSeatingPatch({ seatAssignments: nextAssignments });
+    saveSeatingPatch({ seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual, participantSeatAssignments: nextParticipantSeats });
   };
 
-  // 미배치 참여자를 자동으로 테이블에 채운다. 두 단계로 동작한다.
-  // 1단계 — 테이블 이름이 어떤 공연자(활동 회원)의 이름과 정확히 일치하면, 공연자별 뒤풀이
-  //         매핑(1순위 기준, afterPartyRowsByKey의 'member:<id>' 그룹)에 연결된 예매자를
-  //         실제 orderId 기준으로 그 테이블에 우선 배치한다(테이블 이름 문자열만으로 임의
-  //         배치하지 않음). 한 예매자는 1순위 공연자 그룹에만 속하므로 중복 배치되지 않는다.
-  // 2단계 — 그 외 남은 미배치 참여자를 테이블 정원 내에서 앞 테이블부터 순차 배치한다(기존 방식).
-  // 어느 단계에서도 이미 배치된(관리자가 수동으로 옮긴 것 포함) 참여자는 건드리지 않고,
-  // 정원이 부족하면 강제로 채우지 않고 미배치 상태로 남긴다.
-  const autoAssignTables = () => {
-    const nextAssignments = { ...seatAssignments };
-    const load = {};
-    afterPartyTables.forEach(t => { load[t.id] = 0; });
-    Object.entries(nextAssignments).forEach(([orderId, tableId]) => {
-      const p = afterPartyParticipants.find(x => x.orderId === orderId);
-      if (p && load[tableId] !== undefined) load[tableId] += p.count;
+  // 1순위 공연자 매핑만 자동 배치한다. 이전 자동 배정만 재계산하고 수동 배정은 유지한다.
+  const autoAssignTables = (tableOverride = null, participantSeatOverride = null, assignmentOverride = seatAssignments) => {
+    const startingTables = tableOverride || afterPartyTables;
+    const mapped = afterPartyParticipants.flatMap(person => {
+      const order = ordersById[person.orderId];
+      const performer = order && !order.inviterGroupLabel ? resolveInviterMember(order) : null;
+      return performer ? [{ ...person, performerId: performer.id, performerName: performer.name }] : [];
     });
+    const autoEligible = mapped.filter(person => !manualSeatAssignments[person.orderId] && (!seatAssignments[person.orderId] || autoSeatAssignments[person.orderId]));
+    const movedCount = autoEligible.filter(person => {
+      const table = startingTables.find(item => item.id === assignmentOverride[person.orderId]);
+      return !table || table.performerId !== person.performerId;
+    }).length;
+    const previousAutoCount = Object.values(autoSeatAssignments).filter(Boolean).length;
+    if (!window.confirm(`1순위 공연자 매핑 기준으로 ${autoEligible.length}건/${autoEligible.reduce((sum, person) => sum + person.count, 0)}명을 배치합니다. 자동 배정 ${previousAutoCount}건을 갱신하고, 수동 배정은 유지합니다. 미매핑 참여자는 배치하지 않습니다. 예상 변경 ${movedCount}건. 계속할까요?`)) return;
 
-    // 1단계: 공연자 이름 = 테이블 이름 매칭
-    for (const table of afterPartyTables) {
-      const matchedMember = activeMembersSorted.find(m => m.name.trim() === table.name.trim());
-      if (!matchedMember) continue;
-      const performerGroup = afterPartyRowsByKey[`member:${matchedMember.id}`];
-      if (!performerGroup) continue;
-      for (const orderId of performerGroup.orderIds) {
-        if (nextAssignments[orderId]) continue; // 이미 배치됨(수동 배치 포함) — 그대로 둔다
-        const p = afterPartyParticipants.find(x => x.orderId === orderId);
-        if (!p) continue;
-        if (load[table.id] + p.count <= table.capacity) {
-          nextAssignments[orderId] = table.id;
-          load[table.id] += p.count;
-        }
-        // 정원이 부족하면 여기서는 배치하지 않고 2단계/미배치로 넘어간다(초과 강제 배치 없음).
+    const nextAssignments = { ...assignmentOverride };
+    const nextAuto = {};
+    const nextParticipants = { ...(participantSeatOverride || participantSeatAssignments) };
+    Object.entries(autoSeatAssignments).forEach(([orderId, isAuto]) => {
+      if (!isAuto) return;
+      delete nextAssignments[orderId];
+      Object.keys(nextParticipants).forEach(seatId => { if (nextParticipants[seatId]?.orderId === orderId) delete nextParticipants[seatId]; });
+    });
+    let tables = [...startingTables];
+    const ensureTableSeats = (table) => {
+      const seats = [...(table.seats || [])];
+      if (seats.length < table.capacity) {
+        computeSeatSlots(table, table.capacity).slice(seats.length).forEach(point => seats.push({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) }));
       }
-    }
-
-    // 2단계: 그 외 미배치 참여자를 순서대로 정원 내 첫 테이블에 채운다.
-    const stillUnassigned = afterPartyParticipants.filter(p => !nextAssignments[p.orderId]);
-    for (const p of stillUnassigned) {
-      for (const t of afterPartyTables) {
-        if (load[t.id] + p.count <= t.capacity) {
-          nextAssignments[p.orderId] = t.id;
-          load[t.id] += p.count;
-          break;
-        }
+      return { ...table, seats };
+    };
+    const newPerformerTable = (performerId, performerName, tableIndex, capacity) => {
+      const positioned = withTableGeometry({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: tableIndex === 1 ? performerName : `${performerName} ${tableIndex}`, capacity, performerId, performerTableIndex: tableIndex }, tables.length);
+      const base = { ...positioned, ...clampTablePosition(positioned.x, positioned.y, positioned.width, positioned.height) };
+      return { ...base, seats: computeSeatSlots(base, capacity).map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
+    };
+    const loadByTable = {};
+    Object.entries(nextAssignments).forEach(([orderId, tableId]) => {
+      const person = afterPartyParticipants.find(item => item.orderId === orderId);
+      if (person && !autoSeatAssignments[orderId]) loadByTable[tableId] = (loadByTable[tableId] || 0) + person.count;
+    });
+    const peopleByPerformer = new Map();
+    autoEligible.forEach(person => {
+      if (!peopleByPerformer.has(person.performerId)) peopleByPerformer.set(person.performerId, { name: person.performerName, people: [] });
+      peopleByPerformer.get(person.performerId).people.push(person);
+    });
+    peopleByPerformer.forEach(({ name, people }, performerId) => {
+      let performerTables = tables.filter(table => table.performerId === performerId).sort((a, b) => (a.performerTableIndex || 1) - (b.performerTableIndex || 1));
+      if (!performerTables.length) {
+        const table = newPerformerTable(performerId, name, 1, 6);
+        tables.push(table);
+        performerTables = [table];
       }
-    }
-    saveSeatingPatch({ seatAssignments: nextAssignments });
+      performerTables = performerTables.map(table => {
+        const updated = { ...table, name: (table.performerTableIndex || 1) === 1 ? name : `${name} ${table.performerTableIndex}` };
+        return ensureTableSeats(updated);
+      });
+      performerTables.forEach(table => { tables = tables.map(item => item.id === table.id ? table : item); });
+      people.forEach(person => {
+        let firstTableId = null;
+        for (let attendeeIndex = 0; attendeeIndex < person.count; attendeeIndex += 1) {
+          let table = performerTables.find(candidate => {
+            const occupied = candidate.seats.filter(seat => Object.hasOwn(nextParticipants, seat.id)).length;
+            return candidate.capacity - (loadByTable[candidate.id] || 0) > 0 && occupied < candidate.seats.length;
+          });
+          if (!table) {
+            const index = Math.max(0, ...performerTables.map(item => item.performerTableIndex || 1)) + 1;
+            const capacity = Math.max(1, Number(performerTables[0]?.capacity) || 6);
+            table = newPerformerTable(performerId, name, index, capacity);
+            tables.push(table);
+            performerTables.push(table);
+            loadByTable[table.id] = 0;
+          }
+          const occupiedSeatIds = new Set(Object.keys(nextParticipants));
+          const freeSeat = table.seats.find(seat => !occupiedSeatIds.has(seat.id));
+          if (!freeSeat) continue;
+          nextParticipants[freeSeat.id] = { orderId: person.orderId, attendeeIndex };
+          if (!firstTableId) firstTableId = table.id;
+          loadByTable[table.id] = (loadByTable[table.id] || 0) + 1;
+        }
+        if (firstTableId) nextAssignments[person.orderId] = firstTableId;
+        nextAuto[person.orderId] = true;
+      });
+    });
+    saveSeatingPatch({ tables, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments, participantSeatAssignments: nextParticipants });
   };
 
   // 모든 테이블의 참여자 배치만 해제한다(테이블 자체·이름·위치·정원은 유지). 확인 절차 포함.
   const resetAllSeating = () => {
     if (!window.confirm('모든 테이블의 참여자 배치를 해제합니다. 테이블 이름·위치·정원은 그대로 유지됩니다. 계속하시겠습니까?')) return;
-    saveSeatingPatch({ seatAssignments: {} });
+    saveSeatingPatch({ seatAssignments: {}, autoSeatAssignments: {}, manualSeatAssignments: {}, participantSeatAssignments: {} });
   };
 
   // ── 테이블 배치도: 위치/크기/모양/방향 편집 — afterPartyTables는 이미 기본값이 채워져 있으므로
   // 그 상태 그대로 patch만 덮어써서 저장한다(처음 조작하는 순간 계산된 기본값이 그대로 확정된다). ──
   const updateTableGeometry = (tableId, patch) => {
     saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, ...patch } : t)) });
+  };
+
+  const addChair = (tableId) => {
+    const table = afterPartyTables.find(item => item.id === tableId);
+    if (!table) return;
+    const existing = table.seats || [];
+    const center = { x: (table.x + table.width / 2) / TABLE_CANVAS_WIDTH, y: (table.y + table.height + SEAT_EDGE_OFFSET) / TABLE_CANVAS_HEIGHT };
+    const seats = [...existing, { id: createSeatId(), x: Math.max(0, Math.min(1, center.x)), y: Math.max(0, Math.min(1, center.y)) }];
+    saveSeatingPatch({ tables: afterPartyTables.map(item => item.id === tableId ? { ...item, seats, capacity: seats.length } : item) });
+  };
+
+  const removeChair = (tableId, seatId) => {
+    const assigned = participantSeatAssignments[seatId];
+    if (assigned && !window.confirm('이 좌석에 배정된 참여자의 좌석 배정을 해제할까요?')) return;
+    const tables = afterPartyTables.map(item => item.id === tableId ? { ...item, seats: item.seats.filter(seat => seat.id !== seatId), capacity: Math.max(0, item.seats.length - 1) } : item);
+    const nextParticipants = { ...participantSeatAssignments };
+    delete nextParticipants[seatId];
+    const nextAssignments = { ...seatAssignments };
+    const nextAuto = { ...autoSeatAssignments };
+    const nextManual = { ...manualSeatAssignments };
+    if (assigned?.orderId) {
+      delete nextAssignments[assigned.orderId];
+      delete nextAuto[assigned.orderId];
+      nextManual[assigned.orderId] = true;
+    }
+    saveSeatingPatch({ tables, participantSeatAssignments: nextParticipants, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual });
+  };
+
+  const moveChair = (tableId, seatId, x, y) => {
+    saveSeatingPatch({ tables: afterPartyTables.map(item => item.id === tableId ? {
+      ...item, seats: item.seats.map(seat => seat.id === seatId ? { ...seat, x: Math.max(0, Math.min(1, x / TABLE_CANVAS_WIDTH)), y: Math.max(0, Math.min(1, y / TABLE_CANVAS_HEIGHT)) } : seat)
+    } : item) });
   };
 
   const clampTablePosition = (x, y, width, height) => ({
@@ -1514,12 +1723,19 @@ export default function ReservationManagementPage() {
         return r.attendees.some(a => a.name.toLowerCase().includes(q) || a.phone.includes(q) || (a.inviterName || '').toLowerCase().includes(q));
       })
       .sort((a, b) => {
-        const pa = AFTER_PARTY_TYPE_SORT_PRIORITY[a.type] ?? 1;
-        const pb = AFTER_PARTY_TYPE_SORT_PRIORITY[b.type] ?? 1;
-        if (pa !== pb) return pa - pb;
-        return b.count - a.count;
+        const timeA = Date.parse(a.latestCreatedAt || a.createdAt || '') || 0;
+        const timeB = Date.parse(b.latestCreatedAt || b.createdAt || '') || 0;
+        if (timeA !== timeB) return timeB - timeA;
+        return String(a.orderIds?.[0] || a.orderId || a.key).localeCompare(String(b.orderIds?.[0] || b.orderId || b.key));
       });
   }, [afterPartyRowsByKey, mgmtQuery, mgmtFilter]);
+  const afterPartyRowGroups = useMemo(() => {
+    const groups = [];
+    for (let start = 0; start < afterPartyRows.length; start += 10) {
+      groups.push({ start, rows: afterPartyRows.slice(start, start + 10) });
+    }
+    return groups;
+  }, [afterPartyRows]);
 
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
@@ -1822,6 +2038,11 @@ export default function ReservationManagementPage() {
     }
   }, [isAdmin, checkinMode, orders, colMap, totalPriceFor, members, activeMembersSorted, duesSavingId]);
 
+  const performerAutoCandidateCount = afterPartyParticipants.filter(person => {
+    const order = ordersById[person.orderId];
+    return order && !order.inviterGroupLabel && resolveInviterMember(order) && !manualSeatAssignments[person.orderId] && (!seatAssignments[person.orderId] || autoSeatAssignments[person.orderId]);
+  }).length;
+
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100dvh', gap: 16, background: '#f8fafc' }}>
@@ -1982,6 +2203,17 @@ export default function ReservationManagementPage() {
           {visibleOrders.length === 0 ? (
             <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 15, fontWeight: 500 }}>표시할 예매 정보가 없습니다.</div>
           ) : (
+            <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 0', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: '#64748b' }}>
+                신청 최신순 · {visibleOrders.length === 0 ? 0 : reservationPage * 10 + 1}~{Math.min((reservationPage + 1) * 10, visibleOrders.length)} / {visibleOrders.length}건
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button type="button" disabled={reservationPage === 0} onClick={() => setReservationPage(page => Math.max(0, page - 1))} style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', cursor: reservationPage === 0 ? 'not-allowed' : 'pointer' }}>이전</button>
+                <span style={{ fontSize: 12, color: '#475569' }}>{reservationPage + 1} / {Math.max(1, reservationPageCount)}</span>
+                <button type="button" disabled={reservationPage + 1 >= reservationPageCount} onClick={() => setReservationPage(page => Math.min(reservationPageCount - 1, page + 1))} style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', cursor: reservationPage + 1 >= reservationPageCount ? 'not-allowed' : 'pointer' }}>다음</button>
+              </div>
+            </div>
             <div style={{ overflowX: 'auto', margin: '0 -24px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed', minWidth: checkinMode ? 480 : 720 }}>
                 <thead>
@@ -2010,7 +2242,7 @@ export default function ReservationManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleOrders.map((o) => (
+                  {visibleReservationPage.map((o) => (
                     <tr
                       key={o.id}
                       style={{
@@ -2049,6 +2281,7 @@ export default function ReservationManagementPage() {
                 </tfoot>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -2235,17 +2468,21 @@ export default function ReservationManagementPage() {
                 {afterPartyRows.length === 0 ? (
                   <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>검색/필터 조건에 맞는 참여자가 없습니다.</div>
                 ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {afterPartyRows.map((row) => {
+                  <div style={{ display: 'grid', gap: 12, minWidth: 0 }}>
+                    {afterPartyRowGroups.map(({ start, rows }) => (
+                      <section key={start} style={{ minWidth: 0, padding: 12, borderRadius: 14, border: '1px solid #e2e8f0', background: '#fbfcfe' }}>
+                        <div style={{ marginBottom: 10, fontSize: 12, fontWeight: 800, color: '#64748b' }}>최근 예매 {start + 1}~{start + rows.length}명</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 165px), 1fr))', gap: 8 }}>
+                    {rows.map((row) => {
                       const isActive = activeEditKey === row.key;
                       const isChecked = row.kind === 'individual' && selectedUnassignedIds.includes(row.orderId);
                       const badge = AFTER_PARTY_TYPE_BADGE[row.type];
                       return (
                         <div key={row.key} style={{
-                          display: 'flex', alignItems: 'center', gap: 6, borderRadius: 20,
+                          display: 'flex', alignItems: 'center', gap: 6, borderRadius: 12, minWidth: 0,
                           border: `1.5px solid ${isActive ? '#111827' : '#e2e8f0'}`,
                           background: isActive ? '#111827' : (isChecked ? '#eff6ff' : '#f8fafc'),
-                          padding: '6px 8px 6px 12px'
+                          padding: '8px 10px', boxSizing: 'border-box'
                         }}>
                           {row.kind === 'individual' && isAdmin && (
                             <input
@@ -2256,7 +2493,7 @@ export default function ReservationManagementPage() {
                             />
                           )}
                           <button type="button" onClick={() => toggleActiveEdit(row.key)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', minWidth: 0 }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer', minWidth: 0, flex: 1, textAlign: 'left' }}
                           >
                             <span style={{ fontWeight: 700, fontSize: 13, color: isActive ? '#fff' : '#111827', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 150, textAlign: 'left' }}>
                               {row.label}
@@ -2267,6 +2504,9 @@ export default function ReservationManagementPage() {
                         </div>
                       );
                     })}
+                        </div>
+                      </section>
+                    ))}
                   </div>
                 )}
 
@@ -2295,14 +2535,14 @@ export default function ReservationManagementPage() {
                           style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#111827', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                         >+ 테이블 추가</button>
                         <button type="button" onClick={autoAssignTables}
-                          disabled={afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0}
-                          title="① 테이블 이름과 같은 이름의 공연자에게 매핑된 참여자를 그 테이블에 먼저 배치 ② 남은 미배치 참여자는 정원 내 순서대로 채움. 이미 배치된 참여자(수동 배치 포함)는 옮기지 않습니다."
+                          disabled={performerAutoCandidateCount === 0}
+                          title="1순위 공연자 매핑의 예매자만 공연자 ID에 연결된 테이블로 배치합니다. 자동 배치는 갱신하고 수동 배정은 보존합니다. 미매핑 참여자는 배치하지 않습니다."
                           style={{
                             padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700,
-                            cursor: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 'not-allowed' : 'pointer',
-                            opacity: (afterPartyTables.length === 0 || seatingOverview.unassigned.length === 0) ? 0.5 : 1
+                            cursor: performerAutoCandidateCount === 0 ? 'not-allowed' : 'pointer',
+                            opacity: performerAutoCandidateCount === 0 ? 0.5 : 1
                           }}
-                        >자동 배치</button>
+                        >공연자 기준 자동 배치</button>
                         <button type="button" onClick={resetAllSeating}
                           disabled={Object.keys(seatAssignments).length === 0}
                           style={{
@@ -2339,45 +2579,44 @@ export default function ReservationManagementPage() {
                           const entry = seatingOverview.tables.find(t => t.table.id === table.id);
                           const placedCount = entry ? entry.count : 0;
                           const over = placedCount > table.capacity;
-                          const participants = entry ? entry.participants : [];
-                          const totalNeeded = participants.reduce((s, p) => s + p.count, 0);
-                          const seatCount = Math.max(table.capacity, totalNeeded);
-                          const slots = computeSeatSlots(geom, seatCount);
-
                           const seatNodes = [];
-                          let slotIdx = 0;
-                          participants.forEach(p => {
-                            for (let i = 0; i < p.count; i++) {
-                              const slot = slots[slotIdx];
-                              const overflow = slotIdx >= table.capacity;
-                              seatNodes.push(
-                                <div key={`${p.orderId}-dot-${i}`} title={`${p.name} (${p.count}명)`} style={{
-                                  position: 'absolute', left: slot.x - 9, top: slot.y - 9, width: 18, height: 18, borderRadius: '50%',
-                                  background: overflow ? '#ef4444' : '#111827', border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)', zIndex: 2
-                                }} />
-                              );
-                              if (i === 0) {
-                                seatNodes.push(
-                                  <div key={`${p.orderId}-label`} style={{
-                                    position: 'absolute', left: slot.x, top: slot.y + 12, transform: 'translateX(-50%)',
-                                    fontSize: 10, fontWeight: 700, color: '#1e293b', background: '#fff', padding: '1px 6px',
-                                    borderRadius: 6, border: '1px solid #e2e8f0', whiteSpace: 'nowrap', zIndex: 2,
-                                    maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis'
-                                  }}>{p.name}{p.count > 1 ? ` (${p.count})` : ''}</div>
-                                );
-                              }
-                              slotIdx++;
+                          const seats = table.seats || [];
+                          const legacySeatOccupants = {};
+                          let legacyIndex = 0;
+                          (entry?.participants || []).forEach(person => {
+                            for (let attendeeIndex = 0; attendeeIndex < person.count; attendeeIndex += 1) {
+                              const alreadyAssigned = Object.values(participantSeatAssignments).some(value => value?.orderId === person.orderId && value?.attendeeIndex === attendeeIndex);
+                              if (alreadyAssigned) continue;
+                              while (legacyIndex < seats.length && (participantSeatAssignments[seats[legacyIndex].id] || legacySeatOccupants[seats[legacyIndex].id])) legacyIndex += 1;
+                              if (legacyIndex < seats.length) legacySeatOccupants[seats[legacyIndex++].id] = { orderId: person.orderId, attendeeIndex };
                             }
                           });
-                          for (; slotIdx < table.capacity; slotIdx++) {
-                            const slot = slots[slotIdx];
-                            seatNodes.push(
-                              <div key={`empty-${slotIdx}`} style={{
-                                position: 'absolute', left: slot.x - 9, top: slot.y - 9, width: 18, height: 18, borderRadius: '50%',
-                                border: '2px dashed #cbd5e1', background: '#fff', zIndex: 2
-                              }} />
-                            );
-                          }
+                          seats.forEach((seat) => {
+                            const chair = seatDragInfo?.seatId === seat.id ? { ...seat, x: seatDragInfo.x / TABLE_CANVAS_WIDTH, y: seatDragInfo.y / TABLE_CANVAS_HEIGHT } : seat;
+                            const assigned = participantSeatAssignments[seat.id] || legacySeatOccupants[seat.id];
+                            const person = assigned && afterPartyParticipants.find(p => p.orderId === assigned.orderId);
+                            const occupied = Boolean(person);
+                            const sx = chair.x * TABLE_CANVAS_WIDTH;
+                            const sy = chair.y * TABLE_CANVAS_HEIGHT;
+                            const overlapsSeat = seats.some(other => other.id !== seat.id && Math.hypot((other.x - seat.x) * TABLE_CANVAS_WIDTH, (other.y - seat.y) * TABLE_CANVAS_HEIGHT) < SEAT_DOT_SIZE);
+                            seatNodes.push(<div key={seat.id} title={person?.name || '빈 좌석'} onPointerDown={e => {
+                              if (!isAdmin) return;
+                              e.stopPropagation();
+                              e.currentTarget.setPointerCapture(e.pointerId);
+                              setSelectedTableId(table.id);
+                              setSeatDragInfo({ seatId: seat.id, tableId: table.id, startX: sx, startY: sy, clientX: e.clientX, clientY: e.clientY, x: sx, y: sy });
+                            }} onPointerMove={e => setSeatDragInfo(prev => {
+                              if (!prev || prev.seatId !== seat.id) return prev;
+                              const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
+                              const scaleX = rect.width / TABLE_CANVAS_WIDTH;
+                              const scaleY = rect.height / TABLE_CANVAS_HEIGHT;
+                              return { ...prev, x: Math.max(9, Math.min(TABLE_CANVAS_WIDTH - 9, prev.startX + (e.clientX - prev.clientX) / scaleX)), y: Math.max(9, Math.min(TABLE_CANVAS_HEIGHT - 9, prev.startY + (e.clientY - prev.clientY) / scaleY)) };
+                            })} onPointerUp={() => setSeatDragInfo(prev => {
+                              if (prev?.seatId === seat.id) moveChair(table.id, seat.id, prev.x, prev.y);
+                              return null;
+                            })} style={{ position: 'absolute', left: sx - 9, top: sy - 9, width: 18, height: 18, borderRadius: '50%', background: occupied ? '#111827' : '#fff', border: occupied ? '2px solid #fff' : '2px dashed #64748b', boxShadow: overlapsSeat ? '0 0 0 3px #ef4444, 0 1px 4px rgba(0,0,0,.3)' : '0 1px 4px rgba(0,0,0,.3)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }} />);
+                            if (occupied) seatNodes.push(<div key={`${seat.id}-name`} style={{ position: 'absolute', left: sx, top: sy + 12, transform: 'translateX(-50%)', fontSize: 10, fontWeight: 700, color: '#1e293b', background: '#fff', padding: '1px 6px', borderRadius: 6, border: '1px solid #e2e8f0', whiteSpace: 'nowrap', zIndex: 4, pointerEvents: 'none' }}>{person.name}</div>);
+                          });
 
                           return (
                             <div key={table.id}>
@@ -2416,7 +2655,7 @@ export default function ReservationManagementPage() {
                                 }}
                               >
                                 <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', padding: '0 6px', textAlign: 'center', wordBreak: 'break-word' }}>{table.name}</div>
-                                <div style={{ fontSize: 11, color: over ? '#92400e' : '#475569', fontWeight: 700 }}>{placedCount}/{table.capacity}</div>
+                                <div style={{ fontSize: 11, color: over ? '#92400e' : '#475569', fontWeight: 700 }}>{placedCount}/{table.capacity} · 잔여 {Math.max(0, table.capacity - placedCount)}</div>
                               </div>
                             </div>
                           );
@@ -2448,11 +2687,45 @@ export default function ReservationManagementPage() {
                                 />
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>정원</span>
-                                <input type="number" min={0} defaultValue={table.capacity}
+                                <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>좌석 수</span>
+                                <input type="number" min={0} defaultValue={table.seats.length}
                                   onBlur={(e) => setTableCapacity(table.id, e.target.value)}
                                   style={{ width: 70, padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, fontWeight: 700 }}
                                 />
+                                <button type="button" onClick={() => addChair(table.id)} style={smallBtnStyle}>+ 좌석</button>
+                              </div>
+                              <div style={{ display: 'grid', gap: 6 }}>
+                                {table.seats.map((seat, seatIndex) => {
+                                  const assigned = participantSeatAssignments[seat.id];
+                                  return <div key={seat.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <span style={{ fontSize: 11, color: '#64748b', width: 38 }}>좌석 {seatIndex + 1}</span>
+                                    <select value={assigned ? `${assigned.orderId}:${assigned.attendeeIndex}` : ''} onChange={e => {
+                                      const next = { ...participantSeatAssignments };
+                                      Object.keys(next).forEach(key => { if (next[key]?.orderId === assigned?.orderId && next[key]?.attendeeIndex === assigned?.attendeeIndex) delete next[key]; });
+                                      const nextTables = { ...seatAssignments };
+                                      const nextAuto = { ...autoSeatAssignments };
+                                      const nextManual = { ...manualSeatAssignments };
+                                      if (assigned) { delete nextAuto[assigned.orderId]; nextManual[assigned.orderId] = true; }
+                                      if (assigned && !Object.entries(next).some(([id, value]) => id !== seat.id && value?.orderId === assigned.orderId)) delete nextTables[assigned.orderId];
+                                      if (e.target.value) {
+                                        const [orderId, index] = e.target.value.split(':');
+                                        const attendeeIndex = Number(index);
+                                        Object.keys(next).forEach(key => {
+                                          if (next[key]?.orderId === orderId && next[key]?.attendeeIndex === attendeeIndex) delete next[key];
+                                        });
+                                        next[seat.id] = { orderId, attendeeIndex };
+                                        nextTables[orderId] = table.id;
+                                        delete nextAuto[orderId];
+                                        nextManual[orderId] = true;
+                                      }
+                                      saveSeatingPatch({ participantSeatAssignments: next, seatAssignments: nextTables, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual });
+                                    }} style={{ flex: 1, minWidth: 0, fontSize: 11, padding: 5, border: '1px solid #e2e8f0', borderRadius: 6 }}>
+                                      <option value="">빈 좌석</option>
+                                      {afterPartyParticipants.flatMap(p => Array.from({ length: p.count }, (_, index) => ({ p, index }))).map(({ p, index }) => <option key={`${p.orderId}:${index}`} value={`${p.orderId}:${index}`}>{p.name}{p.count > 1 ? ` ${index + 1}` : ''}</option>)}
+                                    </select>
+                                    <button type="button" onClick={() => removeChair(table.id, seat.id)} style={{ ...smallBtnStyle, color: '#dc2626', padding: '4px 7px' }}>삭제</button>
+                                  </div>;
+                                })}
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: 12, color: '#64748b', width: 40, flexShrink: 0 }}>모양</span>
