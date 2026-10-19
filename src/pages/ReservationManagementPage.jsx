@@ -679,7 +679,8 @@ export default function ReservationManagementPage() {
   const [selectedUnassignedIds, setSelectedUnassignedIds] = useState([]);
   const [mappingErrorMsg, setMappingErrorMsg] = useState('');
   const [afterPartyTab, setAfterPartyTab] = useState('participants'); // 'participants' | 'tables'
-  const [expandedParticipantRows, setExpandedParticipantRows] = useState({}); // 참여자 카드 상세(복수 공연자 등) 펼침 상태
+  // 참여자 관리: 한 번에 하나의 편집 대상만 연다(아코디언). 그룹 key, 또는 개별 신청 "order:<id>".
+  const [activeEditKey, setActiveEditKey] = useState(null);
   const [selectedSeatingIds, setSelectedSeatingIds] = useState([]); // 테이블 배치: 미배치 참여자 다중 선택
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
@@ -1004,9 +1005,10 @@ export default function ReservationManagementPage() {
     setSelectedUnassignedIds(prev => (prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]));
   };
 
-  // 참여자 이름표(카드)를 펼쳐 상세(연락처, 복수 공연자 관리 등)를 보여줄지 토글한다.
-  const toggleParticipantExpand = (key) => {
-    setExpandedParticipantRows(prev => ({ ...prev, [key]: !prev[key] }));
+  // 이름표를 클릭해 그 대상의 편집 영역을 열고 닫는다. 한 번에 하나만 열리는 아코디언 —
+  // 같은 대상을 다시 클릭하면 닫히고, 다른 대상을 클릭하면 그쪽으로 전환된다.
+  const toggleActiveEdit = (key) => {
+    setActiveEditKey(prev => (prev === key ? null : key));
   };
 
   // orderId 한 건의 "1순위 + 2순위 이하" 복수 공연자 관리 패널을 렌더링한다.
@@ -1064,6 +1066,103 @@ export default function ReservationManagementPage() {
             <AddPerformerPicker members={activeMembersSorted} excludeIds={excludeIds} onAdd={(memberId) => addExtraPerformer(orderId, memberId)} />
           </div>
         )}
+      </div>
+    );
+  };
+
+  // 매핑 편집 영역 하나를 렌더링한다. 체크박스 다중 선택이 있으면 그걸 최우선으로,
+  // 없으면 방금 클릭한 단일 대상(그룹 또는 개별 신청 한 건)을 보여준다.
+  // 폭을 제한(maxWidth)해 넓은 화면에서도 불필요한 빈 공간 없이 내용에 맞게 표시된다.
+  const renderMappingEditorPanel = () => {
+    const editorPanelStyle = {
+      width: '100%', maxWidth: 480, boxSizing: 'border-box', marginTop: 12,
+      borderRadius: 14, border: '1.5px solid #c7d2fe', background: '#f5f6ff', padding: '14px 16px',
+    };
+    const closeBtnStyle = { background: 'none', border: 'none', color: '#94a3b8', fontWeight: 800, fontSize: 13, cursor: 'pointer', flexShrink: 0 };
+
+    // 1) 체크박스로 여러 명을 선택한 경우 — 일괄 작업 패널이 최우선
+    if (isAdmin && selectedUnassignedIds.length > 0) {
+      const selectedNames = selectedUnassignedIds.map(id => ordersById[id]?.audienceName || '(이름없음)');
+      return (
+        <div style={editorPanelStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#1d4ed8' }}>{selectedUnassignedIds.length}명 선택됨</span>
+            <button type="button" onClick={() => setSelectedUnassignedIds([])} style={closeBtnStyle}>✕</button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {selectedNames.map((name, idx) => (
+              <span key={idx} style={{ padding: '3px 10px', borderRadius: 14, background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>{name}</span>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>일괄 매핑:</span>
+            <InviterMappingPicker
+              members={activeMembersSorted}
+              existingGroupLabels={existingGroupLabels}
+              currentMemberId={null}
+              currentGroupLabel={null}
+              triggerText="공연자/텍스트 그룹 선택"
+              onSelectPerformer={(memberId) => { assignPerformer(selectedUnassignedIds, memberId); setSelectedUnassignedIds([]); }}
+              onSelectGroup={(groupLabel) => { assignGroupLabel(selectedUnassignedIds, groupLabel); setSelectedUnassignedIds([]); }}
+              onClear={() => setSelectedUnassignedIds([])}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (!activeEditKey) return null;
+
+    // 2) 개별 신청 한 건의 편집 — 1순위/2순위 이하 복수 공연자 패널
+    if (activeEditKey.startsWith('order:')) {
+      const orderId = activeEditKey.slice('order:'.length);
+      const o = ordersById[orderId];
+      if (!o) return null;
+      return (
+        <div style={editorPanelStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{o.audienceName || '(이름없음)'} 매핑 편집</span>
+            <button type="button" onClick={() => setActiveEditKey(null)} style={closeBtnStyle}>✕</button>
+          </div>
+          {o.phone && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>연락처: {o.phone}</div>}
+          {renderPerformerPriorityPanel(orderId)}
+        </div>
+      );
+    }
+
+    // 3) 그룹(공연자/미매핑 텍스트/관리용 텍스트 그룹)의 편집 — 그룹 전체 재매핑 + 소속 예매자 칩
+    //    (칩을 클릭하면 그 한 명만의 편집 패널로 전환된다)
+    const row = afterPartyRowsByKey[activeEditKey];
+    if (!row || row.kind !== 'group') return null;
+    return (
+      <div style={editorPanelStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{row.label} · {row.count}명</span>
+          <button type="button" onClick={() => setActiveEditKey(null)} style={closeBtnStyle}>✕</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>그룹 전체 재매핑:</span>
+          <InviterMappingPicker
+            members={activeMembersSorted}
+            existingGroupLabels={existingGroupLabels}
+            currentMemberId={row.memberId}
+            currentGroupLabel={row.type === 'group' ? row.label : null}
+            disabled={!isAdmin}
+            onSelectPerformer={(memberId) => assignPerformer(row.orderIds, memberId)}
+            onSelectGroup={(groupLabel) => assignGroupLabel(row.orderIds, groupLabel)}
+            onClear={() => clearInviterClassification(row.orderIds)}
+          />
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
+          유입된 예매자 {row.orderIds.length}건 — 클릭하면 한 명만 따로 편집
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {row.attendees.map((a) => (
+            <button key={a.orderId} type="button" onClick={() => setActiveEditKey(`order:${a.orderId}`)}
+              style={{ padding: '5px 10px', borderRadius: 16, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}
+            >{a.name} ({a.count}명)</button>
+          ))}
+        </div>
       </div>
     );
   };
@@ -1182,13 +1281,23 @@ export default function ReservationManagementPage() {
     saveSeatingPatch({ seatAssignments: nextAssignments });
   };
 
-  // 뒤풀이 관리 섹션에 표시할 통합 행(그룹 + 초대자 미기재 개별 항목)을 검색/필터/정렬한다.
+  // 뒤풀이 관리에 표시할 통합 행(그룹 + 초대자 미기재 개별 항목)을 key로 조회할 수 있게 모아둔다.
+  // 검색/필터와 무관하게 항상 전체를 담고 있어, 편집 패널이 현재 필터와 상관없이 대상을 찾을 수 있다.
+  const afterPartyRowsByKey = useMemo(() => {
+    const map = {};
+    afterPartyEntries.groups.forEach(g => { map[g.key] = { kind: 'group', ...g }; });
+    afterPartyEntries.individuals.forEach(i => {
+      const key = `order:${i.orderId}`;
+      map[key] = { kind: 'individual', type: 'unassigned', key, label: i.name, count: i.count, orderIds: [i.orderId], attendees: [i], memberId: null, ...i };
+    });
+    return map;
+  }, [afterPartyEntries]);
+
+  // 위 통합 행을 검색/필터/정렬해 목록에 실제로 표시할 순서를 만든다.
   // 기본 정렬은 미매핑(텍스트 불일치·미기재)을 우선 노출한다.
   const afterPartyRows = useMemo(() => {
-    const groupRows = afterPartyEntries.groups.map(g => ({ kind: 'group', ...g }));
-    const individualRows = afterPartyEntries.individuals.map(i => ({ kind: 'individual', type: 'unassigned', key: `order:${i.orderId}`, label: i.name, count: i.count, orderIds: [i.orderId], attendees: [i], memberId: null, ...i }));
     const q = mgmtQuery.trim().toLowerCase();
-    return [...groupRows, ...individualRows]
+    return Object.values(afterPartyRowsByKey)
       .filter(r => mgmtFilter === 'all' || r.type === mgmtFilter)
       .filter(r => {
         if (!q) return true;
@@ -1201,7 +1310,7 @@ export default function ReservationManagementPage() {
         if (pa !== pb) return pa - pb;
         return b.count - a.count;
       });
-  }, [afterPartyEntries, mgmtQuery, mgmtFilter]);
+  }, [afterPartyRowsByKey, mgmtQuery, mgmtFilter]);
 
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
@@ -1911,129 +2020,51 @@ export default function ReservationManagementPage() {
                   </div>
                 </div>
 
-                {/* 다중 선택 일괄 매핑 툴바 (초대자 미기재 항목을 체크하면 노출) */}
-                {isAdmin && selectedUnassignedIds.length > 0 && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-                    padding: '10px 14px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 12
-                  }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedUnassignedIds.length}명 선택됨</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <InviterMappingPicker
-                        members={activeMembersSorted}
-                        existingGroupLabels={existingGroupLabels}
-                        currentMemberId={null}
-                        currentGroupLabel={null}
-                        triggerText="선택 인원 일괄 매핑"
-                        onSelectPerformer={(memberId) => { assignPerformer(selectedUnassignedIds, memberId); setSelectedUnassignedIds([]); }}
-                        onSelectGroup={(groupLabel) => { assignGroupLabel(selectedUnassignedIds, groupLabel); setSelectedUnassignedIds([]); }}
-                        onClear={() => setSelectedUnassignedIds([])}
-                      />
-                      <button type="button" onClick={() => setSelectedUnassignedIds([])}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                      >선택 해제</button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 통합 목록: 컴팩트한 이름표(태그) 형태. 펼치면 해당 태그만 전체 너비를 차지해(flexBasis:100%)
-                     상세(연락처, 매핑 변경, 복수 공연자 관리)가 아래로 펼쳐지고 나머지 태그는 그대로 흐른다. */}
+                {/* 참여자 이름표 목록 — 이름/상태/인원수만 표시하는 컴팩트한 태그.
+                     체크박스(일괄 선택)와 태그 클릭(편집 대상 지정)은 서로 다른 동작이다.
+                     편집 영역은 여기서 펼치지 않고, 목록 바로 아래에 하나만(아코디언) 별도로 표시한다. */}
                 {afterPartyRows.length === 0 ? (
                   <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>검색/필터 조건에 맞는 참여자가 없습니다.</div>
                 ) : (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {afterPartyRows.map((row) => {
-                      const isExpanded = !!expandedParticipantRows[row.key];
+                      const isActive = activeEditKey === row.key;
+                      const isChecked = row.kind === 'individual' && selectedUnassignedIds.includes(row.orderId);
                       const badge = AFTER_PARTY_TYPE_BADGE[row.type];
                       return (
-                        <div key={row.key} style={{ flexBasis: isExpanded ? '100%' : 'auto', minWidth: 0 }}>
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: 6, borderRadius: 20,
-                            border: '1px solid #e2e8f0', background: isExpanded ? '#eef2ff' : '#f8fafc',
-                            padding: '6px 8px 6px 12px'
-                          }}>
-                            {row.kind === 'individual' && isAdmin && (
-                              <input
-                                type="checkbox"
-                                checked={selectedUnassignedIds.includes(row.orderId)}
-                                onChange={() => toggleUnassignedSelection(row.orderId)}
-                                style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
-                              />
-                            )}
-                            <button type="button" onClick={() => toggleParticipantExpand(row.key)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', minWidth: 0 }}
-                            >
-                              <span style={{ fontWeight: 700, fontSize: 13, color: '#111827', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 150, textAlign: 'left' }}>
-                                {row.label}
-                              </span>
-                              <span style={{ fontSize: 10, fontWeight: 800, color: badge.color, whiteSpace: 'nowrap' }}>· {badge.text}</span>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: '#111827', whiteSpace: 'nowrap' }}>{row.count}명</span>
-                              <span style={{ fontSize: 10, color: '#94a3b8', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
-                            </button>
-                          </div>
-
-                          {isExpanded && (
-                            <div style={{ marginTop: 6, padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff' }}>
-                              {row.kind === 'individual' ? (
-                                <div style={{ display: 'grid', gap: 10 }}>
-                                  {row.phone && <div style={{ fontSize: 12, color: '#64748b' }}>연락처: {row.phone}</div>}
-                                  {renderPerformerPriorityPanel(row.orderId)}
-                                </div>
-                              ) : (
-                                <div style={{ display: 'grid', gap: 12 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>그룹 전체 재매핑:</span>
-                                    <InviterMappingPicker
-                                      members={activeMembersSorted}
-                                      existingGroupLabels={existingGroupLabels}
-                                      currentMemberId={row.memberId}
-                                      currentGroupLabel={row.type === 'group' ? row.label : null}
-                                      disabled={!isAdmin}
-                                      onSelectPerformer={(memberId) => assignPerformer(row.orderIds, memberId)}
-                                      onSelectGroup={(groupLabel) => assignGroupLabel(row.orderIds, groupLabel)}
-                                      onClear={() => clearInviterClassification(row.orderIds)}
-                                    />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
-                                      유입된 예매자 {row.orderIds.length}건 — 클릭하면 개별 상세/복수 공연자 관리
-                                    </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                      {row.attendees.map((a) => {
-                                        const attKey = `att:${a.orderId}`;
-                                        const isAttExpanded = !!expandedParticipantRows[attKey];
-                                        return (
-                                          <div key={a.orderId} style={{ flexBasis: isAttExpanded ? '100%' : 'auto', minWidth: 0 }}>
-                                            <button type="button" onClick={() => toggleParticipantExpand(attKey)}
-                                              style={{
-                                                display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 16,
-                                                border: '1px solid #f1f5f9', background: isAttExpanded ? '#eef2ff' : '#f8fafc', cursor: 'pointer'
-                                              }}
-                                            >
-                                              <span style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 130, textAlign: 'left' }}>{a.name}</span>
-                                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>{a.count}명</span>
-                                              <span style={{ fontSize: 10, color: '#94a3b8' }}>{isAttExpanded ? '▲' : '▼'}</span>
-                                            </button>
-                                            {isAttExpanded && (
-                                              <div style={{ marginTop: 6, padding: '10px 12px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc' }}>
-                                                {a.phone && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>연락처: {a.phone}</div>}
-                                                {renderPerformerPriorityPanel(a.orderId)}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                        <div key={row.key} style={{
+                          display: 'flex', alignItems: 'center', gap: 6, borderRadius: 20,
+                          border: `1.5px solid ${isActive ? '#111827' : '#e2e8f0'}`,
+                          background: isActive ? '#111827' : (isChecked ? '#eff6ff' : '#f8fafc'),
+                          padding: '6px 8px 6px 12px'
+                        }}>
+                          {row.kind === 'individual' && isAdmin && (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleUnassignedSelection(row.orderId)}
+                              style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                            />
                           )}
+                          <button type="button" onClick={() => toggleActiveEdit(row.key)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', minWidth: 0 }}
+                          >
+                            <span style={{ fontWeight: 700, fontSize: 13, color: isActive ? '#fff' : '#111827', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 150, textAlign: 'left' }}>
+                              {row.label}
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: isActive ? '#cbd5e1' : badge.color, whiteSpace: 'nowrap' }}>· {badge.text}</span>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: isActive ? '#fff' : '#111827', whiteSpace: 'nowrap' }}>{row.count}명</span>
+                          </button>
                         </div>
                       );
                     })}
                   </div>
                 )}
+
+                {/* 매핑 편집 영역 — 체크박스로 여러 명 선택했으면 일괄 작업 패널, 아니면 방금 클릭한
+                     하나의 대상(그룹 또는 개별 신청)에 대한 편집 패널. 폭을 제한해 불필요하게 넓은
+                     빈 공간이 생기지 않도록 하고, 목록과는 테두리/배경으로 뚜렷하게 구분한다. */}
+                {renderMappingEditorPanel()}
               </>
             ) : (
               <div style={{ display: 'grid', gap: 16 }}>
