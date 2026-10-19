@@ -741,9 +741,15 @@ export default function ReservationManagementPage() {
     return matches.length === 1 ? matches[0] : null;
   };
 
-  // 관리자가 수동으로 지정한 매핑이 있으면 그것을 우선하고, 없으면 자동 매칭 결과를 사용한다.
+  // inviterMemberId의 세 가지 상태를 구분한다 (불필요한 별도 필드를 새로 만들지 않고 값 자체로 구분):
+  // - 실제 회원 id(문자열)  → 관리자가 수동으로 지정한 공연자 매핑
+  // - 빈 문자열 ''          → 관리자가 "매핑 해제"를 눌러 명시적으로 미매핑 상태를 확정함
+  //                           (원본 텍스트가 회원 이름과 일치해도 자동 매칭을 다시 적용하지 않음)
+  // - null/undefined       → 아직 아무 조작도 하지 않은 상태 → 자동 매칭을 적용
+  // 기존 데이터에는 이 필드가 아예 없어(undefined) 항상 자동 매칭 경로를 타므로 이전 동작과 호환된다.
   const resolveInviterMember = (o) => {
     if (o.inviterMemberId) return members.find(m => m.id === o.inviterMemberId) || null;
+    if (o.inviterMemberId === '') return null;
     return autoMatchInviterMember(o.inviterName);
   };
 
@@ -849,12 +855,13 @@ export default function ReservationManagementPage() {
     }
   };
 
-  // orderIds의 매핑/분류를 모두 해제해 다시 미매핑 상태로 되돌린다.
+  // orderIds를 "명시적 매핑 해제" 상태로 확정한다. inviterMemberId를 빈 문자열('')로 저장해,
+  // 원본 텍스트가 회원 이름과 일치하더라도 자동 매칭이 다시 적용되지 않도록 한다(미매핑 유지).
   const clearInviterClassification = async (orderIds) => {
     if (!isAdmin || !orderIds || orderIds.length === 0) return;
     setMappingErrorMsg('');
     const idSet = new Set(orderIds);
-    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: null, inviterGroupLabel: null } : o));
+    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: '', inviterGroupLabel: null } : o));
     setOrders(nextOrders);
     try {
       await firebaseStorage.saveOrders(nextOrders);
