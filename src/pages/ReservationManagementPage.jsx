@@ -794,6 +794,8 @@ export default function ReservationManagementPage() {
   // 배치도: 드래그 중인 테이블의 "확정 전" 임시 위치(포인터를 떼는 순간에만 실제로 저장한다).
   const [dragInfo, setDragInfo] = useState(null); // { tableId, startClientX, startClientY, startX, startY, x, y }
   const [seatDragInfo, setSeatDragInfo] = useState(null);
+  const [seatAssignmentSelection, setSeatAssignmentSelection] = useState('');
+  const seatDragMovedRef = useRef(false);
   const seatMigrationRef = useRef(new Set());
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
@@ -1383,7 +1385,10 @@ export default function ReservationManagementPage() {
       let unassignedCount = 0;
       for (let attendeeIndex = 0; attendeeIndex < p.count; attendeeIndex += 1) {
         const tableId = attendeeTableByKey.get(`${p.orderId}:${attendeeIndex}`) || seatAssignments[p.orderId];
-        if (tableId && byTable[tableId]) countsByTable.set(tableId, (countsByTable.get(tableId) || 0) + 1);
+        if (tableId && byTable[tableId]) {
+          attendeeTableByKey.set(`${p.orderId}:${attendeeIndex}`, tableId);
+          countsByTable.set(tableId, (countsByTable.get(tableId) || 0) + 1);
+        }
         else unassignedCount += 1;
       }
       countsByTable.forEach((count, tableId) => {
@@ -1401,7 +1406,7 @@ export default function ReservationManagementPage() {
     const overCapacityCount = afterPartyTables.filter(t => byTable[t.id].count > t.capacity).length;
     return {
       tables: afterPartyTables.map(t => byTable[t.id]), unassigned, totalAll, totalPlaced,
-      totalUnassigned: totalAll - totalPlaced, tableCount: afterPartyTables.length, overCapacityCount, performerCountPlaced,
+      totalUnassigned: totalAll - totalPlaced, tableCount: afterPartyTables.length, overCapacityCount, performerCountPlaced, attendeeTableByKey,
     };
   }, [afterPartyTables, seatAssignments, participantSeatAssignments, performerSeatAssignments, afterPartyParticipants, members]);
 
@@ -1430,6 +1435,79 @@ export default function ReservationManagementPage() {
       setMappingErrorMsg('테이블 배치 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
     }
   }, [isAdmin, currentShow, concertId, setShows, shows]);
+
+  const materializeLegacySeatAssignments = () => {
+    const next = { ...participantSeatAssignments };
+    const occupied = new Set([...Object.keys(next), ...Object.keys(performerSeatAssignments)]);
+    afterPartyParticipants.forEach(person => {
+      for (let attendeeIndex = 0; attendeeIndex < person.count; attendeeIndex += 1) {
+        const hasSeat = Object.values(next).some(value => value?.orderId === person.orderId && value?.attendeeIndex === attendeeIndex);
+        if (hasSeat) continue;
+        const tableId = seatingOverview.attendeeTableByKey.get(`${person.orderId}:${attendeeIndex}`);
+        const table = afterPartyTables.find(item => item.id === tableId);
+        const seat = table?.seats.find(item => !occupied.has(item.id));
+        if (seat) {
+          next[seat.id] = { orderId: person.orderId, attendeeIndex };
+          occupied.add(seat.id);
+        }
+      }
+    });
+    return next;
+  };
+
+  const assignSelectedAttendeeToSeat = (seatId, tableId) => {
+    if (!seatAssignmentSelection) return;
+    const targetTable = afterPartyTables.find(table => table.id === tableId);
+    if (!targetTable?.seats.some(seat => seat.id === seatId)) return;
+    let attendee;
+    try { attendee = JSON.parse(seatAssignmentSelection); } catch { return; }
+    const [orderId, attendeeIndex] = attendee;
+    const next = materializeLegacySeatAssignments();
+    const performerId = performerSeatAssignments[seatId];
+    if (performerId) {
+      window.alert('이 좌석은 공연자가 사용 중입니다. 다른 좌석을 선택해 주세요.');
+      return;
+    }
+    const currentOccupant = next[seatId];
+    if (currentOccupant && (currentOccupant.orderId !== orderId || currentOccupant.attendeeIndex !== attendeeIndex)) {
+      window.alert('이미 다른 참여자가 배정된 좌석입니다. 빈 좌석을 선택해 주세요.');
+      return;
+    }
+    Object.keys(next).forEach(id => {
+      if (next[id]?.orderId === orderId && next[id]?.attendeeIndex === attendeeIndex) delete next[id];
+    });
+    next[seatId] = { orderId, attendeeIndex };
+    const nextAssignments = { ...seatAssignments };
+    delete nextAssignments[orderId];
+    const nextAuto = { ...autoSeatAssignments };
+    const nextManual = { ...manualSeatAssignments, [orderId]: true };
+    delete nextAuto[orderId];
+    saveSeatingPatch({ participantSeatAssignments: next, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual });
+    setSeatAssignmentSelection('');
+  };
+
+  const unassignSelectedAttendee = () => {
+    if (!seatAssignmentSelection) return;
+    let attendee;
+    try { attendee = JSON.parse(seatAssignmentSelection); } catch { return; }
+    const [orderId, attendeeIndex] = attendee;
+    const next = materializeLegacySeatAssignments();
+    const key = `${orderId}:${attendeeIndex}`;
+    if (!Object.values(next).some(value => value?.orderId === orderId && value?.attendeeIndex === attendeeIndex) && !seatingOverview.attendeeTableByKey.has(key)) {
+      window.alert('선택한 참여자는 현재 좌석에 배정되어 있지 않습니다.');
+      return;
+    }
+    Object.keys(next).forEach(seatId => {
+      if (next[seatId]?.orderId === orderId && next[seatId]?.attendeeIndex === attendeeIndex) delete next[seatId];
+    });
+    const nextAssignments = { ...seatAssignments };
+    delete nextAssignments[orderId];
+    const nextAuto = { ...autoSeatAssignments };
+    const nextManual = { ...manualSeatAssignments, [orderId]: true };
+    delete nextAuto[orderId];
+    saveSeatingPatch({ participantSeatAssignments: next, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual });
+    setSeatAssignmentSelection('');
+  };
 
   useEffect(() => {
     if (!isAdmin || !currentShow || !Array.isArray(currentShow.tables)) return;
@@ -2586,13 +2664,31 @@ export default function ReservationManagementPage() {
                           }}
                         >공연자 기준 자동 배치</button>
                         <button type="button" onClick={resetAllSeating}
-                          disabled={Object.keys(seatAssignments).length === 0}
+                          disabled={Object.keys(seatAssignments).length === 0 && Object.keys(participantSeatAssignments).length === 0 && Object.keys(performerSeatAssignments).length === 0}
                           style={{
                             padding: '8px 14px', borderRadius: 10, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 700,
-                            cursor: Object.keys(seatAssignments).length === 0 ? 'not-allowed' : 'pointer',
-                            opacity: Object.keys(seatAssignments).length === 0 ? 0.5 : 1
+                            cursor: Object.keys(seatAssignments).length === 0 && Object.keys(participantSeatAssignments).length === 0 && Object.keys(performerSeatAssignments).length === 0 ? 'not-allowed' : 'pointer',
+                            opacity: Object.keys(seatAssignments).length === 0 && Object.keys(participantSeatAssignments).length === 0 && Object.keys(performerSeatAssignments).length === 0 ? 0.5 : 1
                           }}
                         >배치 초기화</button>
+                      </div>
+                    )}
+
+                    {isAdmin && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid #c7d2fe', background: '#f5f6ff' }}>
+                        <label htmlFor="seat-attendee-picker" style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>좌석에 배정할 참여자</label>
+                        <select id="seat-attendee-picker" value={seatAssignmentSelection} onChange={event => setSeatAssignmentSelection(event.target.value)} style={{ flex: '1 1 220px', minWidth: 0, maxWidth: 420, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', fontSize: 12 }}>
+                          <option value="">참여자를 선택하세요</option>
+                          {afterPartyParticipants.flatMap(person => Array.from({ length: person.count }, (_, attendeeIndex) => ({ person, attendeeIndex }))).map(({ person, attendeeIndex }) => {
+                            const attendeeKey = `${person.orderId}:${attendeeIndex}`;
+                            const assignedTableId = seatingOverview.attendeeTableByKey.get(attendeeKey);
+                            const assignedTable = seatingOverview.tables.find(item => item.table.id === assignedTableId)?.table;
+                            const label = person.count > 1 ? `${person.name} · ${attendeeIndex + 1}번` : person.name;
+                            return <option key={attendeeKey} value={JSON.stringify([person.orderId, attendeeIndex])}>{label} · {assignedTable ? `${assignedTable.name} 배정` : '미배치'}</option>;
+                          })}
+                        </select>
+                        <button type="button" disabled={!seatAssignmentSelection} onClick={unassignSelectedAttendee} style={{ padding: '8px 10px', border: '1px solid #fecaca', borderRadius: 8, background: '#fff', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: seatAssignmentSelection ? 'pointer' : 'not-allowed', opacity: seatAssignmentSelection ? 1 : 0.5 }}>선택 좌석 배정 해제</button>
+                        <span style={{ flexBasis: '100%', fontSize: 11, color: '#64748b' }}>참여자를 고른 뒤 도면의 빈 좌석을 클릭하세요. 배정된 좌석을 클릭하면 해당 참여자를 선택해 이동할 수 있습니다.</span>
                       </div>
                     )}
 
@@ -2621,6 +2717,11 @@ export default function ReservationManagementPage() {
                           const entry = seatingOverview.tables.find(t => t.table.id === table.id);
                           const placedCount = entry ? entry.count : 0;
                           const over = placedCount > table.capacity;
+                          const linkedPerformer = table.performerId ? members.find(member => member.id === table.performerId) : null;
+                          const performerTableIndex = table.performerTableIndex || 1;
+                          const tableTitle = table.performerId
+                            ? `${linkedPerformer?.name || '미지정'}${performerTableIndex > 1 ? ` ${performerTableIndex}` : ''} 테이블`
+                            : table.name;
                           const seatNodes = [];
                           const seats = table.seats || [];
                           const legacySeatOccupants = {};
@@ -2643,10 +2744,30 @@ export default function ReservationManagementPage() {
                             const occupied = Boolean(person || performer);
                             const sx = chair.x * TABLE_CANVAS_WIDTH;
                             const sy = chair.y * TABLE_CANVAS_HEIGHT;
-                            const overlapsSeat = seats.some(other => other.id !== seat.id && Math.hypot((other.x - seat.x) * TABLE_CANVAS_WIDTH, (other.y - seat.y) * TABLE_CANVAS_HEIGHT) < SEAT_DOT_SIZE);
-                            seatNodes.push(<div key={seat.id} title={occupantName || '빈 좌석'} onPointerDown={e => {
+                            const seatWidth = (name) => name ? Math.min(160, Math.max(40, Array.from(name).length * 7 + 18)) : 22;
+                            const currentSeatWidth = seatWidth(occupantName);
+                            const overlapsSeat = seats.some(other => {
+                              if (other.id === seat.id) return false;
+                              const otherAssignment = participantSeatAssignments[other.id] || legacySeatOccupants[other.id];
+                              const otherPerson = otherAssignment && afterPartyParticipants.find(item => item.orderId === otherAssignment.orderId);
+                              const otherPerformer = members.find(member => member.id === performerSeatAssignments[other.id]);
+                              const otherName = otherPerformer ? `${otherPerformer.name} · 공연자` : otherPerson?.name;
+                              return Math.abs((other.x - seat.x) * TABLE_CANVAS_WIDTH) < (currentSeatWidth + seatWidth(otherName)) / 2
+                                && Math.abs((other.y - seat.y) * TABLE_CANVAS_HEIGHT) < 15;
+                            });
+                            seatNodes.push(<button key={seat.id} type="button" title={occupantName || '빈 좌석 · 선택 참여자 배정'} aria-label={occupantName || '빈 좌석'} onClick={event => {
+                              event.stopPropagation();
+                              if (seatDragMovedRef.current) {
+                                seatDragMovedRef.current = false;
+                                return;
+                              }
+                              if (!isAdmin) return;
+                              if (seatAssignmentSelection) assignSelectedAttendeeToSeat(seat.id, table.id);
+                              else if (person) setSeatAssignmentSelection(JSON.stringify([assigned.orderId, assigned.attendeeIndex]));
+                            }} onPointerDown={e => {
                               if (!isAdmin) return;
                               e.stopPropagation();
+                              seatDragMovedRef.current = false;
                               e.currentTarget.setPointerCapture(e.pointerId);
                               setSelectedTableId(table.id);
                               setSeatDragInfo({ seatId: seat.id, tableId: table.id, startX: sx, startY: sy, clientX: e.clientX, clientY: e.clientY, x: sx, y: sy });
@@ -2655,12 +2776,15 @@ export default function ReservationManagementPage() {
                               const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
                               const scaleX = rect.width / TABLE_CANVAS_WIDTH;
                               const scaleY = rect.height / TABLE_CANVAS_HEIGHT;
-                              return { ...prev, x: Math.max(9, Math.min(TABLE_CANVAS_WIDTH - 9, prev.startX + (e.clientX - prev.clientX) / scaleX)), y: Math.max(9, Math.min(TABLE_CANVAS_HEIGHT - 9, prev.startY + (e.clientY - prev.clientY) / scaleY)) };
-                            })} onPointerUp={() => setSeatDragInfo(prev => {
-                              if (prev?.seatId === seat.id) moveChair(table.id, seat.id, prev.x, prev.y);
-                              return null;
-                            })} style={{ position: 'absolute', left: sx - 9, top: sy - 9, width: 18, height: 18, borderRadius: '50%', background: occupied ? '#111827' : '#fff', border: occupied ? '2px solid #fff' : '2px dashed #64748b', boxShadow: overlapsSeat ? '0 0 0 3px #ef4444, 0 1px 4px rgba(0,0,0,.3)' : '0 1px 4px rgba(0,0,0,.3)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }} />);
-                            if (occupied) seatNodes.push(<div key={`${seat.id}-name`} style={{ position: 'absolute', left: sx, top: sy + 12, transform: 'translateX(-50%)', fontSize: 10, fontWeight: 700, color: performer ? '#047857' : '#1e293b', background: '#fff', padding: '1px 6px', borderRadius: 6, border: `1px solid ${performer ? '#a7f3d0' : '#e2e8f0'}`, whiteSpace: 'nowrap', zIndex: 4, pointerEvents: 'none' }}>{occupantName}</div>);
+                              const x = Math.max(12, Math.min(TABLE_CANVAS_WIDTH - 12, prev.startX + (e.clientX - prev.clientX) / scaleX));
+                              const y = Math.max(12, Math.min(TABLE_CANVAS_HEIGHT - 12, prev.startY + (e.clientY - prev.clientY) / scaleY));
+                              if (Math.hypot(x - prev.startX, y - prev.startY) > 3) seatDragMovedRef.current = true;
+                              return { ...prev, x, y };
+                            })} onPointerUp={() => {
+                              const moved = seatDragMovedRef.current;
+                              if (moved && seatDragInfo?.seatId === seat.id) moveChair(table.id, seat.id, seatDragInfo.x, seatDragInfo.y);
+                              setSeatDragInfo(null);
+                            }} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%, -50%)', width: occupied ? seatWidth(occupantName) : 22, maxWidth: 160, height: occupied ? 28 : 22, boxSizing: 'border-box', padding: occupied ? '0 8px' : 0, borderRadius: occupied ? 14 : '50%', background: performer ? '#ecfdf5' : (person ? '#111827' : '#fff'), border: overlapsSeat ? '2px solid #ef4444' : (performer ? '1.5px solid #059669' : (person ? '1.5px solid #111827' : '2px dashed #64748b')), boxShadow: '0 1px 4px rgba(0,0,0,.2)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 800, color: performer ? '#047857' : (person ? '#fff' : '#64748b') }}>{occupantName || (seatAssignmentSelection ? '+' : '')}</button>);
                           });
 
                           return (
@@ -2699,7 +2823,8 @@ export default function ReservationManagementPage() {
                                   cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', zIndex: 1, boxSizing: 'border-box'
                                 }}
                               >
-                                <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', padding: '0 6px', textAlign: 'center', wordBreak: 'break-word' }}>{table.name}</div>
+                                <div title={linkedPerformer?.name || '미지정'} style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', padding: '0 6px', textAlign: 'center', maxWidth: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>{tableTitle}</div>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: linkedPerformer ? '#047857' : '#94a3b8', maxWidth: '100%', padding: '0 5px', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{linkedPerformer ? `공연자 · ${linkedPerformer.name}` : '공연자 · 미지정'}</div>
                                 <div style={{ fontSize: 11, color: over ? '#92400e' : '#475569', fontWeight: 700 }}>{placedCount}/{table.capacity} · 잔여 {Math.max(0, table.capacity - placedCount)}</div>
                               </div>
                             </div>
@@ -2715,11 +2840,31 @@ export default function ReservationManagementPage() {
                       if (!table) return null;
                       const entry = seatingOverview.tables.find(t => t.table.id === selectedTableId);
                       const placed = entry ? entry.participants : [];
+                      const linkedPerformer = table.performerId ? members.find(member => member.id === table.performerId) : null;
+                      const tableTitle = table.performerId ? `${linkedPerformer?.name || '미지정'}${(table.performerTableIndex || 1) > 1 ? ` ${table.performerTableIndex}` : ''} 테이블` : table.name;
                       const smallBtnStyle = { padding: '5px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
+                      const panelSeatAssignments = { ...participantSeatAssignments };
+                      const panelOccupiedSeatIds = new Set([...Object.keys(panelSeatAssignments), ...Object.keys(performerSeatAssignments)]);
+                      let panelLegacyIndex = 0;
+                      (entry?.participants || []).forEach(person => {
+                        for (let attendeeIndex = 0; attendeeIndex < person.count; attendeeIndex += 1) {
+                          const hasSeat = Object.values(panelSeatAssignments).some(value => value?.orderId === person.orderId && value?.attendeeIndex === attendeeIndex);
+                          if (hasSeat) continue;
+                          while (panelLegacyIndex < table.seats.length && panelOccupiedSeatIds.has(table.seats[panelLegacyIndex].id)) panelLegacyIndex += 1;
+                          if (panelLegacyIndex < table.seats.length) {
+                            const seatId = table.seats[panelLegacyIndex++].id;
+                            panelSeatAssignments[seatId] = { orderId: person.orderId, attendeeIndex };
+                            panelOccupiedSeatIds.add(seatId);
+                          }
+                        }
+                      });
                       return (
                         <div style={{ width: '100%', maxWidth: 420, boxSizing: 'border-box', borderRadius: 14, border: '1.5px solid #c7d2fe', background: '#f5f6ff', padding: '14px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>테이블 편집</span>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{tableTitle}</div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: linkedPerformer ? '#047857' : '#94a3b8' }}>연결 공연자 · {linkedPerformer?.name || '미지정'} · 인원 {entry?.count || 0}/{table.capacity} · 잔여 {Math.max(0, table.capacity - (entry?.count || 0))}</div>
+                            </div>
                             <button type="button" onClick={() => setSelectedTableId(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontWeight: 800, cursor: 'pointer' }}>✕</button>
                           </div>
                           {isAdmin ? (
@@ -2741,37 +2886,14 @@ export default function ReservationManagementPage() {
                               </div>
                               <div style={{ display: 'grid', gap: 6 }}>
                                 {table.seats.map((seat, seatIndex) => {
-                                  const assigned = participantSeatAssignments[seat.id];
-                                  const performerId = performerSeatAssignments[seat.id];
-                                  const performer = performerId && members.find(member => member.id === performerId);
-                                  return <div key={seat.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <span style={{ fontSize: 11, color: '#64748b', width: 38 }}>좌석 {seatIndex + 1}</span>
-                                    <select disabled={Boolean(performer)} value={performer ? `performer:${performer.id}` : (assigned ? `${assigned.orderId}:${assigned.attendeeIndex}` : '')} onChange={e => {
-                                      const next = { ...participantSeatAssignments };
-                                      Object.keys(next).forEach(key => { if (next[key]?.orderId === assigned?.orderId && next[key]?.attendeeIndex === assigned?.attendeeIndex) delete next[key]; });
-                                      const nextTables = { ...seatAssignments };
-                                      const nextAuto = { ...autoSeatAssignments };
-                                      const nextManual = { ...manualSeatAssignments };
-                                      if (assigned) { delete nextAuto[assigned.orderId]; nextManual[assigned.orderId] = true; }
-                                      if (assigned && !Object.entries(next).some(([id, value]) => id !== seat.id && value?.orderId === assigned.orderId)) delete nextTables[assigned.orderId];
-                                      if (e.target.value) {
-                                        const [orderId, index] = e.target.value.split(':');
-                                        const attendeeIndex = Number(index);
-                                        Object.keys(next).forEach(key => {
-                                          if (next[key]?.orderId === orderId && next[key]?.attendeeIndex === attendeeIndex) delete next[key];
-                                        });
-                                        next[seat.id] = { orderId, attendeeIndex };
-                                        nextTables[orderId] = table.id;
-                                        delete nextAuto[orderId];
-                                        nextManual[orderId] = true;
-                                      }
-                                      saveSeatingPatch({ participantSeatAssignments: next, seatAssignments: nextTables, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual });
-                                    }} style={{ flex: 1, minWidth: 0, fontSize: 11, padding: 5, border: '1px solid #e2e8f0', borderRadius: 6, background: performer ? '#ecfdf5' : '#fff', color: performer ? '#047857' : undefined }}>
-                                      <option value="">빈 좌석</option>
-                                      {performer && <option value={`performer:${performer.id}`}>공연자 · {performer.name}</option>}
-                                      {afterPartyParticipants.flatMap(p => Array.from({ length: p.count }, (_, index) => ({ p, index }))).map(({ p, index }) => <option key={`${p.orderId}:${index}`} value={`${p.orderId}:${index}`}>{p.name}{p.count > 1 ? ` ${index + 1}` : ''}</option>)}
-                                    </select>
-                                    <button type="button" onClick={() => removeChair(table.id, seat.id)} style={{ ...smallBtnStyle, color: '#dc2626', padding: '4px 7px' }}>삭제</button>
+                                  const assigned = panelSeatAssignments[seat.id];
+                                  const performer = members.find(member => member.id === performerSeatAssignments[seat.id]);
+                                  const attendee = assigned && afterPartyParticipants.find(person => person.orderId === assigned.orderId);
+                                  const occupant = performer ? `${performer.name} · 공연자` : attendee ? `${attendee.name}${attendee.count > 1 ? ` · ${assigned.attendeeIndex + 1}번` : ''}` : '빈 좌석';
+                                  return <div key={seat.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                    <span style={{ width: 50, flexShrink: 0, fontSize: 11, color: '#64748b' }}>좌석 {seatIndex + 1}</span>
+                                    <span title={occupant} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 700, color: performer ? '#047857' : attendee ? '#1e293b' : '#94a3b8' }}>{occupant}</span>
+                                    <button type="button" onClick={() => removeChair(table.id, seat.id)} style={{ ...smallBtnStyle, color: '#dc2626', padding: '4px 7px' }}>좌석 삭제</button>
                                   </div>;
                                 })}
                               </div>
@@ -2815,6 +2937,8 @@ export default function ReservationManagementPage() {
                           )}
 
                           <div style={{ marginTop: 12, borderTop: '1px solid #e0e3ff', paddingTop: 10 }}>
+                            <div style={{ fontSize: 12, color: '#047857', fontWeight: 800, marginBottom: 6 }}>공연자 ({entry?.performers.length || 0}명)</div>
+                            {entry?.performers.length ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>{entry.performers.map(performer => <span key={performer.id} title={performer.name} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 8px', borderRadius: 12, border: '1px solid #a7f3d0', background: '#ecfdf5', color: '#047857', fontSize: 12, fontWeight: 800 }}>{performer.name}</span>)}</div> : <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>공연자 좌석이 아직 배치되지 않았습니다.</div>}
                             <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 6 }}>배치된 참여자 ({placed.length}건)</div>
                             {placed.length === 0 ? (
                               <div style={{ fontSize: 12, color: '#94a3b8' }}>배치된 참여자가 없습니다.</div>
@@ -2902,6 +3026,9 @@ export default function ReservationManagementPage() {
                                 <span style={{ fontSize: 10, fontWeight: 700, color: AFTER_PARTY_TYPE_BADGE[inviterInfo.type].color, whiteSpace: 'nowrap' }}>
                                   → {inviterInfo.label}
                                 </span>
+                              )}
+                              {isAdmin && (
+                                <button type="button" onClick={() => setSeatAssignmentSelection(JSON.stringify([p.orderId, 0]))} style={{ padding: '5px 8px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#fff', color: '#4338ca', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>좌석 선택</button>
                               )}
                               {isAdmin && (
                                 <TableAssignPicker
