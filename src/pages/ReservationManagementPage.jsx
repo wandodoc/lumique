@@ -113,12 +113,45 @@ const computeSeatSlots = (table, seatCount) => {
   if (seatCount <= 0) return [];
   const cx = table.x + table.width / 2;
   const cy = table.y + table.height / 2;
-  const rx = table.width / 2 + 26;
-  const ry = table.height / 2 + 26;
+  const margin = 26;
+
+  // 원형 테이블은 가로/세로 구분이 없으니 둘레(원)를 따라 등각으로 배치한다.
+  if (table.shape === 'circle') {
+    const r = Math.max(table.width, table.height) / 2 + margin;
+    const slots = [];
+    for (let i = 0; i < seatCount; i++) {
+      const angle = (i / seatCount) * Math.PI * 2 - Math.PI / 2;
+      slots.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+    }
+    return slots;
+  }
+
+  // 사각형 테이블은 "등각(equal angle)"이 아니라 실제 네 변의 둘레 길이에 비례해 좌석을
+  // 배치한다 — 등각 방식은 가로가 넓을 때 긴 변(위/아래)에는 자리가 몰리지 않고 짧은 변
+  // (좌/우) 쪽에만 세로로 겹쳐 쌓이는 문제가 있었다. 둘레를 따라 같은 간격으로 걸으면
+  // 가로가 넓은 변에 자연스럽게 더 많은 좌석이 배치된다.
+  const halfW = table.width / 2 + margin;
+  const halfH = table.height / 2 + margin;
+  const topBottomLen = halfW * 2;
+  const sideLen = halfH * 2;
+  const perimeter = 2 * (topBottomLen + sideLen);
   const slots = [];
   for (let i = 0; i < seatCount; i++) {
-    const angle = (i / seatCount) * Math.PI * 2 - Math.PI / 2;
-    slots.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) });
+    let d = (i / seatCount) * perimeter;
+    let x, y;
+    if (d < topBottomLen) {
+      x = cx - halfW + d; y = cy - halfH; // 위쪽 변: 좌→우
+    } else if (d < topBottomLen + sideLen) {
+      d -= topBottomLen;
+      x = cx + halfW; y = cy - halfH + d; // 오른쪽 변: 위→아래
+    } else if (d < topBottomLen * 2 + sideLen) {
+      d -= topBottomLen + sideLen;
+      x = cx + halfW - d; y = cy + halfH; // 아래쪽 변: 우→좌
+    } else {
+      d -= topBottomLen * 2 + sideLen;
+      x = cx - halfW; y = cy + halfH - d; // 왼쪽 변: 아래→위
+    }
+    slots.push({ x, y });
   }
   return slots;
 };
@@ -1307,12 +1340,31 @@ export default function ReservationManagementPage() {
 
   // orderIds를 tableId에 배치한다. tableId가 없으면(null) 미배치로 되돌린다.
   // 예매자(일행) 단위를 그대로 유지하며, 한 예매 건을 여러 테이블로 나누는 기능은 제공하지 않는다.
+  // 배치 대상이 공연자 본인(= 활동 회원 이름과 일치하는 예매자)이면, 그 공연자를 1순위
+  // 초대자로 매핑한 참여자들도 아직 배치되지 않았다면 같은 테이블로 함께 데려온다.
   const assignToTable = (orderIds, tableId) => {
     const nextAssignments = { ...seatAssignments };
     orderIds.forEach(id => {
       if (tableId) nextAssignments[id] = tableId;
       else delete nextAssignments[id];
     });
+
+    if (tableId) {
+      orderIds.forEach(id => {
+        const o = ordersById[id];
+        if (!o) return;
+        const matchedMember = activeMembersSorted.find(m => m.name === o.audienceName);
+        if (!matchedMember) return;
+        const performerGroup = afterPartyRowsByKey[`member:${matchedMember.id}`];
+        if (!performerGroup) return;
+        performerGroup.orderIds.forEach(invitedOrderId => {
+          if (invitedOrderId === id) return; // 본인은 이미 배치했으니 건너뜀
+          if (nextAssignments[invitedOrderId]) return; // 이미 다른 곳에 배치됨 — 그대로 둔다
+          nextAssignments[invitedOrderId] = tableId;
+        });
+      });
+    }
+
     saveSeatingPatch({ seatAssignments: nextAssignments });
   };
 
