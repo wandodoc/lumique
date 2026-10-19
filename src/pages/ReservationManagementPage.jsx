@@ -798,6 +798,8 @@ export default function ReservationManagementPage() {
   const [seatCountDraft, setSeatCountDraft] = useState({});
   const [performerSearchDraft, setPerformerSearchDraft] = useState('');
   const [performerSelectionByTable, setPerformerSelectionByTable] = useState({});
+  const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+  const [seatingActionStatus, setSeatingActionStatus] = useState('');
   const seatDragMovedRef = useRef(false);
   const seatMigrationRef = useRef(new Set());
 
@@ -1415,25 +1417,33 @@ export default function ReservationManagementPage() {
 
   // 콘서트 레코드에 테이블/배치 패치를 저장한다(최신본을 다시 불러와 병합 — savePriceTiers와 동일한 방식).
   const saveSeatingPatch = useCallback(async (patch) => {
-    if (!isAdmin || !currentShow || !concertId) return;
+    if (!isAdmin || !currentShow || !concertId) return false;
     setMappingErrorMsg('');
     try {
       const concerts = await firebaseStorage.loadConcerts();
-      const source = concerts.length ? concerts : (shows.length ? shows : loadLS(LS_SHOWS));
-      const updated = source.map(c => (c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
+      // A local backup may contain a newer patch than Firebase after a failed save.
+      // Use it first so the next successful save cannot silently discard queued changes.
+      const candidates = [loadLS(LS_SHOWS_PENDING), concerts, shows, loadLS(LS_SHOWS)];
+      const source = candidates.find(items => items.some(item => String(item.id) === String(concertId)));
+      if (!source) {
+        setMappingErrorMsg('저장할 공연 데이터를 찾지 못했습니다. 공연 목록을 새로고침한 뒤 다시 시도해 주세요.');
+        return false;
+      }
+      const updated = source.map(c => (String(c.id) === String(concertId) ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
       const saved = await firebaseStorage.saveConcerts(updated);
       if (!saved) {
         localStorage.setItem(LS_SHOWS, JSON.stringify(updated));
         localStorage.setItem(LS_SHOWS_PENDING, JSON.stringify(updated));
         setShows(updated);
         setMappingErrorMsg('Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 연결 복구 후 동기화가 필요합니다.');
-        return;
+        return 'local';
       }
       try {
         localStorage.setItem(LS_SHOWS, JSON.stringify(updated));
         localStorage.removeItem(LS_SHOWS_PENDING);
       } catch { }
       setShows(updated);
+      return 'firebase';
     } catch {
       setMappingErrorMsg('테이블 배치 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
     }
@@ -1625,7 +1635,7 @@ export default function ReservationManagementPage() {
   };
 
   // 1순위 공연자 매핑만 자동 배치한다. 이전 자동 배정만 재계산하고 수동 배정은 유지한다.
-  const autoAssignTables = (tableOverride = null, participantSeatOverride = null, assignmentOverride = seatAssignments, performerSeatOverride = performerSeatAssignments) => {
+  const autoAssignTables = async (tableOverride = null, participantSeatOverride = null, assignmentOverride = seatAssignments, performerSeatOverride = performerSeatAssignments) => {
     const startingTables = tableOverride || afterPartyTables;
     const mapped = afterPartyParticipants.flatMap(person => {
       const order = ordersById[person.orderId];
@@ -1633,13 +1643,24 @@ export default function ReservationManagementPage() {
       return performer ? [{ ...person, performerId: performer.id, performerName: performer.name }] : [];
     });
     const autoEligible = mapped.filter(person => !manualSeatAssignments[person.orderId] && (!assignmentOverride[person.orderId] || autoSeatAssignments[person.orderId]));
+    if (mapped.length === 0) {
+      setSeatingActionStatus('실행할 수 없습니다: 뒤풀이 참여 예매 중 유효한 1순위 공연자 매핑이 없습니다. 참여 여부와 공연자 매핑을 확인하세요.');
+      return;
+    }
+    if (autoEligible.length === 0) {
+      setSeatingActionStatus('자동 배치할 예매자가 없습니다. 매핑된 예매가 모두 수동 배정 상태라 기존 배치를 보존했습니다.');
+      return;
+    }
     const movedCount = autoEligible.filter(person => {
       const table = startingTables.find(item => item.id === assignmentOverride[person.orderId]);
       return !table || table.performerId !== person.performerId;
     }).length;
     const previousAutoCount = Object.values(autoSeatAssignments).filter(Boolean).length;
-    const performerCount = new Set(mapped.map(person => person.performerId)).size;
-    if (!window.confirm(`1순위 공연자 ${performerCount}명과 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명을 배치합니다. 자동 배정 ${previousAutoCount}건을 갱신하고, 수동 배정은 유지합니다. 미매핑 참여자는 배치하지 않습니다. 예상 변경 ${movedCount}건. 공연자도 테이블 좌석과 정원에 포함됩니다. 계속할까요?`)) return;
+    const performerCount = new Set(autoEligible.map(person => person.performerId)).size;
+    if (!window.confirm(`1순위 공연자 ${performerCount}명과 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명을 배치합니다. 자동 배정 ${previousAutoCount}건을 갱신하고, 수동 배정은 유지합니다. 미매핑 참여자는 배치하지 않습니다. 예상 변경 ${movedCount}건. 공연자도 테이블 좌석과 정원에 포함됩니다. 계속할까요?`)) {
+      setSeatingActionStatus('자동 배치를 취소했습니다. 기존 배치는 변경하지 않았습니다.');
+      return;
+    }
 
     const nextAssignments = { ...assignmentOverride };
     const nextAuto = {};
@@ -1669,7 +1690,7 @@ export default function ReservationManagementPage() {
       if (person && !autoSeatAssignments[orderId]) loadByTable[tableId] = (loadByTable[tableId] || 0) + person.count;
     });
     const peopleByPerformer = new Map();
-    mapped.forEach(person => {
+    autoEligible.forEach(person => {
       if (!peopleByPerformer.has(person.performerId)) peopleByPerformer.set(person.performerId, { name: person.performerName, people: [] });
     });
     autoEligible.forEach(person => peopleByPerformer.get(person.performerId)?.people.push(person));
@@ -1734,7 +1755,17 @@ export default function ReservationManagementPage() {
         nextAuto[person.orderId] = true;
       });
     });
-    saveSeatingPatch({ tables, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments, participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformerSeats });
+    setIsAutoAssigning(true);
+    setSeatingActionStatus('자동 배치 결과를 저장하고 있습니다…');
+    const saveResult = await saveSeatingPatch({ tables, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments, participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformerSeats });
+    if (saveResult === 'firebase') {
+      setSeatingActionStatus(`배치 완료: 공연자 ${performerCount}명, 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명, 테이블 ${tables.length}개. 화면과 Firebase 저장을 갱신했습니다.`);
+    } else if (saveResult === 'local') {
+      setSeatingActionStatus('배치 결과를 화면과 로컬 백업에 반영했습니다. Firebase 저장은 실패해 동기화가 필요합니다.');
+    } else {
+      setSeatingActionStatus('저장에 실패했습니다. 오류 안내를 확인한 뒤 다시 시도하세요.');
+    }
+    setIsAutoAssigning(false);
   };
 
   // 모든 테이블의 참여자 배치만 해제한다(테이블 자체·이름·위치·정원은 유지). 확인 절차 포함.
@@ -2721,15 +2752,16 @@ export default function ReservationManagementPage() {
                         <button type="button" onClick={addTable}
                           style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#111827', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                         >+ 테이블 추가</button>
-                        <button type="button" onClick={autoAssignTables}
-                          disabled={performerAutoCandidateCount === 0}
+                        <button type="button" onClick={() => autoAssignTables()}
+                          disabled={performerAutoCandidateCount === 0 || isAutoAssigning}
                           title="1순위 공연자 매핑의 예매자만 공연자 ID에 연결된 테이블로 배치합니다. 자동 배치는 갱신하고 수동 배정은 보존합니다. 미매핑 참여자는 배치하지 않습니다."
                           style={{
                             padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700,
-                            cursor: performerAutoCandidateCount === 0 ? 'not-allowed' : 'pointer',
-                            opacity: performerAutoCandidateCount === 0 ? 0.5 : 1
+                            cursor: performerAutoCandidateCount === 0 || isAutoAssigning ? 'not-allowed' : 'pointer',
+                            opacity: performerAutoCandidateCount === 0 || isAutoAssigning ? 0.5 : 1
                           }}
-                        >공연자 기준 자동 배치</button>
+                        >{isAutoAssigning ? '배치 저장 중…' : '공연자 기준 자동 배치'}</button>
+                        {seatingActionStatus && <div role="status" style={{ flexBasis: '100%', padding: '8px 10px', borderRadius: 8, background: seatingActionStatus.startsWith('배치 완료') ? '#ecfdf5' : '#fff7ed', color: seatingActionStatus.startsWith('배치 완료') ? '#047857' : '#9a3412', fontSize: 12, fontWeight: 700 }}>{seatingActionStatus}</div>}
                         <span style={{ flexBasis: '100%', fontSize: 11, color: performerAutoCandidateCount ? '#64748b' : '#b45309' }}>
                           {performerAutoCandidateCount ? `공연자 ID로 매핑된 참여자 그룹 ${performerAutoCandidateCount}개를 처리합니다. 수동 예매자 배정은 보존됩니다.` : '자동 배치 대상이 없습니다. 뒤풀이 참여 여부와 1순위 공연자 매핑을 먼저 확인하세요.'}
                         </span>
