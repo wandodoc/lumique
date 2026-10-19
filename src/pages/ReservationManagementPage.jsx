@@ -67,6 +67,15 @@ const ALL_COLUMNS = [
 ];
 
 const DEFAULT_COLUMN_ORDER = ALL_COLUMNS.map(c => c.id);
+
+// ── 뒤풀이 관리 섹션: 분류 유형별 배지 텍스트/색상, 기본 정렬 우선순위(미매핑 우선) ──
+const AFTER_PARTY_TYPE_BADGE = {
+  performer: { text: '✓ 공연자', color: '#059669' },
+  unmapped: { text: '미매핑', color: '#b45309' },
+  unassigned: { text: '미기재', color: '#64748b' },
+  group: { text: '텍스트 그룹', color: '#7c3aed' },
+};
+const AFTER_PARTY_TYPE_SORT_PRIORITY = { unmapped: 0, unassigned: 0, performer: 1, group: 1 };
 const LS_COL_CONFIG = 'lumique_col_config';
 
 function loadColConfig() {
@@ -414,6 +423,133 @@ function PriceTierSection({ show, isAdmin, soldByTier, activeTier, onSave }) {
   );
 }
 
+/* =========================================================
+   초대자 매핑 선택 패널 (검색 가능한 공연자 선택 + 텍스트 그룹 지정)
+   - 오버레이가 아닌 인라인 패널이라 모바일 화면 밖으로 나가지 않는다.
+   ========================================================= */
+function InviterMappingPicker({
+  members, existingGroupLabels,
+  currentMemberId, currentGroupLabel,
+  onSelectPerformer, onSelectGroup, onClear,
+  disabled, triggerText,
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState('performer');
+  const [query, setQuery] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+
+  const currentMember = currentMemberId ? members.find(m => m.id === currentMemberId) : null;
+
+  if (disabled) {
+    if (currentMember) return <span style={{ fontSize: 12, fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>{currentMember.name}</span>;
+    if (currentGroupLabel) return <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap' }}>{currentGroupLabel}</span>;
+    return null;
+  }
+
+  const label = triggerText || (currentMember ? `공연자: ${currentMember.name}` : currentGroupLabel ? `텍스트 그룹: ${currentGroupLabel}` : '매핑하기');
+  const color = currentMember ? '#059669' : currentGroupLabel ? '#7c3aed' : '#475569';
+  const bg = currentMember ? '#ecfdf5' : currentGroupLabel ? '#f5f3ff' : '#fff';
+  const border = currentMember ? '#10b981' : currentGroupLabel ? '#c4b5fd' : '#e2e8f0';
+  const filteredMembers = query.trim() ? members.filter(m => m.name.includes(query.trim())) : members;
+
+  return (
+    <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+          border: `1.5px solid ${border}`, background: bg, color, cursor: 'pointer', whiteSpace: 'nowrap'
+        }}
+      >
+        {label} {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div style={{
+          marginTop: 6, width: 'min(280px, 100%)', border: '1px solid #e2e8f0', borderRadius: 10,
+          background: '#fff', boxShadow: '0 6px 16px rgba(15,23,42,0.1)', padding: 10, boxSizing: 'border-box'
+        }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <button type="button" onClick={() => setTab('performer')} style={{
+              flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              border: `1.5px solid ${tab === 'performer' ? '#111827' : '#e2e8f0'}`,
+              background: tab === 'performer' ? '#111827' : '#fff', color: tab === 'performer' ? '#fff' : '#64748b'
+            }}>공연자</button>
+            <button type="button" onClick={() => setTab('group')} style={{
+              flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              border: `1.5px solid ${tab === 'group' ? '#111827' : '#e2e8f0'}`,
+              background: tab === 'group' ? '#111827' : '#fff', color: tab === 'group' ? '#fff' : '#64748b'
+            }}>텍스트 그룹</button>
+          </div>
+
+          {tab === 'performer' ? (
+            <>
+              <input
+                type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+                placeholder="공연자 이름 검색" autoFocus
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box', marginBottom: 6 }}
+              />
+              <div style={{ maxHeight: 180, overflowY: 'auto', display: 'grid', gap: 4 }}>
+                {filteredMembers.length === 0 && (
+                  <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>검색 결과 없음</div>
+                )}
+                {filteredMembers.map(m => (
+                  <button key={m.id} type="button"
+                    onClick={() => { onSelectPerformer(m.id); setOpen(false); setQuery(''); }}
+                    style={{
+                      textAlign: 'left', padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      border: `1px solid ${m.id === currentMemberId ? '#10b981' : '#f1f5f9'}`,
+                      background: m.id === currentMemberId ? '#ecfdf5' : '#f8fafc',
+                      color: m.id === currentMemberId ? '#059669' : '#1e293b'
+                    }}
+                  >
+                    {m.name} ({m.part})
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                <input
+                  type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)}
+                  placeholder="새 그룹명 입력 (예: 지인 초대)"
+                  style={{ flex: 1, padding: '7px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box', minWidth: 0 }}
+                />
+                <button type="button"
+                  onClick={() => { if (newLabel.trim()) { onSelectGroup(newLabel.trim()); setOpen(false); setNewLabel(''); } }}
+                  style={{ padding: '7px 12px', borderRadius: 8, border: 'none', background: '#111827', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >지정</button>
+              </div>
+              {existingGroupLabels.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 140, overflowY: 'auto' }}>
+                  {existingGroupLabels.map(l => (
+                    <button key={l} type="button"
+                      onClick={() => { onSelectGroup(l); setOpen(false); }}
+                      style={{
+                        padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        border: `1px solid ${l === currentGroupLabel ? '#9333ea' : '#e2e8f0'}`,
+                        background: l === currentGroupLabel ? '#f5f3ff' : '#f8fafc',
+                        color: l === currentGroupLabel ? '#7c3aed' : '#475569'
+                      }}
+                    >{l}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {(currentMemberId || currentGroupLabel) && (
+            <button type="button" onClick={() => { onClear(); setOpen(false); }}
+              style={{ width: '100%', marginTop: 10, padding: '6px 0', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >매핑 해제</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReservationManagementPage() {
   const { isAdmin } = useAuth();
   const { id: concertId } = useParams();
@@ -444,6 +580,12 @@ export default function ReservationManagementPage() {
 
   // 초대자별 예매자 상세 목록 토글 상태
   const [expandedInviters, setExpandedInviters] = useState({});
+
+  // 뒤풀이 관리 섹션 — 검색/필터/다중 선택/매핑 저장 오류 상태
+  const [mgmtQuery, setMgmtQuery] = useState('');
+  const [mgmtFilter, setMgmtFilter] = useState('all');
+  const [selectedUnassignedIds, setSelectedUnassignedIds] = useState([]);
+  const [mappingErrorMsg, setMappingErrorMsg] = useState('');
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
 
@@ -605,69 +747,146 @@ export default function ReservationManagementPage() {
     return autoMatchInviterMember(o.inviterName);
   };
 
-  // 초대자별 뒤풀이 집계 — 공연자(회원) 기준으로 그룹화한다.
-  // 매핑된(또는 이름이 정확히 일치해 자동 매칭된) 그룹은 실제 회원을 가리키고,
-  // 일치하는 회원이 없는 텍스트(예: "25학번")는 그 텍스트 자체를 그룹으로 유지한다.
-  const inviterStats = useMemo(() => {
-    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
-    const map = {};
-    for (const o of src) {
-      if (!o.isAfterParty) continue;
-      const resolvedMember = resolveInviterMember(o);
-      let names;
-      if (resolvedMember) {
-        names = [resolvedMember.name];
-      } else {
-        if (!o.inviterName) continue;
-        names = o.inviterName.split(',').map(n => n.trim()).filter(Boolean);
-      }
-      if (names.length === 0) continue;
-      const perInviter = (Number(o.afterPartyCount) || 1) / names.length;
-      for (const name of names) {
-        if (!map[name]) map[name] = { count: 0, orders: 0, attendees: [], orderIds: [], memberId: null };
-        map[name].count += perInviter;
-        map[name].orders += 1;
-        map[name].orderIds.push(o.id);
-        if (resolvedMember) map[name].memberId = resolvedMember.id;
-        map[name].attendees.push({
-          name: o.audienceName || '(이름없음)',
-          phone: o.phone || '',
-          isAfterParty: true,
-          afterPartyCount: Number(o.afterPartyCount) || 1,
-          depositStatus: o.depositStatus,
-          attendanceStatus: o.attendanceStatus,
-        });
-      }
+  // 뒤풀이 참여 신청 한 건을 네 가지 상태 중 하나로 분류한다.
+  // - performer: 실제 공연자(회원)에게 매핑됨 (자동 매칭 또는 관리자의 수동 지정)
+  // - group:     관리자가 지정한 관리용 텍스트 그룹으로 분류됨 (공연자 실적 집계에서 제외)
+  // - unmapped:  초대자 텍스트는 있지만 실제 공연자가 확정되지 않음 (이름 불일치 등)
+  // - unassigned: 초대자를 전혀 적지 않음(또는 '없음')
+  // 관리자가 지정한 텍스트 그룹이 가장 우선하고, 그다음 공연자 매핑(수동 → 자동) 순으로 판단한다.
+  const classifyAfterPartyOrder = (o) => {
+    if (o.inviterGroupLabel) {
+      return { type: 'group', key: `group:${o.inviterGroupLabel}`, label: o.inviterGroupLabel, member: null };
     }
-    return Object.entries(map)
-      .map(([name, v]) => [name, { count: Math.round(v.count), orders: v.orders, attendees: v.attendees, orderIds: v.orderIds, memberId: v.memberId }])
-      .sort((a, b) => b[1].count - a[1].count);
-  }, [orders, concertId, members]);
-
-  // 초대자 그룹 전체(동일 텍스트로 묶인 모든 신청)를 실제 공연자(회원)와 한 번에 매핑
-  const bulkSetInviterMapping = async (orderIds, memberId) => {
-    if (!isAdmin) return;
-    const idSet = new Set(orderIds);
-    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: memberId || null } : o));
-    setOrders(nextOrders);
-    await firebaseStorage.saveOrders(nextOrders);
+    const member = resolveInviterMember(o);
+    if (member) {
+      return { type: 'performer', key: `member:${member.id}`, label: member.name, member };
+    }
+    const hasText = o.inviterName && o.inviterName !== '없음';
+    if (hasText) {
+      const firstName = o.inviterName.split(',')[0]?.trim() || o.inviterName;
+      return { type: 'unmapped', key: `text:${firstName}`, label: firstName, member: null };
+    }
+    return { type: 'unassigned', key: `order:${o.id}`, label: o.audienceName || '(이름없음)', member: null };
   };
 
-  // 초대자를 아예 적지 않은 뒤풀이 참여자 (그룹화할 텍스트가 없어 위 집계에서 누락되는 건들)
-  // — 한 명씩 서로 다른 공연자일 수 있으므로 건별로 개별 매핑한다.
-  const unassignedAfterParty = useMemo(() => {
+  // 뒤풀이 참여자를 공연자/미매핑 텍스트/관리용 텍스트 그룹은 그룹으로 묶고,
+  // 초대자 미기재 건은 서로 다른 공연자일 수 있어 개별 항목으로 따로 둔다.
+  const afterPartyEntries = useMemo(() => {
     const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
-    return src
-      .filter(o => o.isAfterParty && !resolveInviterMember(o) && !o.inviterName)
-      .map(o => ({
+    const groupMap = {};
+    const individuals = [];
+    for (const o of src) {
+      if (!o.isAfterParty) continue;
+      const c = classifyAfterPartyOrder(o);
+      const count = Number(o.afterPartyCount) || 1;
+      const attendee = {
         orderId: o.id,
         name: o.audienceName || '(이름없음)',
         phone: o.phone || '',
-        count: Number(o.afterPartyCount) || 1,
-        inviterMemberId: o.inviterMemberId || '',
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+        count,
+        inviterName: (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '',
+        depositStatus: o.depositStatus,
+        attendanceStatus: o.attendanceStatus,
+      };
+      if (c.type === 'unassigned') {
+        individuals.push(attendee);
+        continue;
+      }
+      if (!groupMap[c.key]) {
+        groupMap[c.key] = { key: c.key, type: c.type, label: c.label, memberId: c.member?.id || null, count: 0, orderIds: [], attendees: [] };
+      }
+      groupMap[c.key].count += count;
+      groupMap[c.key].orderIds.push(o.id);
+      groupMap[c.key].attendees.push(attendee);
+    }
+    const groups = Object.values(groupMap).sort((a, b) => b.count - a.count);
+    individuals.sort((a, b) => a.name.localeCompare(b.name));
+    return { groups, individuals };
   }, [orders, concertId, members]);
+
+  // 상단 요약: 인원 수 기준(그룹 수가 아님). 미매핑 = 전체 - 공연자 매핑 완료 - 텍스트 그룹.
+  const afterPartySummary = useMemo(() => {
+    const performerMapped = afterPartyEntries.groups.filter(g => g.type === 'performer').reduce((s, g) => s + g.count, 0);
+    const textGroup = afterPartyEntries.groups.filter(g => g.type === 'group').reduce((s, g) => s + g.count, 0);
+    const unmappedGroupCount = afterPartyEntries.groups.filter(g => g.type === 'unmapped').reduce((s, g) => s + g.count, 0);
+    const unassignedCount = afterPartyEntries.individuals.reduce((s, i) => s + i.count, 0);
+    const total = performerMapped + textGroup + unmappedGroupCount + unassignedCount;
+    return { total, performerMapped, textGroup, unmapped: unmappedGroupCount + unassignedCount };
+  }, [afterPartyEntries]);
+
+  // 관리자가 과거에 만들어 둔 텍스트 그룹명 목록 (재사용을 위해 전체 공연 기준으로 수집)
+  const existingGroupLabels = useMemo(() => {
+    const set = new Set();
+    orders.forEach(o => { if (o.inviterGroupLabel) set.add(o.inviterGroupLabel); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [orders]);
+
+  // orderIds를 실제 공연자(회원)에게 한 번에 매핑한다. 기존에 지정돼 있던 관리용 텍스트 그룹은 해제된다.
+  const assignPerformer = async (orderIds, memberId) => {
+    if (!isAdmin || !orderIds || orderIds.length === 0) return;
+    setMappingErrorMsg('');
+    const idSet = new Set(orderIds);
+    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: memberId || null, inviterGroupLabel: null } : o));
+    setOrders(nextOrders);
+    try {
+      await firebaseStorage.saveOrders(nextOrders);
+    } catch {
+      setMappingErrorMsg('공연자 매핑 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    }
+  };
+
+  // orderIds를 관리자가 지정한 텍스트 그룹으로 분류한다. 기존 공연자 매핑은 해제된다.
+  const assignGroupLabel = async (orderIds, groupLabel) => {
+    if (!isAdmin || !orderIds || orderIds.length === 0 || !groupLabel) return;
+    setMappingErrorMsg('');
+    const idSet = new Set(orderIds);
+    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterGroupLabel: groupLabel, inviterMemberId: null } : o));
+    setOrders(nextOrders);
+    try {
+      await firebaseStorage.saveOrders(nextOrders);
+    } catch {
+      setMappingErrorMsg('텍스트 그룹 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    }
+  };
+
+  // orderIds의 매핑/분류를 모두 해제해 다시 미매핑 상태로 되돌린다.
+  const clearInviterClassification = async (orderIds) => {
+    if (!isAdmin || !orderIds || orderIds.length === 0) return;
+    setMappingErrorMsg('');
+    const idSet = new Set(orderIds);
+    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, inviterMemberId: null, inviterGroupLabel: null } : o));
+    setOrders(nextOrders);
+    try {
+      await firebaseStorage.saveOrders(nextOrders);
+    } catch {
+      setMappingErrorMsg('매핑 해제 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    }
+  };
+
+  const toggleUnassignedSelection = (orderId) => {
+    setSelectedUnassignedIds(prev => (prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]));
+  };
+
+  // 뒤풀이 관리 섹션에 표시할 통합 행(그룹 + 초대자 미기재 개별 항목)을 검색/필터/정렬한다.
+  // 기본 정렬은 미매핑(텍스트 불일치·미기재)을 우선 노출한다.
+  const afterPartyRows = useMemo(() => {
+    const groupRows = afterPartyEntries.groups.map(g => ({ kind: 'group', ...g }));
+    const individualRows = afterPartyEntries.individuals.map(i => ({ kind: 'individual', type: 'unassigned', key: `order:${i.orderId}`, label: i.name, count: i.count, orderIds: [i.orderId], attendees: [i], memberId: null, ...i }));
+    const q = mgmtQuery.trim().toLowerCase();
+    return [...groupRows, ...individualRows]
+      .filter(r => mgmtFilter === 'all' || r.type === mgmtFilter)
+      .filter(r => {
+        if (!q) return true;
+        if (r.label.toLowerCase().includes(q)) return true;
+        return r.attendees.some(a => a.name.toLowerCase().includes(q) || a.phone.includes(q) || (a.inviterName || '').toLowerCase().includes(q));
+      })
+      .sort((a, b) => {
+        const pa = AFTER_PARTY_TYPE_SORT_PRIORITY[a.type] ?? 1;
+        const pb = AFTER_PARTY_TYPE_SORT_PRIORITY[b.type] ?? 1;
+        if (pa !== pb) return pa - pb;
+        return b.count - a.count;
+      });
+  }, [afterPartyEntries, mgmtQuery, mgmtFilter]);
 
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
@@ -1312,165 +1531,183 @@ export default function ReservationManagementPage() {
           )}
         </div>
 
-        {/* ── [섹션 3] 공연자(초대자)별 뒤풀이 현황 섹션 ── */}
-        {inviterStats.length > 0 && (
-          <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>공연자별 뒤풀이 현황</div>
-              <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                총 {inviterStats.reduce((s, [, v]) => s + v.count, 0)}명
-              </span>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {inviterStats.map(([name, stat]) => {
-                const isExpanded = !!expandedInviters[name];
-                const mappedMember = stat.memberId ? members.find(m => m.id === stat.memberId) : null;
-                return (
-                  <div key={name} style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '12px 16px', background: '#f8fafc',
-                        transition: 'background 0.2s', gap: 10, flexWrap: 'wrap'
-                      }}
-                    >
-                      <div
-                        onClick={() => toggleInviterExpand(name)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
-                      >
-                        <span style={{ fontSize: 14, color: '#64748b', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-                            {mappedMember ? (
-                              <span style={{ fontSize: 11, color: '#059669', fontWeight: 700, whiteSpace: 'nowrap' }}>✓ 공연자</span>
-                            ) : (
-                              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' }}>텍스트</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{stat.orders}건 예매 연결</div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                        {isAdmin && (
-                          <select
-                            value={stat.memberId || ''}
-                            onChange={(e) => bulkSetInviterMapping(stat.orderIds, e.target.value)}
-                            style={{
-                              padding: '5px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                              border: `1.5px solid ${mappedMember ? '#10b981' : '#e2e8f0'}`,
-                              background: mappedMember ? '#ecfdf5' : '#fff',
-                              color: mappedMember ? '#059669' : '#475569',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <option value="">공연자 매핑 안 됨</option>
-                            {activeMembersSorted.map(m => (
-                              <option key={m.id} value={m.id}>{m.name} ({m.part})</option>
-                            ))}
-                          </select>
-                        )}
-                        <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                          {stat.count}명
-                        </span>
-                      </div>
-                    </div>
-                    {isExpanded && (
-                      <div style={{ padding: '4px 16px 12px', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
-                        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600, paddingTop: 8 }}>유입된 예매자 목록</div>
-                        <div style={{ display: 'grid', gap: 6 }}>
-                          {stat.attendees.map((a, idx) => (
-                            <div key={idx} style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>{a.name}</span>
-                                {a.phone && <span style={{ fontSize: 12, color: '#64748b' }}>({a.phone})</span>}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{
-                                  padding: '3px 10px', borderRadius: 20,
-                                  background: a.isAfterParty ? '#f1f5f9' : '#ffffff',
-                                  border: '1px solid #e2e8f0',
-                                  color: a.isAfterParty ? '#0f172a' : '#64748b',
-                                  fontSize: 12, fontWeight: 700
-                                }}>
-                                  {a.isAfterParty ? `뒤풀이 ${a.afterPartyCount}명` : '미참여'}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* ── [섹션 3] 뒤풀이 관리 — 공연자 매핑 / 텍스트 그룹 / 미기재를 하나의 화면에서 통합 관리 ──
+             참여 인원이 0명이어도 섹션 자체는 항상 표시해 오류 없이 빈 상태를 보여준다. */}
+        <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', marginBottom: 14 }}>뒤풀이 관리</div>
 
-        {/* ── [섹션 3-1] 초대자를 적지 않은 뒤풀이 참여자 — 건별로 개별 매핑 ── */}
-        {unassignedAfterParty.length > 0 && (
-          <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a' }}>초대자 미기재 참여자</div>
-              <span style={{ padding: '5px 14px', borderRadius: 20, background: '#64748b', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                {unassignedAfterParty.length}건
-              </span>
+            {mappingErrorMsg && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                padding: '10px 14px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca',
+                color: '#b91c1c', fontSize: 13, fontWeight: 600, marginBottom: 12
+              }}>
+                <span>{mappingErrorMsg}</span>
+                <button type="button" onClick={() => setMappingErrorMsg('')} style={{ background: 'none', border: 'none', color: '#b91c1c', fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+              </div>
+            )}
+
+            {/* 상단 요약 (그룹 수가 아닌 실제 인원 기준) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 16 }}>
+              <StatCard label="전체 뒤풀이 인원" value={`${afterPartySummary.total}명`} color="#111827" />
+              <StatCard label="공연자 매핑 완료" value={`${afterPartySummary.performerMapped}명`} color="#059669" />
+              <StatCard label="미매핑" value={`${afterPartySummary.unmapped}명`} color="#b45309" />
+              <StatCard label="텍스트 그룹" value={`${afterPartySummary.textGroup}명`} color="#7c3aed" />
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
-              초대자 란을 비워둔 채 신청한 참여자입니다. 서로 다른 공연자일 수 있어 한 명씩 매핑해 주세요.
+
+            {/* 검색 + 상태 필터 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text" value={mgmtQuery} onChange={(e) => setMgmtQuery(e.target.value)}
+                placeholder="이름, 연락처, 초대자 텍스트, 그룹명 검색"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+                {[
+                  { value: 'all', label: '전체' },
+                  { value: 'unmapped', label: '미매핑' },
+                  { value: 'performer', label: '공연자 매핑 완료' },
+                  { value: 'unassigned', label: '미기재' },
+                  { value: 'group', label: '텍스트 그룹' },
+                ].map(f => (
+                  <button key={f.value} type="button" onClick={() => setMgmtFilter(f.value)}
+                    style={{
+                      flexShrink: 0, padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                      border: `1.5px solid ${mgmtFilter === f.value ? '#111827' : '#e2e8f0'}`,
+                      background: mgmtFilter === f.value ? '#111827' : '#fff',
+                      color: mgmtFilter === f.value ? '#fff' : '#64748b'
+                    }}
+                  >{f.label}</button>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              {unassignedAfterParty.map((a) => {
-                const mappedMember = a.inviterMemberId ? members.find(m => m.id === a.inviterMemberId) : null;
-                return (
-                  <div key={a.orderId} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9', gap: 10, flexWrap: 'wrap'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
-                      {a.phone && <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>({a.phone})</span>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      {isAdmin ? (
-                        <select
-                          value={a.inviterMemberId || ''}
-                          onChange={(e) => bulkSetInviterMapping([a.orderId], e.target.value)}
-                          style={{
-                            padding: '5px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                            border: `1.5px solid ${mappedMember ? '#10b981' : '#e2e8f0'}`,
-                            background: mappedMember ? '#ecfdf5' : '#fff',
-                            color: mappedMember ? '#059669' : '#475569',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="">공연자 매핑 안 됨</option>
-                          {activeMembersSorted.map(m => (
-                            <option key={m.id} value={m.id}>{m.name} ({m.part})</option>
-                          ))}
-                        </select>
-                      ) : (
-                        mappedMember && (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>{mappedMember.name}</span>
-                        )
-                      )}
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', border: '1px solid #e2e8f0',
-                        color: '#0f172a', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap'
+
+            {/* 다중 선택 일괄 매핑 툴바 (초대자 미기재 항목을 체크하면 노출) */}
+            {isAdmin && selectedUnassignedIds.length > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                padding: '10px 14px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe', marginBottom: 12
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>{selectedUnassignedIds.length}명 선택됨</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <InviterMappingPicker
+                    members={activeMembersSorted}
+                    existingGroupLabels={existingGroupLabels}
+                    currentMemberId={null}
+                    currentGroupLabel={null}
+                    triggerText="선택 인원 일괄 매핑"
+                    onSelectPerformer={(memberId) => { assignPerformer(selectedUnassignedIds, memberId); setSelectedUnassignedIds([]); }}
+                    onSelectGroup={(groupLabel) => { assignGroupLabel(selectedUnassignedIds, groupLabel); setSelectedUnassignedIds([]); }}
+                    onClear={() => setSelectedUnassignedIds([])}
+                  />
+                  <button type="button" onClick={() => setSelectedUnassignedIds([])}
+                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >선택 해제</button>
+                </div>
+              </div>
+            )}
+
+            {/* 통합 목록: 공연자 매핑 / 미매핑 텍스트 / 미기재 개별 항목 / 관리용 텍스트 그룹 */}
+            {afterPartyRows.length === 0 ? (
+              <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>검색/필터 조건에 맞는 참여자가 없습니다.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {afterPartyRows.map((row) => {
+                  const isExpanded = !!expandedInviters[row.key];
+                  const badge = AFTER_PARTY_TYPE_BADGE[row.type];
+                  return (
+                    <div key={row.key} style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                      <div style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '12px 16px', background: '#f8fafc', gap: 10, flexWrap: 'wrap'
                       }}>
-                        {a.count}명
-                      </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                          {row.kind === 'individual' && isAdmin && (
+                            <input
+                              type="checkbox"
+                              checked={selectedUnassignedIds.includes(row.orderId)}
+                              onChange={() => toggleUnassignedSelection(row.orderId)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                            />
+                          )}
+                          <div
+                            onClick={() => row.kind === 'group' && toggleInviterExpand(row.key)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: row.kind === 'group' ? 'pointer' : 'default' }}
+                          >
+                            {row.kind === 'group' && (
+                              <span style={{ fontSize: 14, color: '#64748b', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', flexShrink: 0 }}>▶</span>
+                            )}
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, fontSize: 14, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{row.label}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', color: badge.color }}>{badge.text}</span>
+                              </div>
+                              {row.kind === 'group' ? (
+                                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{row.orderIds.length}건 예매 연결</div>
+                              ) : (
+                                row.phone && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{row.phone}</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <InviterMappingPicker
+                            members={activeMembersSorted}
+                            existingGroupLabels={existingGroupLabels}
+                            currentMemberId={row.memberId}
+                            currentGroupLabel={row.type === 'group' ? row.label : null}
+                            disabled={!isAdmin}
+                            onSelectPerformer={(memberId) => assignPerformer(row.orderIds, memberId)}
+                            onSelectGroup={(groupLabel) => assignGroupLabel(row.orderIds, groupLabel)}
+                            onClear={() => clearInviterClassification(row.orderIds)}
+                          />
+                          <span style={{ padding: '5px 14px', borderRadius: 20, background: '#111827', color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                            {row.count}명
+                          </span>
+                        </div>
+                      </div>
+                      {row.kind === 'group' && isExpanded && (
+                        <div style={{ padding: '4px 16px 12px', background: '#fff', borderTop: '1px solid #f1f5f9' }}>
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600, paddingTop: 8 }}>유입된 예매자 목록 (개별 변경 가능)</div>
+                          <div style={{ display: 'grid', gap: 6 }}>
+                            {row.attendees.map((a) => (
+                              <div key={a.orderId} style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                                padding: '8px 12px', borderRadius: 10, background: '#f8fafc', border: '1px solid #f1f5f9'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                  <span style={{ fontWeight: 700, fontSize: 14, color: '#1e293b', whiteSpace: 'nowrap' }}>{a.name}</span>
+                                  {a.phone && <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>({a.phone})</span>}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ padding: '3px 10px', borderRadius: 20, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#0f172a', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                    {a.count}명
+                                  </span>
+                                  {isAdmin && (
+                                    <InviterMappingPicker
+                                      members={activeMembersSorted}
+                                      existingGroupLabels={existingGroupLabels}
+                                      currentMemberId={row.type === 'performer' ? row.memberId : null}
+                                      currentGroupLabel={row.type === 'group' ? row.label : null}
+                                      triggerText="개별 변경"
+                                      onSelectPerformer={(memberId) => assignPerformer([a.orderId], memberId)}
+                                      onSelectGroup={(groupLabel) => assignGroupLabel([a.orderId], groupLabel)}
+                                      onClear={() => clearInviterClassification([a.orderId])}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
 
         <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0', fontWeight: 500 }}>
           관리자만 상태 토글이 가능합니다. 모든 데이터는 브라우저 로컬 스토리지 및 데이터베이스에 안전하게 보관됩니다.
