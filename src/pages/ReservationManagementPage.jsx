@@ -786,6 +786,9 @@ export default function ReservationManagementPage() {
   const [mgmtFilter, setMgmtFilter] = useState('all');
   const [selectedUnassignedIds, setSelectedUnassignedIds] = useState([]);
   const [mappingErrorMsg, setMappingErrorMsg] = useState('');
+  const [individualClassificationDraft, setIndividualClassificationDraft] = useState(null);
+  const [individualClassificationStatus, setIndividualClassificationStatus] = useState('idle');
+  const [isSavingIndividualClassification, setIsSavingIndividualClassification] = useState(false);
   const [afterPartyTab, setAfterPartyTab] = useState('participants'); // 'participants' | 'tables'
   // 참여자 관리: 한 번에 하나의 편집 대상만 연다(아코디언). 그룹 key, 또는 개별 신청 "order:<id>".
   const [activeEditKey, setActiveEditKey] = useState(null);
@@ -1051,7 +1054,7 @@ export default function ReservationManagementPage() {
   // 뒤풀이 매핑/배치 관련 쓰기 작업의 단일 통로. orderIds에 patch를 병합해 저장하고,
   // 실패 시 배너로 보여줄 오류 메시지를 지정한다.
   const applyAfterPartyPatch = async (orderIds, patch, failMsg) => {
-    if (!isAdmin || !orderIds || orderIds.length === 0) return;
+    if (!isAdmin || !orderIds || orderIds.length === 0) return 'error';
     setMappingErrorMsg('');
     const idSet = new Set(orderIds);
     const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, ...patch } : o));
@@ -1063,14 +1066,16 @@ export default function ReservationManagementPage() {
           localStorage.removeItem(LS_ORDERS_PENDING);
         } catch { }
         setOrders(nextOrders);
-        return;
+        return 'firebase';
       }
       localStorage.setItem(LS_ORDERS, JSON.stringify(nextOrders));
       localStorage.setItem(LS_ORDERS_PENDING, JSON.stringify(nextOrders));
       setOrders(nextOrders);
       setMappingErrorMsg('Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 연결 복구 후 동기화가 필요합니다.');
+      return 'local';
     } catch {
       setMappingErrorMsg(failMsg);
+      return 'error';
     }
   };
 
@@ -1142,14 +1147,81 @@ export default function ReservationManagementPage() {
 
   // 이름표를 클릭해 그 대상의 편집 영역을 열고 닫는다. 한 번에 하나만 열리는 아코디언 —
   // 같은 대상을 다시 클릭하면 닫히고, 다른 대상을 클릭하면 그쪽으로 전환된다.
+  const closeActiveEdit = () => {
+    setActiveEditKey(null);
+    setIndividualClassificationDraft(null);
+    setIndividualClassificationStatus('idle');
+  };
+
   const toggleActiveEdit = (key) => {
-    setActiveEditKey(prev => (prev === key ? null : key));
+    if (activeEditKey === key) {
+      closeActiveEdit();
+      return;
+    }
+    setActiveEditKey(key);
+    if (key.startsWith('order:')) {
+      const orderId = key.slice('order:'.length);
+      const order = ordersById[orderId];
+      const classification = order ? classifyAfterPartyOrder(order) : null;
+      setIndividualClassificationDraft(order ? {
+        orderId,
+        type: classification?.type === 'performer' ? 'performer' : classification?.type === 'group' ? 'group' : 'unmapped',
+        memberId: classification?.type === 'performer' ? classification.member.id : '',
+        groupLabel: classification?.type === 'group' ? classification.label : '',
+        performerQuery: classification?.type === 'performer' ? classification.member.name : '',
+      } : null);
+      setIndividualClassificationStatus('idle');
+    } else {
+      setIndividualClassificationDraft(null);
+      setIndividualClassificationStatus('idle');
+    }
+  };
+
+  const updateIndividualClassificationDraft = (patch) => {
+    setIndividualClassificationDraft(previous => previous ? { ...previous, ...patch } : previous);
+    setIndividualClassificationStatus('idle');
+  };
+
+  const saveIndividualClassification = async () => {
+    const draft = individualClassificationDraft;
+    if (!isAdmin || !draft || isSavingIndividualClassification) return;
+    let patch;
+    if (draft.type === 'performer') {
+      if (!members.some(member => member.id === draft.memberId)) {
+        setIndividualClassificationStatus('error');
+        return;
+      }
+      patch = { inviterMemberId: draft.memberId, inviterGroupLabel: null };
+    } else if (draft.type === 'group') {
+      const groupLabel = String(draft.groupLabel || '').trim();
+      if (!groupLabel) {
+        setIndividualClassificationStatus('error');
+        return;
+      }
+      patch = { inviterGroupLabel: groupLabel, inviterMemberId: null, inviterExtraMemberIds: [] };
+    } else {
+      patch = { inviterMemberId: '', inviterGroupLabel: null };
+    }
+
+    setIsSavingIndividualClassification(true);
+    setIndividualClassificationStatus('saving');
+    setMappingErrorMsg('');
+    try {
+      const result = await applyAfterPartyPatch(
+        [draft.orderId],
+        patch,
+        '개별 분류 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
+      );
+      setIndividualClassificationStatus(result === 'firebase' ? 'success' : result === 'local' ? 'local' : 'error');
+    } finally {
+      setIsSavingIndividualClassification(false);
+    }
   };
 
   // orderId 한 건의 "1순위 + 2순위 이하" 복수 공연자 관리 패널을 렌더링한다.
   // 1순위는 기존 InviterMappingPicker(자동/수동/명시적 해제/텍스트 그룹)를 그대로 쓰고,
   // 2순위부터는 inviterExtraMemberIds 배열을 수동으로만 관리한다.
-  const renderPerformerPriorityPanel = (orderId) => {
+  const renderPerformerPriorityPanel = (orderId, { includePrimaryMapping = true } = {}) => {
     const o = ordersById[orderId];
     if (!o) return null;
     const primary = resolveInviterMember(o);
@@ -1158,20 +1230,23 @@ export default function ReservationManagementPage() {
     const excludeIds = [...(primary ? [primary.id] : []), ...extraIds];
     return (
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>초대자 우선순위 (실적은 1순위에만 반영)</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', width: 44, flexShrink: 0 }}>1순위</span>
-          <InviterMappingPicker
-            members={activeMembersSorted}
-            existingGroupLabels={existingGroupLabels}
-            currentMemberId={o.inviterGroupLabel ? null : (primary?.id || null)}
-            currentGroupLabel={o.inviterGroupLabel || null}
-            disabled={!isAdmin}
-            onSelectPerformer={(memberId) => assignPerformer([orderId], memberId)}
-            onSelectGroup={(groupLabel) => assignGroupLabel([orderId], groupLabel)}
-            onClear={() => clearInviterClassification([orderId])}
-          />
-        </div>
+        {includePrimaryMapping && <>
+          <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>초대자 우선순위 (실적은 1순위에만 반영)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', width: 44, flexShrink: 0 }}>1순위</span>
+            <InviterMappingPicker
+              members={activeMembersSorted}
+              existingGroupLabels={existingGroupLabels}
+              currentMemberId={o.inviterGroupLabel ? null : (primary?.id || null)}
+              currentGroupLabel={o.inviterGroupLabel || null}
+              disabled={!isAdmin}
+              onSelectPerformer={(memberId) => assignPerformer([orderId], memberId)}
+              onSelectGroup={(groupLabel) => assignGroupLabel([orderId], groupLabel)}
+              onClear={() => clearInviterClassification([orderId])}
+            />
+          </div>
+        </>}
+        {!includePrimaryMapping && <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700 }}>참고 공연자 (분류 및 실적에는 영향 없음)</div>}
         {extraMembers.map((m, idx) => (
           <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', width: 44, flexShrink: 0 }}>{idx + 2}순위</span>
@@ -1248,35 +1323,115 @@ export default function ReservationManagementPage() {
 
     if (!activeEditKey) return null;
 
-    // 2) 개별 신청 한 건의 편집 — 1순위/2순위 이하 복수 공연자 패널
+    // 2) 개별 신청 한 건의 분류 편집 — 저장 전까지 draft만 바꾸며 주문 데이터는 변경하지 않는다.
     if (activeEditKey.startsWith('order:')) {
       const orderId = activeEditKey.slice('order:'.length);
       const o = ordersById[orderId];
-      if (!o) return null;
+      const draft = individualClassificationDraft?.orderId === orderId ? individualClassificationDraft : null;
+      if (!o || !draft) return null;
+      const currentClassification = classifyAfterPartyOrder(o);
+      const currentTypeLabel = currentClassification.type === 'performer' ? '공연자 그룹'
+        : currentClassification.type === 'group' ? '텍스트 그룹' : '미분류';
+      const currentTargetLabel = currentClassification.type === 'performer' ? currentClassification.member.name
+        : currentClassification.type === 'group' ? currentClassification.label
+          : currentClassification.type === 'unmapped' ? `원본 초대자: ${currentClassification.label}` : '연결된 공연자/그룹 없음';
+      const performerQuery = draft.performerQuery.trim().toLowerCase();
+      const matchingMembers = activeMembersSorted.filter(member => !performerQuery || member.name.toLowerCase().includes(performerQuery));
+      const selectedPerformer = members.find(member => member.id === draft.memberId);
+      const isDraftValid = draft.type === 'performer' ? Boolean(selectedPerformer)
+        : draft.type === 'group' ? Boolean(String(draft.groupLabel || '').trim()) : true;
+      const statusText = individualClassificationStatus === 'saving' ? '분류를 저장하고 있습니다…'
+        : individualClassificationStatus === 'success' ? '분류 변경을 저장했습니다.'
+          : individualClassificationStatus === 'local' ? 'Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 다시 저장을 눌러 동기화를 재시도하세요.'
+            : individualClassificationStatus === 'error' ? (mappingErrorMsg || (draft.type === 'performer' ? '공연자를 선택해 주세요.' : '그룹명을 입력해 주세요.')) : '';
       return (
         <div style={editorPanelStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{o.audienceName || '(이름없음)'} 매핑 편집</span>
-            <button type="button" onClick={() => setActiveEditKey(null)} style={closeBtnStyle}>✕</button>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{o.audienceName || '(이름없음)'} 개별 분류 편집</span>
+            <button type="button" onClick={closeActiveEdit} style={closeBtnStyle} aria-label="개별 편집 닫기">✕</button>
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+            예매자 ID 기준으로 이 신청 한 건만 변경합니다 · 현재 분류: {currentTypeLabel} · {currentTargetLabel}
           </div>
           {o.phone && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>연락처: {o.phone}</div>}
-          {renderPerformerPriorityPanel(orderId)}
+          <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff' }}>
+            <label htmlFor={`individual-classification-${orderId}`} style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>변경할 분류</label>
+            <select id={`individual-classification-${orderId}`} value={draft.type} disabled={!isAdmin || isSavingIndividualClassification}
+              onChange={event => updateIndividualClassificationDraft({ type: event.target.value })}
+              style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12 }}>
+              <option value="performer">공연자 그룹</option>
+              <option value="group">텍스트 그룹</option>
+              <option value="unmapped">미분류</option>
+            </select>
+
+            {draft.type === 'performer' && (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <input type="search" aria-label="개별 편집 공연자 검색" placeholder="공연자 이름 검색" value={draft.performerQuery}
+                  disabled={!isAdmin || isSavingIndividualClassification}
+                  onChange={event => updateIndividualClassificationDraft({ performerQuery: event.target.value })}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12 }} />
+                {selectedPerformer && <div style={{ fontSize: 12, color: '#047857', fontWeight: 700 }}>선택됨: {selectedPerformer.name}</div>}
+                <div style={{ display: 'grid', gap: 4, maxHeight: 130, overflowY: 'auto' }}>
+                  {matchingMembers.map(member => (
+                    <button key={member.id} type="button" disabled={!isAdmin || isSavingIndividualClassification}
+                      onClick={() => updateIndividualClassificationDraft({ memberId: member.id, performerQuery: member.name })}
+                      style={{ textAlign: 'left', padding: '6px 9px', borderRadius: 7, border: `1px solid ${draft.memberId === member.id ? '#10b981' : '#e2e8f0'}`, background: draft.memberId === member.id ? '#ecfdf5' : '#fff', color: '#1e293b', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      {member.name}{member.part ? ` (${member.part})` : ''}
+                    </button>
+                  ))}
+                  {matchingMembers.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>검색 결과가 없습니다.</div>}
+                </div>
+              </div>
+            )}
+
+            {draft.type === 'group' && (
+              <div style={{ display: 'grid', gap: 6 }}>
+                {existingGroupLabels.length > 0 && (
+                  <select aria-label="기존 텍스트 그룹 선택" value={existingGroupLabels.includes(draft.groupLabel) ? draft.groupLabel : ''}
+                    disabled={!isAdmin || isSavingIndividualClassification}
+                    onChange={event => updateIndividualClassificationDraft({ groupLabel: event.target.value })}
+                    style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12 }}>
+                    <option value="">기존 그룹 선택 (선택 사항)</option>
+                    {existingGroupLabels.map(label => <option key={label} value={label}>{label}</option>)}
+                  </select>
+                )}
+                <input type="text" aria-label="개별 편집 텍스트 그룹명" placeholder="기존 그룹을 선택하거나 새 그룹명 입력"
+                  value={draft.groupLabel} disabled={!isAdmin || isSavingIndividualClassification}
+                  onChange={event => updateIndividualClassificationDraft({ groupLabel: event.target.value })}
+                  style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12 }} />
+              </div>
+            )}
+
+            {draft.type === 'unmapped' && <div style={{ fontSize: 12, color: '#64748b' }}>공연자와 관리용 그룹 연결을 해제합니다. 원본 초대자 정보는 보존됩니다.</div>}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" onClick={saveIndividualClassification} disabled={!isAdmin || isSavingIndividualClassification || !isDraftValid}
+                style={{ padding: '7px 12px', border: 'none', borderRadius: 8, background: isSavingIndividualClassification || !isDraftValid ? '#94a3b8' : '#111827', color: '#fff', fontSize: 12, fontWeight: 800, cursor: isSavingIndividualClassification || !isDraftValid ? 'not-allowed' : 'pointer' }}>
+                {isSavingIndividualClassification ? '저장 중…' : individualClassificationStatus === 'local' || individualClassificationStatus === 'error' ? '다시 저장' : '저장'}
+              </button>
+              <button type="button" onClick={closeActiveEdit} disabled={isSavingIndividualClassification}
+                style={{ padding: '7px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: isSavingIndividualClassification ? 'not-allowed' : 'pointer' }}>취소</button>
+            </div>
+            {statusText && <div role="status" aria-live="polite" style={{ padding: '7px 9px', borderRadius: 8, background: individualClassificationStatus === 'success' ? '#ecfdf5' : individualClassificationStatus === 'saving' ? '#eff6ff' : '#fef2f2', color: individualClassificationStatus === 'success' ? '#047857' : individualClassificationStatus === 'saving' ? '#1d4ed8' : '#b91c1c', fontSize: 12, fontWeight: 700 }}>{statusText}</div>}
+          </div>
+          <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+            {renderPerformerPriorityPanel(orderId, { includePrimaryMapping: false })}
+            <div style={{ fontSize: 11, color: '#64748b' }}>분류 변경은 테이블/좌석 배정에 영향을 주지 않습니다. 재배치는 테이블 배치 탭에서 별도로 실행하고 확인해 주세요.</div>
+          </div>
         </div>
       );
     }
 
-    // 3) 그룹(공연자/미매핑 텍스트/관리용 텍스트 그룹)의 편집 — 그룹 전체 재매핑 + 소속 예매자 칩
-    //    (칩을 클릭하면 그 한 명만의 편집 패널로 전환된다)
+    // 3) 그룹(공연자/미매핑 텍스트/관리용 텍스트 그룹)의 편집 — 전체 재분류와 신청별 편집을 분리한다.
     const row = afterPartyRowsByKey[activeEditKey];
     if (!row || row.kind !== 'group') return null;
     return (
       <div style={editorPanelStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{row.label} · {row.count}명</span>
-          <button type="button" onClick={() => setActiveEditKey(null)} style={closeBtnStyle}>✕</button>
+          <button type="button" onClick={closeActiveEdit} style={closeBtnStyle}>✕</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>그룹 전체 재매핑:</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>그룹 전체 재분류 · 이 그룹 {row.orderIds.length}건 모두 변경 (선택 즉시 저장)</span>
           <InviterMappingPicker
             members={activeMembersSorted}
             existingGroupLabels={existingGroupLabels}
@@ -1289,7 +1444,7 @@ export default function ReservationManagementPage() {
           />
         </div>
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
-          유입된 예매자 {row.orderIds.length}건 — 클릭하면 한 명만 따로 편집
+          아래 개별 편집은 선택한 예매 ID 한 건에만 적용됩니다. 그룹 전체 변경과 별도로 저장하세요.
         </div>
         {row.type === 'group' && (
           <form onSubmit={(event) => {
@@ -1301,12 +1456,28 @@ export default function ReservationManagementPage() {
             <button type="submit" style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #c4b5fd', background: '#f5f3ff', color: '#7c3aed', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>그룹명 변경</button>
           </form>
         )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {row.attendees.map((a) => (
-            <button key={a.orderId} type="button" onClick={() => setActiveEditKey(`order:${a.orderId}`)}
-              style={{ padding: '5px 10px', borderRadius: 16, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}
-            >{a.name} ({a.count}명)</button>
-          ))}
+        <div style={{ display: 'grid', gap: 6 }}>
+          {row.attendees.map((a) => {
+            const order = ordersById[a.orderId];
+            const classification = order ? classifyAfterPartyOrder(order) : null;
+            const typeLabel = classification?.type === 'performer' ? '공연자 그룹'
+              : classification?.type === 'group' ? '텍스트 그룹' : '미분류';
+            const targetLabel = classification?.type === 'performer' ? classification.member.name
+              : classification?.type === 'group' ? classification.label
+                : classification?.type === 'unmapped' ? `원본 초대자: ${classification.label}` : '연결된 공연자/그룹 없음';
+            return (
+              <div key={a.orderId} data-testid="after-party-member-row" data-order-id={a.orderId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff' }}>
+                <div style={{ minWidth: 0, display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{a.name} · {a.count}명</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>현재 분류: {typeLabel} · {targetLabel}</span>
+                </div>
+                <button type="button" onClick={() => toggleActiveEdit(`order:${a.orderId}`)}
+                  style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 8, border: '1px solid #c7d2fe', background: '#f5f6ff', color: '#4338ca', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>
+                  {activeEditKey === `order:${a.orderId}` ? '개별 편집 중' : '개별 편집'}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
