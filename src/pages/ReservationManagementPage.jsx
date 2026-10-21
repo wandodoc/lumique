@@ -80,12 +80,8 @@ const AFTER_PARTY_TYPE_BADGE = {
 
 // ── 뒤풀이 테이블 배치도: 고정 가상 좌표계(px 단위) — 화면 크기가 달라져도 테이블의
 // 상대 위치가 항상 동일하게 유지된다. 모바일에서는 이 캔버스만 가로 스크롤을 허용한다. ──
-const TABLE_CANVAS_WIDTH = 760;
+const TABLE_CANVAS_WIDTH = 1000;
 const TABLE_CANVAS_HEIGHT = 460;
-const TABLE_CANVAS_INSET_X = 120;
-const TABLE_CANVAS_INSET_Y = 70;
-const TABLE_CANVAS_DRAW_WIDTH = TABLE_CANVAS_WIDTH + TABLE_CANVAS_INSET_X * 2;
-const TABLE_CANVAS_DRAW_HEIGHT = TABLE_CANVAS_HEIGHT + TABLE_CANVAS_INSET_Y * 2;
 const TABLE_GRID_COLS = 4;
 const TABLE_DEFAULT_SIZE = { rect: { width: 130, height: 80 }, circle: { width: 100, height: 100 } };
 const TABLE_MIN_SIZE = { width: 60, height: 50 };
@@ -807,26 +803,10 @@ export default function ReservationManagementPage() {
   const [performerSelectionByTable, setPerformerSelectionByTable] = useState({});
   const [isAutoAssigning, setIsAutoAssigning] = useState(false);
   const [seatingActionStatus, setSeatingActionStatus] = useState('');
-  const tableCanvasViewportRef = useRef(null);
-  const [tableCanvasScale, setTableCanvasScale] = useState(1);
   const seatDragMovedRef = useRef(false);
   const seatMigrationRef = useRef(new Set());
 
   const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
-
-  useEffect(() => {
-    const viewport = tableCanvasViewportRef.current;
-    if (!viewport || typeof ResizeObserver === 'undefined') return undefined;
-    const updateScale = () => {
-      const availableWidth = viewport.clientWidth;
-      const nextScale = Math.max(0.8, Math.min(1.8, availableWidth / TABLE_CANVAS_DRAW_WIDTH));
-      setTableCanvasScale(previous => Math.abs(previous - nextScale) < 0.01 ? previous : nextScale);
-    };
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [afterPartyTab]);
 
   useEffect(() => {
     document.title = '티켓 신청 및 입장 관리';
@@ -3027,14 +3007,12 @@ export default function ReservationManagementPage() {
                     {/* 공간 배치도 — 테이블을 위에서 내려다본 평면도. 고정 가상 좌표계라 화면 크기가
                          달라져도 테이블 간 상대 위치는 항상 같다. 모바일에서는 이 캔버스 영역만
                          가로로 스크롤되며, 페이지 전체에는 가로 스크롤이 생기지 않는다. */}
-                          <div ref={tableCanvasViewportRef} data-testid="table-canvas-viewport" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #e2e8f0', borderRadius: 14, padding: 12, boxSizing: 'border-box' }}>
-                            <div style={{ width: TABLE_CANVAS_DRAW_WIDTH * tableCanvasScale, height: TABLE_CANVAS_DRAW_HEIGHT * tableCanvasScale, margin: '0 auto' }}>
+                          <div data-testid="table-canvas-viewport" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #e2e8f0', borderRadius: 14, padding: 12, boxSizing: 'border-box' }}>
                       <div
                                 data-testid="table-canvas"
                         onClick={(e) => { if (e.target === e.currentTarget) setSelectedTableId(null); }}
                         style={{
-                                  position: 'relative', width: TABLE_CANVAS_DRAW_WIDTH, height: TABLE_CANVAS_DRAW_HEIGHT, minWidth: TABLE_CANVAS_DRAW_WIDTH,
-                                  transform: `scale(${tableCanvasScale})`, transformOrigin: 'top left',
+                                  position: 'relative', width: TABLE_CANVAS_WIDTH, height: TABLE_CANVAS_HEIGHT, minWidth: TABLE_CANVAS_WIDTH,
                           background: '#fbfbfe',
                           backgroundImage: 'linear-gradient(#eef0f5 1px, transparent 1px), linear-gradient(90deg, #eef0f5 1px, transparent 1px)',
                           backgroundSize: '20px 20px'
@@ -3073,7 +3051,7 @@ export default function ReservationManagementPage() {
                             const tableDeltaX = isDraggingThis ? (geom.x - table.x) / TABLE_CANVAS_WIDTH : 0;
                             const tableDeltaY = isDraggingThis ? (geom.y - table.y) / TABLE_CANVAS_HEIGHT : 0;
                             const chair = seatDragInfo?.seatId === seat.id
-                              ? { ...seat, x: (seatDragInfo.x - TABLE_CANVAS_INSET_X) / TABLE_CANVAS_WIDTH, y: (seatDragInfo.y - TABLE_CANVAS_INSET_Y) / TABLE_CANVAS_HEIGHT }
+                              ? { ...seat, x: seatDragInfo.x / TABLE_CANVAS_WIDTH, y: seatDragInfo.y / TABLE_CANVAS_HEIGHT }
                               : {
                                 ...seat,
                                 x: Math.max(0, Math.min(1, seat.x + tableDeltaX)),
@@ -3086,9 +3064,9 @@ export default function ReservationManagementPage() {
                             const performer = performerId && members.find(member => member.id === performerId);
                             const occupantName = performer?.name || person?.name;
                             const occupied = Boolean(person || performer);
-                            const sx = chair.x * TABLE_CANVAS_WIDTH + TABLE_CANVAS_INSET_X;
-                            const sy = chair.y * TABLE_CANVAS_HEIGHT + TABLE_CANVAS_INSET_Y;
-                            const seatWidth = (name) => name ? Math.min(220, Math.max(56, Array.from(name).length * 12 + 24)) : 22;
+                            const sx = chair.x * TABLE_CANVAS_WIDTH;
+                            const sy = chair.y * TABLE_CANVAS_HEIGHT;
+                            const seatWidth = (name) => name ? Math.min(160, Math.max(40, Array.from(name).length * 7 + 18)) : 22;
                             const currentSeatWidth = seatWidth(occupantName);
                             const overlapsSeat = seats.some(other => {
                               if (other.id === seat.id) return false;
@@ -3120,17 +3098,17 @@ export default function ReservationManagementPage() {
                             }} onPointerMove={e => setSeatDragInfo(prev => {
                               if (!prev || prev.seatId !== seat.id) return prev;
                               const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
-                              const scaleX = rect.width / TABLE_CANVAS_DRAW_WIDTH;
-                              const scaleY = rect.height / TABLE_CANVAS_DRAW_HEIGHT;
-                              const x = Math.max(TABLE_CANVAS_INSET_X + 12, Math.min(TABLE_CANVAS_INSET_X + TABLE_CANVAS_WIDTH - 12, prev.startX + (e.clientX - prev.clientX) / scaleX));
-                              const y = Math.max(TABLE_CANVAS_INSET_Y + 12, Math.min(TABLE_CANVAS_INSET_Y + TABLE_CANVAS_HEIGHT - 12, prev.startY + (e.clientY - prev.clientY) / scaleY));
+                              const scaleX = rect.width / TABLE_CANVAS_WIDTH;
+                              const scaleY = rect.height / TABLE_CANVAS_HEIGHT;
+                              const x = Math.max(12, Math.min(TABLE_CANVAS_WIDTH - 12, prev.startX + (e.clientX - prev.clientX) / scaleX));
+                              const y = Math.max(12, Math.min(TABLE_CANVAS_HEIGHT - 12, prev.startY + (e.clientY - prev.clientY) / scaleY));
                               if (Math.hypot(x - prev.startX, y - prev.startY) > 3) seatDragMovedRef.current = true;
                               return { ...prev, x, y };
                             })} onPointerUp={() => {
                               const moved = seatDragMovedRef.current;
-                              if (moved && seatDragInfo?.seatId === seat.id) moveChair(table.id, seat.id, seatDragInfo.x - TABLE_CANVAS_INSET_X, seatDragInfo.y - TABLE_CANVAS_INSET_Y);
+                              if (moved && seatDragInfo?.seatId === seat.id) moveChair(table.id, seat.id, seatDragInfo.x, seatDragInfo.y);
                               setSeatDragInfo(null);
-                            }} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%, -50%)', width: occupied ? seatWidth(occupantName) : 22, maxWidth: 220, minHeight: occupied ? 32 : 22, height: occupied ? 'auto' : 22, boxSizing: 'border-box', padding: occupied ? '5px 10px' : 0, borderRadius: occupied ? 16 : '50%', background: performer ? '#ecfdf5' : (person ? '#111827' : '#fff'), border: overlapsSeat ? '2px solid #ef4444' : (performer ? '2px solid #059669' : (person ? '1.5px solid #111827' : '2px dashed #64748b')), boxShadow: '0 1px 4px rgba(0,0,0,.2)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', overflow: 'visible', whiteSpace: occupied ? 'normal' : 'nowrap', overflowWrap: 'anywhere', lineHeight: 1.15, fontSize: 12, fontWeight: 800, color: performer ? '#047857' : (person ? '#fff' : '#64748b') }}>{occupantName || (seatAssignmentSelection ? '+' : '')}</button>);
+                            }} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%, -50%)', width: occupied ? seatWidth(occupantName) : 22, maxWidth: 160, height: occupied ? 28 : 22, boxSizing: 'border-box', padding: occupied ? '0 8px' : 0, borderRadius: occupied ? 14 : '50%', background: performer ? '#ecfdf5' : (person ? '#111827' : '#fff'), border: overlapsSeat ? '2px solid #ef4444' : (performer ? '2px solid #059669' : (person ? '1.5px solid #111827' : '2px dashed #64748b')), boxShadow: '0 1px 4px rgba(0,0,0,.2)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 800, color: performer ? '#047857' : (person ? '#fff' : '#64748b') }}>{occupantName || (seatAssignmentSelection ? '+' : '')}</button>);
                           });
 
                           return (
@@ -3146,11 +3124,8 @@ export default function ReservationManagementPage() {
                                 onPointerMove={(e) => {
                                   setDragInfo(prev => {
                                     if (!prev || prev.tableId !== table.id) return prev;
-                                    const canvasRect = e.currentTarget.closest('[data-testid="table-canvas"]')?.getBoundingClientRect();
-                                    const scaleX = canvasRect?.width ? canvasRect.width / TABLE_CANVAS_DRAW_WIDTH : 1;
-                                    const scaleY = canvasRect?.height ? canvasRect.height / TABLE_CANVAS_DRAW_HEIGHT : 1;
-                                    const dx = (e.clientX - prev.startClientX) / scaleX;
-                                    const dy = (e.clientY - prev.startClientY) / scaleY;
+                                    const dx = e.clientX - prev.startClientX;
+                                    const dy = e.clientY - prev.startClientY;
                                     const clamped = clampTablePosition(prev.startX + dx, prev.startY + dy, table.width, table.height);
                                     return { ...prev, x: clamped.x, y: clamped.y };
                                   });
@@ -3162,7 +3137,7 @@ export default function ReservationManagementPage() {
                                   });
                                 }}
                                 style={{
-                                  position: 'absolute', left: geom.x + TABLE_CANVAS_INSET_X, top: geom.y + TABLE_CANVAS_INSET_Y, width: table.width, height: table.height,
+                                  position: 'absolute', left: geom.x, top: geom.y, width: table.width, height: table.height,
                                   borderRadius: table.shape === 'circle' ? '50%' : 12,
                                   transform: `rotate(${table.rotation}deg)`,
                                   background: isOverlapping ? '#fee2e2' : (over ? '#fef3c7' : (selectedTableId === table.id ? '#e0e7ff' : '#ffffff')),
