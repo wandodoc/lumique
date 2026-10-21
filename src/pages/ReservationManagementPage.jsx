@@ -80,9 +80,9 @@ const AFTER_PARTY_TYPE_BADGE = {
 
 // ── 뒤풀이 테이블 배치도: 고정 가상 좌표계(px 단위) — 화면 크기가 달라져도 테이블의
 // 상대 위치가 항상 동일하게 유지된다. 모바일에서는 이 캔버스만 가로 스크롤을 허용한다. ──
-const TABLE_CANVAS_WIDTH = 1600;
-const TABLE_CANVAS_HEIGHT = 1000;
-const TABLE_CANVAS_VERSION = 2;
+const TABLE_CANVAS_WIDTH = 1000;
+const TABLE_CANVAS_HEIGHT = 640;
+const TABLE_CANVAS_VERSION = 3;
 const TABLE_GRID_COLS = 4;
 const TABLE_DEFAULT_SIZE = { rect: { width: 130, height: 80 }, circle: { width: 100, height: 100 } };
 const TABLE_MIN_SIZE = { width: 60, height: 50 };
@@ -1499,8 +1499,8 @@ export default function ReservationManagementPage() {
           ? t.seats
           : t.seats.map(seat => ({
             ...seat,
-            x: seat.x * 1000 / TABLE_CANVAS_WIDTH,
-            y: seat.y * 460 / TABLE_CANVAS_HEIGHT,
+            x: seat.x * (t.canvasVersion === 2 ? 1600 : 1000) / TABLE_CANVAS_WIDTH,
+            y: seat.y * (t.canvasVersion === 2 ? 1000 : 460) / TABLE_CANVAS_HEIGHT,
           }));
         return { ...table, canvasVersion: TABLE_CANVAS_VERSION, capacity: seats.length, seats };
       }
@@ -3029,8 +3029,8 @@ export default function ReservationManagementPage() {
                         }}
                       >
                         {afterPartyTables.length === 0 && (
-                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 13, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                            아직 생성된 테이블이 없습니다. "테이블 추가"로 시작하세요.
+                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                            아직 테이블이 없습니다. ‘테이블 추가’를 눌러 배치를 시작하세요.
                           </div>
                         )}
                         {afterPartyTables.map((table) => {
