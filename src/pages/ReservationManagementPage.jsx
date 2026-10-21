@@ -80,8 +80,9 @@ const AFTER_PARTY_TYPE_BADGE = {
 
 // ── 뒤풀이 테이블 배치도: 고정 가상 좌표계(px 단위) — 화면 크기가 달라져도 테이블의
 // 상대 위치가 항상 동일하게 유지된다. 모바일에서는 이 캔버스만 가로 스크롤을 허용한다. ──
-const TABLE_CANVAS_WIDTH = 1000;
-const TABLE_CANVAS_HEIGHT = 460;
+const TABLE_CANVAS_WIDTH = 1600;
+const TABLE_CANVAS_HEIGHT = 1000;
+const TABLE_CANVAS_VERSION = 2;
 const TABLE_GRID_COLS = 4;
 const TABLE_DEFAULT_SIZE = { rect: { width: 130, height: 80 }, circle: { width: 100, height: 100 } };
 const TABLE_MIN_SIZE = { width: 60, height: 50 };
@@ -1493,9 +1494,18 @@ export default function ReservationManagementPage() {
   const afterPartyTables = useMemo(
     () => (Array.isArray(currentShow?.tables) ? currentShow.tables : []).map((t, i) => {
       const table = withTableGeometry(t, i);
-      if (Array.isArray(t.seats)) return { ...table, capacity: t.seats.length, seats: t.seats };
+      if (Array.isArray(t.seats)) {
+        const seats = t.canvasVersion === TABLE_CANVAS_VERSION
+          ? t.seats
+          : t.seats.map(seat => ({
+            ...seat,
+            x: seat.x * 1000 / TABLE_CANVAS_WIDTH,
+            y: seat.y * 460 / TABLE_CANVAS_HEIGHT,
+          }));
+        return { ...table, canvasVersion: TABLE_CANVAS_VERSION, capacity: seats.length, seats };
+      }
       const initial = computeSeatSlots(table, Math.max(0, Number(table.capacity) || 0));
-      return { ...table, seats: initial.map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
+      return { ...table, canvasVersion: TABLE_CANVAS_VERSION, seats: initial.map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
     }),
     [currentShow]
   );
@@ -1776,7 +1786,7 @@ export default function ReservationManagementPage() {
     const placement = candidatePositions.find(hasRoom) || { x: base.x, y: base.y };
     const positioned = { ...base, ...placement };
     const table = { ...positioned, ...clampTablePosition(positioned.x, positioned.y, positioned.width, positioned.height) };
-    const newTable = { ...table, seats: computeSeatSlots(table, 6).map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
+    const newTable = { ...table, canvasVersion: TABLE_CANVAS_VERSION, seats: computeSeatSlots(table, 6).map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
     saveSeatingPatch({ tables: [...afterPartyTables, newTable] });
   };
 
@@ -1913,7 +1923,7 @@ export default function ReservationManagementPage() {
     const newPerformerTable = (performerId, performerName, tableIndex, capacity) => {
       const positioned = withTableGeometry({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: tableIndex === 1 ? performerName : `${performerName} ${tableIndex}`, capacity, performerId, performerTableIndex: tableIndex }, tables.length);
       const base = { ...positioned, ...clampTablePosition(positioned.x, positioned.y, positioned.width, positioned.height) };
-      return { ...base, seats: computeSeatSlots(base, capacity).map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
+      return { ...base, canvasVersion: TABLE_CANVAS_VERSION, seats: computeSeatSlots(base, capacity).map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) })) };
     };
     const loadByTable = {};
     Object.entries(nextAssignments).forEach(([orderId, tableId]) => {
