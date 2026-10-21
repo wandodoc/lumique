@@ -3076,7 +3076,7 @@ export default function ReservationManagementPage() {
                             const occupied = Boolean(person || performer);
                             const sx = chair.x * TABLE_CANVAS_WIDTH;
                             const sy = chair.y * TABLE_CANVAS_HEIGHT;
-                            const seatWidth = (name) => name ? Math.min(160, Math.max(40, Array.from(name).length * 7 + 18)) : 22;
+                            const seatWidth = (name) => name ? Math.min(220, Math.max(56, Array.from(name).length * 12 + 24)) : 22;
                             const currentSeatWidth = seatWidth(occupantName);
                             const overlapsSeat = seats.some(other => {
                               if (other.id === seat.id) return false;
@@ -3118,7 +3118,7 @@ export default function ReservationManagementPage() {
                               const moved = seatDragMovedRef.current;
                               if (moved && seatDragInfo?.seatId === seat.id) moveChair(table.id, seat.id, seatDragInfo.x, seatDragInfo.y);
                               setSeatDragInfo(null);
-                            }} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%, -50%)', width: occupied ? seatWidth(occupantName) : 22, maxWidth: 160, height: occupied ? 28 : 22, boxSizing: 'border-box', padding: occupied ? '0 8px' : 0, borderRadius: occupied ? 14 : '50%', background: performer ? '#ecfdf5' : (person ? '#111827' : '#fff'), border: overlapsSeat ? '2px solid #ef4444' : (performer ? '2px solid #059669' : (person ? '1.5px solid #111827' : '2px dashed #64748b')), boxShadow: '0 1px 4px rgba(0,0,0,.2)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 800, color: performer ? '#047857' : (person ? '#fff' : '#64748b') }}>{occupantName || (seatAssignmentSelection ? '+' : '')}</button>);
+                            }} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%, -50%)', width: occupied ? seatWidth(occupantName) : 22, maxWidth: 220, minHeight: occupied ? 32 : 22, height: occupied ? 'auto' : 22, boxSizing: 'border-box', padding: occupied ? '5px 10px' : 0, borderRadius: occupied ? 16 : '50%', background: performer ? '#ecfdf5' : (person ? '#111827' : '#fff'), border: overlapsSeat ? '2px solid #ef4444' : (performer ? '2px solid #059669' : (person ? '1.5px solid #111827' : '2px dashed #64748b')), boxShadow: '0 1px 4px rgba(0,0,0,.2)', zIndex: 4, cursor: isAdmin ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', overflow: 'visible', whiteSpace: occupied ? 'normal' : 'nowrap', overflowWrap: 'anywhere', lineHeight: 1.15, fontSize: 12, fontWeight: 800, color: performer ? '#047857' : (person ? '#fff' : '#64748b') }}>{occupantName || (seatAssignmentSelection ? '+' : '')}</button>);
                           });
 
                           return (
