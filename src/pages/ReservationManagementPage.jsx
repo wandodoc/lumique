@@ -3166,7 +3166,6 @@ export default function ReservationManagementPage() {
                         })}
                               </div>
                             </div>
-                          </div>
 
                     {/* 선택한 테이블 편집 — 이름/정원/모양/크기/위치(버튼 이동, 모바일 대체 조작)/방향/삭제 +
                          그 테이블에 배치된 참여자 이동/제거. 캔버스와 별개의 고정폭 영역이라 화면을 가리지 않는다. */}
