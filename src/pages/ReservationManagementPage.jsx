@@ -2073,8 +2073,13 @@ export default function ReservationManagementPage() {
   };
 
   const moveChair = (tableId, seatId, x, y) => {
+    const table = afterPartyTables.find(item => item.id === tableId);
+    const layout = tableDisplayLayouts.get(tableId) || table;
+    if (!table || !layout) return;
+    const tableX = table.x + table.width / 2 + (x - (layout.x + layout.width / 2)) * table.width / layout.width;
+    const tableY = table.y + table.height / 2 + (y - (layout.y + layout.height / 2)) * table.height / layout.height;
     saveSeatingPatch({ tables: afterPartyTables.map(item => item.id === tableId ? {
-      ...item, seats: item.seats.map(seat => seat.id === seatId ? { ...seat, x: Math.max(0, Math.min(1, x / TABLE_CANVAS_WIDTH)), y: Math.max(0, Math.min(1, y / TABLE_CANVAS_HEIGHT)) } : seat)
+      ...item, seats: item.seats.map(seat => seat.id === seatId ? { ...seat, x: Math.max(0, Math.min(1, tableX / TABLE_CANVAS_WIDTH)), y: Math.max(0, Math.min(1, tableY / TABLE_CANVAS_HEIGHT)) } : seat)
     } : item) });
   };
 
@@ -2086,7 +2091,8 @@ export default function ReservationManagementPage() {
   const moveTableTo = (tableId, x, y) => {
     const t = afterPartyTables.find(tb => tb.id === tableId);
     if (!t) return;
-    const position = clampTablePosition(x, y, t.width, t.height);
+    const layout = tableDisplayLayouts.get(tableId) || t;
+    const position = clampTablePosition(x, y, layout.width, layout.height);
     const deltaX = position.x - t.x;
     const deltaY = position.y - t.y;
     saveSeatingPatch({
@@ -2106,7 +2112,8 @@ export default function ReservationManagementPage() {
   const nudgeTable = (tableId, dx, dy) => {
     const t = afterPartyTables.find(tb => tb.id === tableId);
     if (!t) return;
-    moveTableTo(tableId, t.x + dx, t.y + dy);
+    const layout = tableDisplayLayouts.get(tableId) || t;
+    moveTableTo(tableId, layout.x + dx, layout.y + dy);
   };
 
   const resizeTable = (tableId, width, height) => {
@@ -2471,6 +2478,58 @@ export default function ReservationManagementPage() {
     const performer = order && !order.inviterGroupLabel ? resolveInviterMember(order) : null;
     return performer ? [performer.id] : [];
   })).size;
+
+  const tableDisplayLayouts = useMemo(() => {
+    const rows = [];
+    const layouts = afterPartyTables.map(table => {
+      const entry = seatingOverview.tables.find(item => item.table.id === table.id);
+      const attendeeNames = (entry?.participants || []).flatMap(person =>
+        Array.from({ length: Math.max(0, person.count) }, () => person.name).filter(Boolean)
+      );
+      const performerNames = table.seats
+        .map(seat => members.find(member => member.id === performerSeatAssignments[seat.id])?.name)
+        .filter(Boolean);
+      const names = [...attendeeNames, ...performerNames].slice(0, table.seats.length);
+      const longestLabelWidth = names.reduce((max, name) => Math.max(max, Array.from(name).length * 12 + 24), 0);
+      const sideSlots = Math.max(1, Math.ceil(names.length / 2));
+      let width = table.width;
+      let height = table.height;
+
+      if (names.length && table.shape === 'circle') {
+        const diameter = Math.ceil(names.length * (longestLabelWidth + 8) / Math.PI);
+        width = height = Math.max(width, height, Math.min(220, diameter));
+      } else if (names.length) {
+        width = Math.max(width, Math.min(220, sideSlots * longestLabelWidth + (sideSlots - 1) * 8 + 32));
+      }
+
+      const layout = { ...table, width, height, labelHeight: names.length ? Math.max(32, Math.ceil(longestLabelWidth / Math.max(40, (width - 32 - 8 * (sideSlots - 1)) / sideSlots)) * 14 + 10) : 22 };
+      let row = rows.find(candidate => Math.abs(candidate.anchorY - table.y) < 90);
+      if (!row) {
+        row = { anchorY: table.y, items: [] };
+        rows.push(row);
+      }
+      row.items.push(layout);
+      return layout;
+    });
+
+    rows.sort((a, b) => a.anchorY - b.anchorY);
+    let nextRowY = 0;
+    rows.forEach(row => {
+      row.items.sort((a, b) => a.x - b.x);
+      const rowY = Math.max(row.anchorY, nextRowY);
+      let nextX = 30;
+      row.items.forEach(layout => {
+        layout.x = Math.max(layout.x, nextX);
+        layout.y = rowY;
+        nextX = layout.x + layout.width + 10;
+      });
+      const rowHeight = Math.max(...row.items.map(item => item.height));
+      const labelHeight = Math.max(...row.items.map(item => item.labelHeight));
+      nextRowY = rowY + rowHeight + labelHeight + 50;
+    });
+
+    return new Map(layouts.map(layout => [layout.id, layout]));
+  }, [afterPartyTables, seatingOverview.tables, performerSeatAssignments, members]);
 
   if (loading) {
     return (
@@ -3034,9 +3093,14 @@ export default function ReservationManagementPage() {
                           </div>
                         )}
                         {afterPartyTables.map((table) => {
+                          const displayTable = tableDisplayLayouts.get(table.id) || table;
                           const isDraggingThis = !!(dragInfo && dragInfo.tableId === table.id);
-                          const geom = isDraggingThis ? { ...table, x: dragInfo.x, y: dragInfo.y } : table;
-                          const isOverlapping = isDraggingThis && afterPartyTables.some(o => o.id !== table.id && tablesOverlap(geom, o));
+                          const geom = isDraggingThis ? { ...displayTable, x: dragInfo.x, y: dragInfo.y } : displayTable;
+                          const isOverlapping = isDraggingThis && afterPartyTables.some(other => {
+                            if (other.id === table.id) return false;
+                            const otherLayout = tableDisplayLayouts.get(other.id) || other;
+                            return tablesOverlap(geom, otherLayout);
+                          });
                           const entry = seatingOverview.tables.find(t => t.table.id === table.id);
                           const placedCount = entry ? entry.count : 0;
                           const over = placedCount > table.capacity;
@@ -3057,16 +3121,19 @@ export default function ReservationManagementPage() {
                               if (legacyIndex < seats.length) legacySeatOccupants[seats[legacyIndex++].id] = { orderId: person.orderId, attendeeIndex };
                             }
                           });
+                          const sideSlots = Math.max(1, Math.ceil(seats.length / 2));
+                          const seatChipMaxWidth = table.shape === 'circle'
+                            ? Math.max(40, (Math.PI * (geom.width + SEAT_EDGE_OFFSET * 2)) / Math.max(1, seats.length) - 8)
+                            : Math.max(40, (geom.width - 32 - 8 * (sideSlots - 1)) / sideSlots);
+                          const seatPosition = seat => ({
+                            x: geom.x + geom.width / 2 + (seat.x * TABLE_CANVAS_WIDTH - (table.x + table.width / 2)) * geom.width / table.width,
+                            y: geom.y + geom.height / 2 + (seat.y * TABLE_CANVAS_HEIGHT - (table.y + table.height / 2)) * geom.height / table.height,
+                          });
                           seats.forEach((seat) => {
-                            const tableDeltaX = isDraggingThis ? (geom.x - table.x) / TABLE_CANVAS_WIDTH : 0;
-                            const tableDeltaY = isDraggingThis ? (geom.y - table.y) / TABLE_CANVAS_HEIGHT : 0;
+                            const point = seatPosition(seat);
                             const chair = seatDragInfo?.seatId === seat.id
                               ? { ...seat, x: seatDragInfo.x / TABLE_CANVAS_WIDTH, y: seatDragInfo.y / TABLE_CANVAS_HEIGHT }
-                              : {
-                                ...seat,
-                                x: Math.max(0, Math.min(1, seat.x + tableDeltaX)),
-                                y: Math.max(0, Math.min(1, seat.y + tableDeltaY)),
-                              };
+                              : { ...seat, x: point.x / TABLE_CANVAS_WIDTH, y: point.y / TABLE_CANVAS_HEIGHT };
                             const assigned = participantSeatAssignments[seat.id] || legacySeatOccupants[seat.id];
                             const person = assigned && afterPartyParticipants.find(p => p.orderId === assigned.orderId);
                             const rawPerformerId = performerSeatAssignments[seat.id];
@@ -3076,8 +3143,10 @@ export default function ReservationManagementPage() {
                             const occupied = Boolean(person || performer);
                             const sx = chair.x * TABLE_CANVAS_WIDTH;
                             const sy = chair.y * TABLE_CANVAS_HEIGHT;
-                            const seatWidth = (name) => name ? Math.min(220, Math.max(56, Array.from(name).length * 12 + 24)) : 22;
+                            const seatWidth = name => name ? Math.min(seatChipMaxWidth, Math.max(40, Array.from(name).length * 12 + 24)) : 22;
+                            const seatHeight = name => name ? Math.max(32, Math.ceil((Array.from(name).length * 12 + 4) / seatWidth(name)) * 14 + 10) : 22;
                             const currentSeatWidth = seatWidth(occupantName);
+                            const currentSeatHeight = seatHeight(occupantName);
                             const overlapsSeat = seats.some(other => {
                               if (other.id === seat.id) return false;
                               const otherAssignment = participantSeatAssignments[other.id] || legacySeatOccupants[other.id];
@@ -3085,8 +3154,9 @@ export default function ReservationManagementPage() {
                               const otherPerformerId = performerSeatAssignments[other.id];
                               const otherPerformer = canonicalPerformerSeatByMember[otherPerformerId] === other.id && members.find(member => member.id === otherPerformerId);
                               const otherName = otherPerformer?.name || otherPerson?.name;
-                              return Math.abs((other.x - seat.x) * TABLE_CANVAS_WIDTH) < (currentSeatWidth + seatWidth(otherName)) / 2
-                                && Math.abs((other.y - seat.y) * TABLE_CANVAS_HEIGHT) < 15;
+                              const otherPoint = seatPosition(other);
+                              return Math.abs(otherPoint.x - sx) < (currentSeatWidth + seatWidth(otherName)) / 2
+                                && Math.abs(otherPoint.y - sy) < (currentSeatHeight + seatHeight(otherName)) / 2;
                             });
                             seatNodes.push(<button key={seat.id} data-seat-id={seat.id} data-table-id={table.id} type="button" title={occupantName || '빈 좌석 · 선택 대상 배정'} aria-label={occupantName || '빈 좌석'} onClick={event => {
                               event.stopPropagation();
@@ -3129,14 +3199,14 @@ export default function ReservationManagementPage() {
                                   if (!isAdmin) return;
                                   e.currentTarget.setPointerCapture(e.pointerId);
                                   setSelectedTableId(table.id);
-                                  setDragInfo({ tableId: table.id, startClientX: e.clientX, startClientY: e.clientY, startX: table.x, startY: table.y, x: table.x, y: table.y });
+                                  setDragInfo({ tableId: table.id, startClientX: e.clientX, startClientY: e.clientY, startX: displayTable.x, startY: displayTable.y, x: displayTable.x, y: displayTable.y });
                                 }}
                                 onPointerMove={(e) => {
                                   setDragInfo(prev => {
                                     if (!prev || prev.tableId !== table.id) return prev;
                                     const dx = e.clientX - prev.startClientX;
                                     const dy = e.clientY - prev.startClientY;
-                                    const clamped = clampTablePosition(prev.startX + dx, prev.startY + dy, table.width, table.height);
+                                    const clamped = clampTablePosition(prev.startX + dx, prev.startY + dy, displayTable.width, displayTable.height);
                                     return { ...prev, x: clamped.x, y: clamped.y };
                                   });
                                 }}
@@ -3147,7 +3217,7 @@ export default function ReservationManagementPage() {
                                   });
                                 }}
                                 style={{
-                                  position: 'absolute', left: geom.x, top: geom.y, width: table.width, height: table.height,
+                                  position: 'absolute', left: geom.x, top: geom.y, width: displayTable.width, height: displayTable.height,
                                   borderRadius: table.shape === 'circle' ? '50%' : 12,
                                   transform: `rotate(${table.rotation}deg)`,
                                   background: isOverlapping ? '#fee2e2' : (over ? '#fef3c7' : (selectedTableId === table.id ? '#e0e7ff' : '#ffffff')),
