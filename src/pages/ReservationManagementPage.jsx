@@ -3175,16 +3175,21 @@ export default function ReservationManagementPage() {
                               e.currentTarget.setPointerCapture(e.pointerId);
                               setSelectedTableId(table.id);
                               setSeatDragInfo({ seatId: seat.id, tableId: table.id, startX: sx, startY: sy, clientX: e.clientX, clientY: e.clientY, x: sx, y: sy });
-                            }} onPointerMove={e => setSeatDragInfo(prev => {
-                              if (!prev || prev.seatId !== seat.id) return prev;
-                              const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
-                              const scaleX = rect.width / TABLE_CANVAS_WIDTH;
-                              const scaleY = rect.height / TABLE_CANVAS_HEIGHT;
-                              const x = Math.max(12, Math.min(TABLE_CANVAS_WIDTH - 12, prev.startX + (e.clientX - prev.clientX) / scaleX));
-                              const y = Math.max(12, Math.min(TABLE_CANVAS_HEIGHT - 12, prev.startY + (e.clientY - prev.clientY) / scaleY));
-                              if (Math.hypot(x - prev.startX, y - prev.startY) > 3) seatDragMovedRef.current = true;
-                              return { ...prev, x, y };
-                            })} onPointerUp={() => {
+                            }} onPointerMove={e => {
+                              const canvasRect = e.currentTarget?.parentElement?.parentElement?.getBoundingClientRect();
+                              if (!canvasRect?.width || !canvasRect?.height) return;
+                              const clientX = e.clientX;
+                              const clientY = e.clientY;
+                              setSeatDragInfo(prev => {
+                                if (!prev || prev.seatId !== seat.id) return prev;
+                                const scaleX = canvasRect.width / TABLE_CANVAS_WIDTH;
+                                const scaleY = canvasRect.height / TABLE_CANVAS_HEIGHT;
+                                const x = Math.max(12, Math.min(TABLE_CANVAS_WIDTH - 12, prev.startX + (clientX - prev.clientX) / scaleX));
+                                const y = Math.max(12, Math.min(TABLE_CANVAS_HEIGHT - 12, prev.startY + (clientY - prev.clientY) / scaleY));
+                                if (Math.hypot(x - prev.startX, y - prev.startY) > 3) seatDragMovedRef.current = true;
+                                return { ...prev, x, y };
+                              });
+                            }} onPointerUp={() => {
                               const moved = seatDragMovedRef.current;
                               if (moved && seatDragInfo?.seatId === seat.id) moveChair(table.id, seat.id, seatDragInfo.x, seatDragInfo.y);
                               setSeatDragInfo(null);
