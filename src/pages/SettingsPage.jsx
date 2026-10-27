@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { firebaseStorage } from '../utils/firebaseStorage';
 import './Pages.css';
 
 const REGULATIONS = [
@@ -32,7 +33,7 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handlePasswordChange = (e) => {
+  const handlePasswordChange = async (e) => {
     e.preventDefault();
     if (!oldPassword || !newPassword || !confirmPassword) {
       return alert('모든 비밀번호 필드를 입력해주세요.');
@@ -43,26 +44,30 @@ export default function SettingsPage() {
     if (newPassword.length < 4) {
       return alert('새 비밀번호는 4자리 이상이어야 합니다.');
     }
-    const success = changePassword(oldPassword, newPassword);
-    if (success) {
-      alert('비밀번호가 성공적으로 변경되었습니다.');
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } else {
-      alert('기존 비밀번호가 일치하지 않습니다.');
+    try {
+      const success = await changePassword(oldPassword, newPassword);
+      if (success) {
+        alert('비밀번호가 변경되었습니다. 모든 기기에 바로 적용됩니다.');
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        alert('기존 비밀번호가 일치하지 않습니다.');
+      }
+    } catch (err) {
+      alert(err.message || '서버에 연결할 수 없어 비밀번호를 변경하지 못했습니다.');
     }
   };
 
-  const handleBackup = () => {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith('lumique_')) {
-        data[key] = localStorage.getItem(key);
-      }
+  // 백업 = 서버(Firestore) 문서 전체를 내려받는다. (이 기기의 로컬 저장소에는 데이터가 없다)
+  const handleBackup = async () => {
+    const data = await firebaseStorage.loadData();
+    if (!data) {
+      alert('서버에서 데이터를 불러오지 못해 백업 파일을 만들 수 없습니다. 네트워크를 확인해 주세요.');
+      return;
     }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const payload = { format: 'lumique-firestore-v1', exportedAt: new Date().toISOString(), main_state: data };
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -71,32 +76,45 @@ export default function SettingsPage() {
     URL.revokeObjectURL(url);
   };
 
+  // 복원 = 백업 파일의 내용을 서버에 쓴다. 되돌릴 수 없으므로 현재 서버 건수와 파일 건수를 보여주고 확인받는다.
   const handleRestore = (e) => {
     const file = e.target.files[0];
+    e.target.value = ''; // reset
     if (!file) return;
-    if (!window.confirm('기존 데이터가 덮어씌워집니다. 진행하시겠습니까?')) {
-      e.target.value = '';
-      return;
-    }
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const data = JSON.parse(event.target.result);
-        let count = 0;
-        Object.keys(data).forEach(key => {
-          if (key.startsWith('lumique_')) {
-            localStorage.setItem(key, data[key]);
-            count++;
-          }
-        });
-        alert(`복구 완료! ${count}개의 데이터 키가 복원되었습니다. 페이지를 새로고침합니다.`);
+        const parsed = JSON.parse(event.target.result);
+        const incoming = parsed?.format === 'lumique-firestore-v1' ? parsed.main_state : parsed;
+        if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('bad');
+        const ALLOWED = ['members', 'transactions', 'performances', 'performanceParticipants', 'memberAvailability', 'bandMembers',
+          'bandMemberAvailability', 'practiceStatuses', 'confirmedRehearsals', 'performanceBandMembers', 'performanceSetlists',
+          'shows', 'orders', 'songs', 'activities', 'lastUpdated'];
+        const fields = Object.fromEntries(Object.entries(incoming).filter(([k]) => ALLOWED.includes(k)));
+        if (Object.keys(fields).length === 0) throw new Error('bad');
+        const current = await firebaseStorage.loadData();
+        if (current === undefined) {
+          alert('서버 상태를 확인할 수 없어 복원을 중단했습니다. 네트워크를 확인해 주세요.');
+          return;
+        }
+        const count = (v) => (Array.isArray(v) ? `${v.length}건` : v && typeof v === 'object' ? `${Object.keys(v).length}개` : '-');
+        const summary = ['transactions', 'members', 'shows', 'orders']
+          .filter(k => k in fields)
+          .map(k => `${k}: 서버 ${count(current?.[k])} → 파일 ${count(fields[k])}`)
+          .join('\n');
+        if (!window.confirm(`서버 데이터를 백업 파일 내용으로 덮어씁니다. 되돌릴 수 없습니다.\n\n${summary}\n\n진행할까요?`)) return;
+        const ok = await firebaseStorage.saveData(fields);
+        if (!ok) {
+          alert('서버 저장에 실패해 복원되지 않았습니다.');
+          return;
+        }
+        alert('복원 완료. 페이지를 새로고침합니다.');
         window.location.reload();
-      } catch (err) {
+      } catch {
         alert('잘못된 백업 파일입니다.');
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // reset
   };
 
   const rawEquipments = [];

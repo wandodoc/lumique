@@ -6,8 +6,6 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import './PageStyles.css';
 
-const LS_SHOWS = 'lumique_concerts';
-const LS_ORDERS = 'lumique_ticket_orders';
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
 // 모든 공연 데이터가 하나의 Firestore 문서(1MiB 제한)에 저장되고, 회원/거래내역 등
@@ -72,8 +70,7 @@ const blankShow = {
 
 const id = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const LOAD_FAILED_MSG = '서버에서 공연 목록을 불러오지 못해 저장할 수 없습니다. 네트워크를 확인하고 새로고침한 뒤 다시 시도해 주세요.';
-const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
+const SAVE_FAILED_MSG = '서버 저장에 실패해 변경이 반영되지 않았습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { countSoldByTier, cleanPriceTier } from '../utils/pricing';
@@ -1017,24 +1014,13 @@ export default function PerformancePage() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
 
-      // null = 읽기 실패. "비어 있음"과 구분해서, 실패 시에는 로컬 사본을 화면에만 보여주고 서버로 올리지 않는다.
+      // null = 읽기 실패. "비어 있음"과 구분해서, 실패 시에는 빈 화면과 함께 저장을 잠근다.
+      // (로컬 저장소는 데이터 저장소가 아니므로 어떤 사본도 쓰지 않는다)
       const failed = fbConcerts === null || fbOrders === null;
       setLoadFailed(failed);
-      if (fbConcerts === null) fbConcerts = lsGet(LS_SHOWS);
-      if (fbOrders === null) fbOrders = lsGet(LS_ORDERS);
+      if (fbConcerts === null) fbConcerts = [];
+      if (fbOrders === null) fbOrders = [];
 
-      // Fallback from localStorage if Firebase is (really) empty
-      let localShows = lsGet(LS_SHOWS);
-
-      if (!failed && fbConcerts.length === 0 && localShows.length > 0) {
-        fbConcerts = normShows(localShows);
-        await firebaseStorage.saveConcerts(fbConcerts);
-      }
-      if (!failed && fbOrders.length === 0 && lsGet(LS_ORDERS).length > 0) {
-        fbOrders = lsGet(LS_ORDERS);
-        await firebaseStorage.saveOrders(fbOrders);
-      }
-      
       const normalizedShows = normShows(fbConcerts);
       setShows(normalizedShows);
       setOrders(fbOrders);
@@ -1061,17 +1047,24 @@ export default function PerformancePage() {
     return Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(year => ({ year, shows: grouped[year] }));
   }, [activeShows]);
 
+  // 서버가 돌려준 최신 목록으로 화면 상태를 맞춘다 (화면의 옛 목록을 서버에 쓰는 일은 없다).
+  const applyServerShows = (list) => {
+    const normalized = normShows(list);
+    setShows(normalized);
+    dispatch({ type: 'SET_SHOWS', shows: normalized });
+    return normalized;
+  };
+
   const saveShow = async (next) => {
     if (loadFailed) { alert(LOAD_FAILED_MSG); return false; }
-    const nextShows = normShows(shows.some(s => s.id === next.id) ? shows.map(s => s.id === next.id ? next : s) : [...shows, next]);
-    setShows(nextShows);
-    lsSet(LS_SHOWS, nextShows);
-    dispatch({ type: 'SET_SHOWS', shows: nextShows });
-    const ok = await firebaseStorage.saveConcerts(nextShows);
-    if (!ok) {
-      alert('클라우드 저장에 실패했습니다. 사진 용량이 너무 커서 전체 저장 용량 한도를 초과했을 수 있습니다.\n사진 장수를 줄이거나 다시 시도해주세요. (이 기기에는 임시로 저장되어 있습니다)');
+    const [cleaned] = normShows([next]);
+    const list = await firebaseStorage.upsertShow(cleaned);
+    if (!list) {
+      alert('클라우드 저장에 실패했습니다. 사진 용량이 너무 커서 전체 저장 용량 한도를 초과했을 수 있습니다.\n사진 장수를 줄이거나 다시 시도해주세요. 변경 내용은 저장되지 않았습니다.');
+      return false;
     }
-    return ok;
+    applyServerShows(list);
+    return true;
   };
 
   const toggleParticipant = (showId, memberId) => {
@@ -1116,39 +1109,31 @@ export default function PerformancePage() {
     if (e) e.stopPropagation();
     if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
     if (!window.confirm('공연을 휴지통으로 이동할까요? (휴지통에서 복구하거나 완전히 삭제할 수 있습니다)')) return;
-    const nextShows = normShows(shows.map(s => s.id === id ? { ...s, deletedAt: new Date().toISOString() } : s));
-    setShows(nextShows);
-    dispatch({ type: 'SET_SHOWS', shows: nextShows });
-    lsSet(LS_SHOWS, nextShows);
+    const list = await firebaseStorage.patchShow(id, { deletedAt: new Date().toISOString() });
+    if (!Array.isArray(list)) { alert(list === 'missing' ? '서버에 없는 공연입니다. 새로고침해 주세요.' : SAVE_FAILED_MSG); return; }
+    applyServerShows(list);
     if (detail?.id === id) setDetail(null);
-    await firebaseStorage.saveConcerts(nextShows);
   };
 
   const restoreShow = async (id, e) => {
     if (e) e.stopPropagation();
     if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
-    const nextShows = normShows(shows.map(s => s.id === id ? { ...s, deletedAt: null } : s));
-    setShows(nextShows);
-    dispatch({ type: 'SET_SHOWS', shows: nextShows });
-    lsSet(LS_SHOWS, nextShows);
-    await firebaseStorage.saveConcerts(nextShows);
+    const list = await firebaseStorage.patchShow(id, { deletedAt: null });
+    if (!Array.isArray(list)) { alert(list === 'missing' ? '서버에 없는 공연입니다. 새로고침해 주세요.' : SAVE_FAILED_MSG); return; }
+    applyServerShows(list);
   };
 
   const permanentlyDeleteShow = async (id, e) => {
     if (e) e.stopPropagation();
     if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
     if (!window.confirm('이 공연을 완전히 삭제할까요? 연결된 예매 주문/참여자 기록도 함께 삭제되며, 되돌릴 수 없습니다.')) return;
-    const nextShows = shows.filter(s => s.id !== id);
-    const nextOrders = orders.filter(o => o.concertId !== id);
-    setShows(nextShows);
-    setOrders(nextOrders);
+    const list = await firebaseStorage.removeShow(id);
+    if (!Array.isArray(list)) { alert(SAVE_FAILED_MSG); return; }
+    const nextOrders = await firebaseStorage.patchOrders(all => all.filter(o => o.concertId !== id), { allowEmpty: true });
+    applyServerShows(list);
+    if (Array.isArray(nextOrders)) setOrders(nextOrders);
     dispatch({ type: 'DELETE_PERFORMANCE_PARTICIPANTS', showId: id });
-    dispatch({ type: 'SET_SHOWS', shows: nextShows });
-    lsSet(LS_SHOWS, nextShows);
-    lsSet(LS_ORDERS, nextOrders);
     if (detail?.id === id) setDetail(null);
-    await firebaseStorage.saveConcerts(nextShows);
-    await firebaseStorage.saveOrders(nextOrders);
   };
 
   const editShow = (show, e) => {

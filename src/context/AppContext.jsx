@@ -1,7 +1,5 @@
-import { createContext, useContext, useReducer, useEffect, useMemo } from 'react';
+import { createContext, useContext, useReducer, useEffect, useMemo, useRef, useState } from 'react';
 import { MEMBERS } from '../data/members';
-import { SAMPLE_TRANSACTIONS } from '../data/transactions';
-import { storage } from '../utils/storage';
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { derivePerformances } from '../utils/performances';
 
@@ -360,16 +358,8 @@ export function AppProvider({ children }) {
       // 1. Firebase에서 최신 상태 불러오기
       const fbState = await firebaseStorage.loadData();
       
-      // undefined = 읽기 실패. 아래의 "Firebase가 비어있다면 localStorage에서 마이그레이션" 분기로
-      // 절대 내려가면 안 된다 — 그 분기는 Firestore를 로컬 상태로 덮어쓴다. (2026-10-24 공연 데이터 유실 원인)
-      if (fbState === undefined) {
-        console.error('Firestore 읽기에 실패했습니다. 로컬 데이터로 덮어쓰지 않고 동기화를 중단합니다.');
-        dispatch({ type: 'LOAD_FAILED' });
-        return;
-      }
-
-      // undefined = 읽기 실패. 아래의 "Firebase가 비어있다면 localStorage에서 마이그레이션" 분기로
-      // 절대 내려가면 안 된다 — 그 분기는 Firestore를 로컬 상태로 덮어쓴다. (2026-10-24 공연 데이터 유실 원인)
+      // undefined = 읽기 실패. 아래의 "문서 없음 → 초기 상태 생성" 분기로 절대 내려가면 안 된다.
+      // (읽기 실패를 '비어 있음'으로 취급해 서버를 덮어쓴 것이 2026-10-24 공연 데이터 유실 원인)
       if (fbState === undefined) {
         console.error('Firestore 읽기에 실패했습니다. 로컬 데이터로 덮어쓰지 않고 동기화를 중단합니다.');
         dispatch({ type: 'LOAD_FAILED' });
@@ -446,7 +436,8 @@ export function AppProvider({ children }) {
           }));
         if (backfillShows.length > 0) {
           shows = [...shows, ...backfillShows];
-          await firebaseStorage.saveConcerts(shows);
+          // 전체 목록 교체가 아니라 항목 단위 추가. 다른 기기가 방금 저장한 공연을 덮어쓰지 않도록.
+          for (const s of backfillShows) await firebaseStorage.upsertShow(s);
         }
 
         // members.js에 하드코딩된 학생/직장인 및 2025 보정액을 파이어베이스 데이터에 병합
@@ -495,108 +486,56 @@ export function AppProvider({ children }) {
           performances: performances,
           performanceParticipants,
           memberAvailability: fbState.memberAvailability || {},
-          bandMembers: fbState.bandMembers ?? storage.getBandMembers() ?? {},
-          bandMemberAvailability: fbState.bandMemberAvailability ?? storage.getBandMemberAvailability() ?? {},
-          practiceStatuses: fbState.practiceStatuses ?? storage.getPracticeStatuses() ?? {},
-          confirmedRehearsals: fbState.confirmedRehearsals ?? storage.getConfirmedRehearsals() ?? {},
-          performanceBandMembers: fbState.performanceBandMembers ?? storage.getPerformanceBandMembers() ?? {},
-          performanceSetlists: fbState.performanceSetlists ?? storage.getPerformanceSetlists() ?? {},
+          bandMembers: fbState.bandMembers ?? {},
+          bandMemberAvailability: fbState.bandMemberAvailability ?? {},
+          practiceStatuses: fbState.practiceStatuses ?? {},
+          confirmedRehearsals: fbState.confirmedRehearsals ?? {},
+          performanceBandMembers: fbState.performanceBandMembers ?? {},
+          performanceSetlists: fbState.performanceSetlists ?? {},
           shows,
-          songs: fbState.songs ?? storage.getSongs() ?? [],
-          activities: fbState.activities ?? storage.getActivities() ?? [],
+          songs: fbState.songs ?? [],
+          activities: fbState.activities ?? [],
           lastUpdated: (updatedCount > 0 || needsPerfUpdate || backfillShows.length > 0) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
-        // Firebase가 비어있다면 localStorage에서 마이그레이션 (1회성)
-        const savedTxs = storage.getTransactions();
-        const savedMembers = storage.getMembers();
-        const savedPerformances = storage.getPerformances();
-        const savedPerformanceParticipants = storage.getPerformanceParticipants();
-        const savedMemberAvailability = storage.getMemberAvailability();
-        const savedBandMembers = storage.getBandMembers();
-        const savedBandMemberAvailability = storage.getBandMemberAvailability();
-        const savedPracticeStatuses = storage.getPracticeStatuses();
-        const savedConfirmedRehearsals = storage.getConfirmedRehearsals();
-        const savedPerformanceBandMembers = storage.getPerformanceBandMembers();
-        const savedPerformanceSetlists = storage.getPerformanceSetlists();
-        const savedSongs = storage.getSongs();
-        const savedActivities = storage.getActivities();
-        const savedLastUpdated = storage.getLastUpdated();
-
-        let savedShows = [];
-        try {
-          savedShows = JSON.parse(localStorage.getItem('lumique_concerts') || '[]');
-        } catch {
-          savedShows = [];
-        }
-        const existingShowDates = new Set(savedShows.map(s => s.date));
-        const backfillShows = (savedPerformances || [])
-          .filter(p => p.key && !existingShowDates.has(p.key))
-          .map(p => ({
-            id: `show-legacy-${p.key}`,
-            title: p.label || p.key,
-            date: p.key,
-            time: '19:00',
-            location: '정보 입력 필요',
-            price: 5000,
-            description: '',
-            status: '종료',
-            imageUrl: '',
-            customSections: [],
-            supportAccount: SUPPORT_ACCOUNT,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }));
-        const shows = backfillShows.length > 0 ? [...savedShows, ...backfillShows] : savedShows;
-
-        const members = (savedMembers || MEMBERS).map(m => {
-          const codeMember = MEMBERS.find(cm => cm.id === m.id);
-          return {
-            ...m, 
-            status: m.status || 'active', 
-            performances: m.performances || {},
-            type: (codeMember ? codeMember.type : m.type) || '직장인',
-            offset2025: (codeMember ? codeMember.offset2025 : m.offset2025) || 0
-          };
-        });
-        
-        const performanceParticipants = { ...(savedPerformanceParticipants || {}) };
-        derivePerformances(shows).forEach(p => {
-          if (p.showId && !(p.showId in performanceParticipants)) {
-            performanceParticipants[p.showId] = members
-              .filter(m => m.performances?.[p.key] === '참여')
-              .map(m => m.id);
-          }
-        });
-
-        const migState = {
+        // 서버 문서가 아직 없는 완전히 새 환경. localStorage에서 가져오지 않고(로컬은 저장소가 아니다)
+        // 코드에 정의된 기본 회원 목록만으로 빈 상태를 만들어 서버에 한 번 기록한다.
+        const members = MEMBERS.map(m => ({
+          ...m,
+          status: m.status || 'active',
+          performances: m.performances || {},
+          type: m.type || '직장인',
+          offset2025: m.offset2025 || 0,
+        }));
+        const initialState = {
           members,
-          transactions: savedTxs || SAMPLE_TRANSACTIONS,
-          performances: savedPerformances || [],
-          performanceParticipants,
-          memberAvailability: savedMemberAvailability || {},
-          bandMembers: savedBandMembers || {},
-          bandMemberAvailability: savedBandMemberAvailability || {},
-          practiceStatuses: savedPracticeStatuses || {},
-          confirmedRehearsals: savedConfirmedRehearsals || {},
-          performanceBandMembers: savedPerformanceBandMembers || {},
-          performanceSetlists: savedPerformanceSetlists || {},
-          shows,
-          songs: savedSongs || [],
-          activities: savedActivities || [],
-          lastUpdated: savedLastUpdated || new Date().toISOString(),
+          transactions: [],
+          performances: [],
+          performanceParticipants: {},
+          memberAvailability: {},
+          bandMembers: {},
+          bandMemberAvailability: {},
+          practiceStatuses: {},
+          confirmedRehearsals: {},
+          performanceBandMembers: {},
+          performanceSetlists: {},
+          shows: [],
+          songs: [],
+          activities: [],
+          lastUpdated: new Date().toISOString(),
         };
-
-        dispatch({ type: 'INIT', ...migState });
-
-        // Firebase에 첫 동기화 (shows 포함)
-        await firebaseStorage.saveData(migState);
+        dispatch({ type: 'INIT', ...initialState });
+        await firebaseStorage.saveData(initialState);
       }
     }
     loadInitialData();
   }, []);
 
-  // 상태가 바뀔 때마다 Firebase 및 LocalStorage에 동기화 (단, 로딩이 끝난 후부터)
+  // 상태가 바뀔 때마다 Firestore에 저장 (단, 로딩이 끝난 후부터). 로컬 저장소에는 아무것도 남기지 않는다.
+  // 저장 실패는 숨기지 않고 배너로 알리며, "다시 저장"으로 현재 상태를 재전송할 수 있다.
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [saveRetryTick, setSaveRetryTick] = useState(0);
+  const saveSeqRef = useRef(0);
   useEffect(() => {
     if (!state.loading && !state.loadError) {
       const syncState = {
@@ -616,38 +555,19 @@ export function AppProvider({ children }) {
         lastUpdated: state.lastUpdated
       };
       
-      // 1. Firebase 동기화 (안전하게 직렬화하여 undefined 필드 제거)
-      try {
-        const sanitized = JSON.parse(JSON.stringify(syncState));
-        firebaseStorage.saveData(sanitized);
-      } catch (e) {
-        console.error("Firebase Sync Error:", e);
-      }
-
-      // 2. LocalStorage 동기화 (항상 최신 로컬 백업 상태 유지)
-      try {
-        storage.setTransactions(state.transactions);
-        storage.setMembers(state.members);
-        storage.setPerformances(state.performances);
-        storage.setPerformanceParticipants(state.performanceParticipants);
-        storage.setMemberAvailability(state.memberAvailability);
-        storage.setBandMembers(state.bandMembers);
-        storage.setBandMemberAvailability(state.bandMemberAvailability);
-        storage.setPracticeStatuses(state.practiceStatuses);
-        storage.setConfirmedRehearsals(state.confirmedRehearsals);
-        storage.setPerformanceBandMembers(state.performanceBandMembers);
-        storage.setPerformanceSetlists(state.performanceSetlists);
-        storage.setSongs(state.songs);
-        storage.setActivities(state.activities);
-        storage.setLastUpdated(state.lastUpdated);
-
-        // 사용자가 명시한 키 'transactions'도 추가 동기화 보장
-        localStorage.setItem('transactions', JSON.stringify(state.transactions));
-      } catch (e) {
-        console.error("LocalStorage Sync Error:", e);
-      }
+      const seq = ++saveSeqRef.current;
+      (async () => {
+        let ok = false;
+        try {
+          ok = await firebaseStorage.saveData(JSON.parse(JSON.stringify(syncState)));
+        } catch (e) {
+          console.error("Firebase Sync Error:", e);
+        }
+        // 더 최신 저장이 이미 진행 중이면 이 결과는 무시한다.
+        if (seq === saveSeqRef.current) setSaveFailed(!ok);
+      })();
     }
-  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.songs, state.activities, state.lastUpdated, state.loading]);
+  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.songs, state.activities, state.lastUpdated, state.loading, state.loadError, saveRetryTick]);
 
   const derivedPerformances = useMemo(() => derivePerformances(state.shows), [state.shows]);
   const providerState = useMemo(
@@ -660,6 +580,15 @@ export function AppProvider({ children }) {
       {state.loadError && (
         <div style={{ background: '#b91c1c', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600 }}>
           서버(Firestore)에서 데이터를 불러오지 못했습니다. 데이터 보호를 위해 저장이 중단되었습니다. 네트워크를 확인한 뒤 페이지를 새로고침해 주세요.
+        </div>
+      )}
+      {saveFailed && !state.loadError && (
+        <div style={{ background: '#b45309', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600, display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>마지막 변경이 서버에 저장되지 않았습니다. 이 화면을 닫으면 변경 내용이 사라집니다. 네트워크를 확인한 뒤 다시 저장해 주세요.</span>
+          <button type="button" onClick={() => setSaveRetryTick(t => t + 1)}
+            style={{ background: '#fff', color: '#b45309', border: 0, borderRadius: 6, padding: '6px 12px', fontWeight: 700, cursor: 'pointer' }}>
+            다시 저장
+          </button>
         </div>
       )}
       {children}

@@ -8,7 +8,7 @@ export default function ChangePwdModal({ onClose }) {
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!oldPwd || !newPwd || !confirmPwd) {
       return alert('모든 비밀번호 필드를 입력해주세요.');
@@ -19,12 +19,16 @@ export default function ChangePwdModal({ onClose }) {
     if (newPwd.length < 4) {
       return alert('새 비밀번호는 4자리 이상이어야 합니다.');
     }
-    const success = changePassword(oldPwd, newPwd);
-    if (success) {
-      alert('비밀번호가 성공적으로 변경되었습니다.');
-      onClose();
-    } else {
-      alert('기존 비밀번호가 일치하지 않습니다.');
+    try {
+      const success = await changePassword(oldPwd, newPwd);
+      if (success) {
+        alert('비밀번호가 변경되었습니다. 모든 기기에 바로 적용됩니다.');
+        onClose();
+      } else {
+        alert('기존 비밀번호가 일치하지 않습니다.');
+      }
+    } catch (err) {
+      alert(err.message || '서버에 연결할 수 없어 비밀번호를 변경하지 못했습니다.');
     }
   };
 

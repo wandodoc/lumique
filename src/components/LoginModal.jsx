@@ -6,14 +6,27 @@ export default function LoginModal() {
   const { login, setShowLoginModal } = useAuth();
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('비밀번호가 일치하지 않습니다.');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (login(password)) {
-      setError(false);
-    } else {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const ok = await login(password);
+      if (ok) {
+        setError(false);
+      } else {
+        setErrorMsg('비밀번호가 일치하지 않습니다.');
+        setError(true);
+        setPassword('');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || '서버에 연결할 수 없습니다.');
       setError(true);
-      setPassword('');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -41,11 +54,11 @@ export default function LoginModal() {
               fontSize: 15, marginBottom: 8, outline: 'none'
             }}
           />
-          {error && <div className="text-red" style={{ fontSize: 13, marginBottom: 12 }}>비밀번호가 일치하지 않습니다.</div>}
-          
+          {error && <div className="text-red" style={{ fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
+
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button type="button" className="btn-secondary" onClick={() => setShowLoginModal(false)} style={{ flex: 1, margin: 0 }}>취소</button>
-            <button type="submit" className="btn-primary" style={{ flex: 2, margin: 0 }}>로그인</button>
+            <button type="submit" className="btn-primary" disabled={busy} style={{ flex: 2, margin: 0 }}>{busy ? '확인 중…' : '로그인'}</button>
           </div>
         </form>
       </div>

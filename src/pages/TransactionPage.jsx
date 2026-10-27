@@ -182,37 +182,9 @@ export default function TransactionPage() {
         return update;
       });
 
-      // 1. 불변성을 보장하여 새로운 트랜잭션 배열을 생성합니다.
-      const updatesMap = new Map(updates.map(u => [u.id, u]));
-      const updatedTransactions = transactions.map(t => {
-        if (updatesMap.has(t.id)) {
-          const update = updatesMap.get(t.id);
-          const updatedTx = { ...t, ...update };
-          if (updatedTx.splitItems && updatedTx.splitItems.length > 0) {
-            updatedTx.splitItems = updatedTx.splitItems.map(item => {
-              const newItem = { ...item };
-              if (update.category) newItem.category = update.category;
-              if (update.part) newItem.part = update.part;
-              return newItem;
-            });
-          }
-          return updatedTx;
-        }
-        return t;
-      });
-
-      // 2. 상태 갱신 확실히 처리 (스토어 디스패치)
+      // 스토어 디스패치 → AppContext가 Firestore에 저장한다 (로컬 저장소에는 쓰지 않는다)
       dispatch({ type: 'BATCH_UPDATE_TRANSACTIONS', updates });
 
-      // 3. 로컬 스토리지 동기화 즉시 실행
-      try {
-        const serialized = JSON.stringify(updatedTransactions);
-        localStorage.setItem('transactions', serialized);
-        localStorage.setItem('lumique_transactions', serialized);
-        localStorage.setItem('lumique_last_updated', new Date().toISOString());
-      } catch (e) {
-        console.error("Local Storage Sync Error:", e);
-      }
 
       // 4. 성공 팝업 및 UI 리셋
       alert('선택한 항목들의 속성이 일괄 변경되었습니다.');

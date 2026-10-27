@@ -3,10 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import './PageStyles.css';
 
-const LS_SHOWS = 'lumique_concerts';
-const LS_ORDERS = 'lumique_ticket_orders';
-const LS_SHOWS_PENDING = 'lumique_concerts_pending_sync';
-const LS_ORDERS_PENDING = 'lumique_ticket_orders_pending_sync';
 const DEPOSIT_WAIT = '입금대기';
 const DEPOSIT_DONE = '입금완료';
 const ATTEND_WAIT = '미입장';
@@ -18,16 +14,9 @@ import { sortByPartAndName } from '../utils/calculations';
 
 const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-const loadLS = (key) => {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
+// 모든 데이터는 서버(Firestore)에만 저장한다. 이 페이지는 localStorage에 아무것도 쓰지 않는다.
+const SERVER_LOAD_FAILED_MSG = '서버에서 데이터를 불러오지 못했습니다. 네트워크를 확인한 뒤 새로고침해 주세요. (저장은 잠겨 있습니다)';
+const SERVER_SAVE_FAILED_MSG = '서버 저장에 실패해 변경이 반영되지 않았습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
 
 const csvEscape = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 const downloadCsv = (filename, rows) => {
@@ -200,15 +189,14 @@ const computeSeatSlots = (table, seatCount) => {
 const LS_COL_CONFIG = 'lumique_col_config';
 const CONCERT_SAVE_BLOCKED_MSG = '서버에서 공연 목록을 불러오지 못해 저장할 수 없습니다. (빈 목록으로 덮어쓰기를 차단했습니다) 새로고침 후 다시 시도해 주세요.';
 
-function loadColConfig() {
-  try {
-    const raw = localStorage.getItem(LS_COL_CONFIG);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch { return null; }
+// 컬럼 순서/숨김 설정은 기기와 무관하게 유지되도록 서버 설정 문서(settings.reservationColumns)에 저장한다.
+async function loadColConfig() {
+  const settings = await firebaseStorage.loadSettings();
+  const cfg = settings?.[LS_COL_CONFIG];
+  return cfg && typeof cfg === 'object' ? cfg : null;
 }
 function saveColConfig(cfg) {
-  localStorage.setItem(LS_COL_CONFIG, JSON.stringify(cfg));
+  firebaseStorage.saveSettings({ [LS_COL_CONFIG]: cfg });
 }
 
 // ── 컬럼 설정 모달 ──
@@ -825,27 +813,22 @@ export default function ReservationManagementPage() {
 
   useEffect(() => {
     document.title = '티켓 신청 및 입장 관리';
-    const saved = loadColConfig();
-    if (saved) {
+    loadColConfig().then(saved => {
+      if (!saved) return;
       if (Array.isArray(saved.order) && saved.order.length > 0) {
         // 이후 추가된 컬럼(예: 가격 구간)은 기존에 저장된 순서에 없으므로 뒤에 보충한다.
         const missing = DEFAULT_COLUMN_ORDER.filter(id => !saved.order.includes(id));
         setColOrder([...saved.order, ...missing]);
       }
       if (Array.isArray(saved.hidden)) setHiddenCols(saved.hidden);
-    }
+    });
     async function loadData() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
-      // null = 읽기 실패. 빈 목록으로 오판하지 않도록 로컬 사본만 표시용으로 쓴다(서버로 되돌려 쓰지 않음).
+      // null = 읽기 실패. "비어 있음"과 구분해 빈 화면 + 오류 배너로 알리고, 어떤 로컬 사본도 쓰지 않는다.
+      if (fbConcerts === null || fbOrders === null) setMappingErrorMsg(SERVER_LOAD_FAILED_MSG);
       if (fbConcerts === null) fbConcerts = [];
       if (fbOrders === null) fbOrders = [];
-      const pendingConcerts = loadLS(LS_SHOWS_PENDING);
-      const pendingOrders = loadLS(LS_ORDERS_PENDING);
-      if (pendingConcerts.length) fbConcerts = pendingConcerts;
-      if (pendingOrders.length) fbOrders = pendingOrders;
-      if (fbConcerts.length === 0 && loadLS(LS_SHOWS).length > 0) fbConcerts = loadLS(LS_SHOWS);
-      if (fbOrders.length === 0 && loadLS(LS_ORDERS).length > 0) fbOrders = loadLS(LS_ORDERS);
       setShows(fbConcerts);
       setOrders(fbOrders);
       const fbData = await firebaseStorage.loadData();
@@ -928,16 +911,18 @@ export default function ReservationManagementPage() {
     [currentShow, soldByTier]
   );
 
+  // 공연 1건에 부분 변경을 서버 최신 목록에 병합한다. 성공 시 서버가 돌려준 목록으로 화면을 맞춘다.
+  const patchCurrentShow = async (patch) => {
+    if (!currentShow || !concertId) return false;
+    const list = await firebaseStorage.patchShow(concertId, patch);
+    if (list === 'missing') { alert(CONCERT_SAVE_BLOCKED_MSG); return false; }
+    if (!Array.isArray(list)) { alert(SERVER_SAVE_FAILED_MSG); return false; }
+    setShows(list);
+    return true;
+  };
+
   const savePriceTiers = async (patch) => {
-    if (!currentShow || !concertId) return;
-    const concerts = await firebaseStorage.loadConcerts();
-    if (!Array.isArray(concerts) || !concerts.some(c => c.id === concertId)) {
-      alert(CONCERT_SAVE_BLOCKED_MSG);
-      return;
-    }
-    const updated = concerts.map(c => c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c);
-    await firebaseStorage.saveConcerts(updated);
-    setShows(updated);
+    await patchCurrentShow(patch);
   };
 
   // 신청 당시 적용된 단가(unitPrice)가 있으면 그대로 쓰고, 없는 과거 데이터는 해당 공연의 현재 가격으로 추정한다.
@@ -1079,22 +1064,15 @@ export default function ReservationManagementPage() {
     if (!isAdmin || !orderIds || orderIds.length === 0) return 'error';
     setMappingErrorMsg('');
     const idSet = new Set(orderIds);
-    const nextOrders = orders.map(o => (idSet.has(o.id) ? { ...o, ...patch } : o));
     try {
-      const saved = await firebaseStorage.saveOrders(nextOrders);
-      if (saved) {
-        try {
-          localStorage.setItem(LS_ORDERS, JSON.stringify(nextOrders));
-          localStorage.removeItem(LS_ORDERS_PENDING);
-        } catch { }
-        setOrders(nextOrders);
+      // 화면의 목록이 아니라 서버 최신 목록에 패치한다 (페이지를 열어 둔 사이 들어온 새 예매를 지우지 않도록).
+      const saved = await firebaseStorage.patchOrders(list => list.map(o => (idSet.has(o.id) ? { ...o, ...patch } : o)));
+      if (Array.isArray(saved)) {
+        setOrders(saved);
         return 'firebase';
       }
-      localStorage.setItem(LS_ORDERS, JSON.stringify(nextOrders));
-      localStorage.setItem(LS_ORDERS_PENDING, JSON.stringify(nextOrders));
-      setOrders(nextOrders);
-      setMappingErrorMsg('Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 연결 복구 후 동기화가 필요합니다.');
-      return 'local';
+      setMappingErrorMsg(SERVER_SAVE_FAILED_MSG);
+      return 'error';
     } catch {
       setMappingErrorMsg(failMsg);
       return 'error';
@@ -1234,7 +1212,7 @@ export default function ReservationManagementPage() {
         patch,
         '개별 분류 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
       );
-      setIndividualClassificationStatus(result === 'firebase' ? 'success' : result === 'local' ? 'local' : 'error');
+      setIndividualClassificationStatus(result === 'firebase' ? 'success' : 'error');
     } finally {
       setIsSavingIndividualClassification(false);
     }
@@ -1364,8 +1342,7 @@ export default function ReservationManagementPage() {
         : draft.type === 'group' ? Boolean(String(draft.groupLabel || '').trim()) : true;
       const statusText = individualClassificationStatus === 'saving' ? '분류를 저장하고 있습니다…'
         : individualClassificationStatus === 'success' ? '분류 변경을 저장했습니다.'
-          : individualClassificationStatus === 'local' ? 'Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 다시 저장을 눌러 동기화를 재시도하세요.'
-            : individualClassificationStatus === 'error' ? (mappingErrorMsg || (draft.type === 'performer' ? '공연자를 선택해 주세요.' : '그룹명을 입력해 주세요.')) : '';
+          : individualClassificationStatus === 'error' ? (mappingErrorMsg || (draft.type === 'performer' ? '공연자를 선택해 주세요.' : '그룹명을 입력해 주세요.')) : '';
       return (
         <div style={editorPanelStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -1428,7 +1405,7 @@ export default function ReservationManagementPage() {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button type="button" onClick={saveIndividualClassification} disabled={!isAdmin || isSavingIndividualClassification || !isDraftValid}
                 style={{ padding: '7px 12px', border: 'none', borderRadius: 8, background: isSavingIndividualClassification || !isDraftValid ? '#94a3b8' : '#111827', color: '#fff', fontSize: 12, fontWeight: 800, cursor: isSavingIndividualClassification || !isDraftValid ? 'not-allowed' : 'pointer' }}>
-                {isSavingIndividualClassification ? '저장 중…' : individualClassificationStatus === 'local' || individualClassificationStatus === 'error' ? '다시 저장' : '저장'}
+                {isSavingIndividualClassification ? '저장 중…' : individualClassificationStatus === 'error' ? '다시 저장' : '저장'}
               </button>
               <button type="button" onClick={closeActiveEdit} disabled={isSavingIndividualClassification}
                 style={{ padding: '7px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#475569', fontSize: 12, fontWeight: 700, cursor: isSavingIndividualClassification ? 'not-allowed' : 'pointer' }}>취소</button>
@@ -1629,39 +1606,28 @@ export default function ReservationManagementPage() {
     };
   }, [afterPartyTables, seatAssignments, participantSeatAssignments, performerSeatAssignments, canonicalPerformerSeatByMember, afterPartyParticipants, members]);
 
-  // 콘서트 레코드에 테이블/배치 패치를 저장한다(최신본을 다시 불러와 병합 — savePriceTiers와 동일한 방식).
+  // 콘서트 레코드에 테이블/배치 패치를 저장한다. 서버 최신 목록을 읽어 해당 공연 1건에만 병합하므로
+  // 오래 열어 둔 탭의 옛 목록이 다른 기기의 저장을 덮어쓰지 않는다. 실패 시 화면에도 반영하지 않고 오류를 알린다.
   const saveSeatingPatchNow = useCallback(async (patch) => {
     if (!isAdmin || !currentShow || !concertId) return false;
     setMappingErrorMsg('');
     try {
-      const concerts = await firebaseStorage.loadConcerts();
-      // A local backup may contain a newer patch than Firebase after a failed save.
-      // Use it first so the next successful save cannot silently discard queued changes.
-      const candidates = [loadLS(LS_SHOWS_PENDING), concerts, shows, loadLS(LS_SHOWS)];
-      const source = candidates.find(items => items.some(item => String(item.id) === String(concertId)));
-      if (!source) {
-        setMappingErrorMsg('저장할 공연 데이터를 찾지 못했습니다. 공연 목록을 새로고침한 뒤 다시 시도해 주세요.');
+      const list = await firebaseStorage.patchShow(concertId, patch);
+      if (list === 'missing') {
+        setMappingErrorMsg('서버에 이 공연이 없어 저장할 수 없습니다. 공연 목록을 새로고침한 뒤 다시 시도해 주세요.');
         return false;
       }
-      const updated = source.map(c => (String(c.id) === String(concertId) ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c));
-      const saved = await firebaseStorage.saveConcerts(updated);
-      if (!saved) {
-        localStorage.setItem(LS_SHOWS, JSON.stringify(updated));
-        localStorage.setItem(LS_SHOWS_PENDING, JSON.stringify(updated));
-        setShows(updated);
-        setMappingErrorMsg('Firebase 저장에 실패해 이 기기의 로컬 백업에만 저장했습니다. 연결 복구 후 동기화가 필요합니다.');
-        return 'local';
+      if (!Array.isArray(list)) {
+        setMappingErrorMsg('테이블 배치 저장에 실패해 변경이 반영되지 않았습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+        return false;
       }
-      try {
-        localStorage.setItem(LS_SHOWS, JSON.stringify(updated));
-        localStorage.removeItem(LS_SHOWS_PENDING);
-      } catch { }
-      setShows(updated);
+      setShows(list);
       return 'firebase';
     } catch {
       setMappingErrorMsg('테이블 배치 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+      return false;
     }
-  }, [isAdmin, currentShow, concertId, setShows, shows]);
+  }, [isAdmin, currentShow, concertId, setShows]);
 
   const seatingSaveQueueRef = useRef(Promise.resolve());
   const saveSeatingPatch = useCallback((patch) => {
@@ -2028,9 +1994,7 @@ export default function ReservationManagementPage() {
     setSeatingActionStatus('자동 배치 결과를 저장하고 있습니다…');
     const saveResult = await saveSeatingPatch({ tables, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments, participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformerSeats });
     if (saveResult === 'firebase') {
-      setSeatingActionStatus(`배치 완료: 공연자 ${performerCount}명, 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명, 테이블 ${tables.length}개. 화면과 Firebase 저장을 갱신했습니다.`);
-    } else if (saveResult === 'local') {
-      setSeatingActionStatus('배치 결과를 화면과 로컬 백업에 반영했습니다. Firebase 저장은 실패해 동기화가 필요합니다.');
+      setSeatingActionStatus(`배치 완료: 공연자 ${performerCount}명, 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명, 테이블 ${tables.length}개. 서버에 저장했습니다.`);
     } else {
       setSeatingActionStatus('저장에 실패했습니다. 오류 안내를 확인한 뒤 다시 시도하세요.');
     }
@@ -2249,18 +2213,18 @@ export default function ReservationManagementPage() {
   };
 
   const updateOrder = async (id, patch) => {
-    const nextOrders = orders.map((o) => (o.id === id ? { ...o, ...patch } : o));
-    setOrders(nextOrders);
-    await firebaseStorage.saveOrders(nextOrders);
+    const saved = await firebaseStorage.patchOrders(list => list.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+    if (!Array.isArray(saved)) { setMappingErrorMsg(SERVER_SAVE_FAILED_MSG); return; }
+    setOrders(saved);
   };
 
   // 예매 내역 삭제 (관리자 전용) — 테스트 신청이나 취소 요청 등을 되돌릴 수 없이 완전히 제거한다.
   const deleteOrder = async (order) => {
     if (!isAdmin) return;
     if (!window.confirm(`${order.audienceName || '이름없음'}님의 예매 내역(${order.ticketCount}매)을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
-    const nextOrders = orders.filter((o) => o.id !== order.id);
-    setOrders(nextOrders);
-    await firebaseStorage.saveOrders(nextOrders);
+    const saved = await firebaseStorage.patchOrders(list => list.filter((o) => o.id !== order.id), { allowEmpty: true });
+    if (!Array.isArray(saved)) { setMappingErrorMsg(SERVER_SAVE_FAILED_MSG); return; }
+    setOrders(saved);
   };
 
   // 회비 충당 처리용 활동 회원 목록 (파트 > 이름 순)
@@ -2306,14 +2270,8 @@ export default function ReservationManagementPage() {
 
     setSavingDonation(true);
     try {
-      const concerts = await firebaseStorage.loadConcerts();
-      if (!Array.isArray(concerts) || !concerts.some(c => c.id === concertId)) {
-        alert(CONCERT_SAVE_BLOCKED_MSG);
-        return;
-      }
-      const updated = concerts.map(c => c.id === concertId ? { ...c, extraDonationList: nextList, extraDonation: nextSum } : c);
-      await firebaseStorage.saveConcerts(updated);
-      setShows(updated);
+      const ok = await patchCurrentShow({ extraDonationList: nextList, extraDonation: nextSum });
+      if (!ok) return;
       setDonorName('');
       setDonationAmount('');
     } finally {
@@ -2329,14 +2287,7 @@ export default function ReservationManagementPage() {
 
     setSavingDonation(true);
     try {
-      const concerts = await firebaseStorage.loadConcerts();
-      if (!Array.isArray(concerts) || !concerts.some(c => c.id === concertId)) {
-        alert(CONCERT_SAVE_BLOCKED_MSG);
-        return;
-      }
-      const updated = concerts.map(c => c.id === concertId ? { ...c, extraDonationList: nextList, extraDonation: nextSum } : c);
-      await firebaseStorage.saveConcerts(updated);
-      setShows(updated);
+      await patchCurrentShow({ extraDonationList: nextList, extraDonation: nextSum });
     } finally {
       setSavingDonation(false);
     }

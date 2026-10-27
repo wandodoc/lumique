@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import './PageStyles.css';
 
-const LS_SHOWS = 'lumique_concerts';
-const LS_ORDERS = 'lumique_ticket_orders';
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 const PRICE = 5000;
 const DEFAULT_TIME = '19:00';
 const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff', fontFamily: 'inherit' };
 
-const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { resolveActivePrice, formatCountdown, countSoldByTier, openTiersWithAvailability } from '../utils/pricing';
@@ -499,7 +496,11 @@ export default function TicketOrderForm({ showId }) {
     document.title = 'Lumique 공연 예매';
     async function fetchShow() {
       const shows = (await firebaseStorage.loadConcerts()) || [];
-      const found = shows.find(s => s.id === showId && !s.deletedAt);
+      // 자동 생성 id(show-legacy-YYYY-MM-DD)로 공유된 링크는 같은 날짜의 공연으로 연결한다.
+      // (2026-10-27 데이터 복구 과정에서 잠시 그 id로 예매 링크가 나간 적이 있다)
+      const legacyDate = showId?.startsWith('show-legacy-') ? showId.slice('show-legacy-'.length) : null;
+      const found = shows.find(s => s.id === showId && !s.deletedAt)
+        || (legacyDate ? shows.find(s => s.date === legacyDate && !s.deletedAt) : undefined);
       if (found) {
         setShow({ ...found, customSections: (found.customSections || []).map(section) });
       }
@@ -608,9 +609,10 @@ export default function TicketOrderForm({ showId }) {
         createdAt: new Date().toISOString()
       };
 
-      const latestOrders = await firebaseStorage.loadOrders();
-      await firebaseStorage.saveOrders([...latestOrders, newOrder]);
-      setOrders(prev => [...prev, newOrder]);
+      // 서버 최신 목록에 추가(다른 신청자의 예매를 덮어쓰지 않음). 실패하면 완료 화면을 띄우지 않는다.
+      const savedOrders = await firebaseStorage.appendOrder(newOrder);
+      if (!Array.isArray(savedOrders)) throw new Error('order save failed');
+      setOrders(savedOrders);
       // 제출 직후 재집계(soldByTier 변화)로 가격 구간이 바뀌어도 완료 화면에는
       // 실제로 신청/저장된 금액이 그대로 보이도록 스냅샷을 고정해둔다.
       setConfirmedOrder(newOrder);
