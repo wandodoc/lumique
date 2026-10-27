@@ -185,6 +185,7 @@ const computeSeatSlots = (table, seatCount) => {
 };
 
 const LS_COL_CONFIG = 'lumique_col_config';
+const CONCERT_SAVE_BLOCKED_MSG = '서버에서 공연 목록을 불러오지 못해 저장할 수 없습니다. (빈 목록으로 덮어쓰기를 차단했습니다) 새로고침 후 다시 시도해 주세요.';
 
 function loadColConfig() {
   try {
@@ -823,6 +824,9 @@ export default function ReservationManagementPage() {
     async function loadData() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
+      // null = 읽기 실패. 빈 목록으로 오판하지 않도록 로컬 사본만 표시용으로 쓴다(서버로 되돌려 쓰지 않음).
+      if (fbConcerts === null) fbConcerts = [];
+      if (fbOrders === null) fbOrders = [];
       const pendingConcerts = loadLS(LS_SHOWS_PENDING);
       const pendingOrders = loadLS(LS_ORDERS_PENDING);
       if (pendingConcerts.length) fbConcerts = pendingConcerts;
@@ -914,6 +918,10 @@ export default function ReservationManagementPage() {
   const savePriceTiers = async (patch) => {
     if (!currentShow || !concertId) return;
     const concerts = await firebaseStorage.loadConcerts();
+    if (!Array.isArray(concerts) || !concerts.some(c => c.id === concertId)) {
+      alert(CONCERT_SAVE_BLOCKED_MSG);
+      return;
+    }
     const updated = concerts.map(c => c.id === concertId ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c);
     await firebaseStorage.saveConcerts(updated);
     setShows(updated);
@@ -2273,6 +2281,10 @@ export default function ReservationManagementPage() {
     setSavingDonation(true);
     try {
       const concerts = await firebaseStorage.loadConcerts();
+      if (!Array.isArray(concerts) || !concerts.some(c => c.id === concertId)) {
+        alert(CONCERT_SAVE_BLOCKED_MSG);
+        return;
+      }
       const updated = concerts.map(c => c.id === concertId ? { ...c, extraDonationList: nextList, extraDonation: nextSum } : c);
       await firebaseStorage.saveConcerts(updated);
       setShows(updated);
@@ -2292,6 +2304,10 @@ export default function ReservationManagementPage() {
     setSavingDonation(true);
     try {
       const concerts = await firebaseStorage.loadConcerts();
+      if (!Array.isArray(concerts) || !concerts.some(c => c.id === concertId)) {
+        alert(CONCERT_SAVE_BLOCKED_MSG);
+        return;
+      }
       const updated = concerts.map(c => c.id === concertId ? { ...c, extraDonationList: nextList, extraDonation: nextSum } : c);
       await firebaseStorage.saveConcerts(updated);
       setShows(updated);

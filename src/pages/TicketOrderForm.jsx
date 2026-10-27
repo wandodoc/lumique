@@ -498,7 +498,7 @@ export default function TicketOrderForm({ showId }) {
   useEffect(() => {
     document.title = 'Lumique 공연 예매';
     async function fetchShow() {
-      const shows = await firebaseStorage.loadConcerts();
+      const shows = (await firebaseStorage.loadConcerts()) || [];
       const found = shows.find(s => s.id === showId && !s.deletedAt);
       if (found) {
         setShow({ ...found, customSections: (found.customSections || []).map(section) });

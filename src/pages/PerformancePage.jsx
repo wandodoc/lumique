@@ -71,6 +71,7 @@ const blankShow = {
 };
 
 const id = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const LOAD_FAILED_MSG = '서버에서 공연 목록을 불러오지 못해 저장할 수 없습니다. 네트워크를 확인하고 새로고침한 뒤 다시 시도해 주세요.';
 const lsGet = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : []; } catch { return []; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
 
@@ -987,6 +988,7 @@ export default function PerformancePage() {
   const [orders, setOrders] = useState([]);
   const [editing, setEditing] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const { isAdmin } = useAuth();
   const { state: appState, dispatch } = useApp();
@@ -1015,14 +1017,20 @@ export default function PerformancePage() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
 
-      // Fallback from localStorage if Firebase is empty
+      // null = 읽기 실패. "비어 있음"과 구분해서, 실패 시에는 로컬 사본을 화면에만 보여주고 서버로 올리지 않는다.
+      const failed = fbConcerts === null || fbOrders === null;
+      setLoadFailed(failed);
+      if (fbConcerts === null) fbConcerts = lsGet(LS_SHOWS);
+      if (fbOrders === null) fbOrders = lsGet(LS_ORDERS);
+
+      // Fallback from localStorage if Firebase is (really) empty
       let localShows = lsGet(LS_SHOWS);
-      
-      if (fbConcerts.length === 0 && localShows.length > 0) {
+
+      if (!failed && fbConcerts.length === 0 && localShows.length > 0) {
         fbConcerts = normShows(localShows);
         await firebaseStorage.saveConcerts(fbConcerts);
       }
-      if (fbOrders.length === 0 && lsGet(LS_ORDERS).length > 0) {
+      if (!failed && fbOrders.length === 0 && lsGet(LS_ORDERS).length > 0) {
         fbOrders = lsGet(LS_ORDERS);
         await firebaseStorage.saveOrders(fbOrders);
       }
@@ -1054,6 +1062,7 @@ export default function PerformancePage() {
   }, [activeShows]);
 
   const saveShow = async (next) => {
+    if (loadFailed) { alert(LOAD_FAILED_MSG); return false; }
     const nextShows = normShows(shows.some(s => s.id === next.id) ? shows.map(s => s.id === next.id ? next : s) : [...shows, next]);
     setShows(nextShows);
     lsSet(LS_SHOWS, nextShows);
@@ -1105,6 +1114,7 @@ export default function PerformancePage() {
   // 연결된 예매 주문/참여자 기록도 그대로 보존된다.
   const delShow = async (id, e) => {
     if (e) e.stopPropagation();
+    if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
     if (!window.confirm('공연을 휴지통으로 이동할까요? (휴지통에서 복구하거나 완전히 삭제할 수 있습니다)')) return;
     const nextShows = normShows(shows.map(s => s.id === id ? { ...s, deletedAt: new Date().toISOString() } : s));
     setShows(nextShows);
@@ -1116,6 +1126,7 @@ export default function PerformancePage() {
 
   const restoreShow = async (id, e) => {
     if (e) e.stopPropagation();
+    if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
     const nextShows = normShows(shows.map(s => s.id === id ? { ...s, deletedAt: null } : s));
     setShows(nextShows);
     dispatch({ type: 'SET_SHOWS', shows: nextShows });
@@ -1125,6 +1136,7 @@ export default function PerformancePage() {
 
   const permanentlyDeleteShow = async (id, e) => {
     if (e) e.stopPropagation();
+    if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
     if (!window.confirm('이 공연을 완전히 삭제할까요? 연결된 예매 주문/참여자 기록도 함께 삭제되며, 되돌릴 수 없습니다.')) return;
     const nextShows = shows.filter(s => s.id !== id);
     const nextOrders = orders.filter(o => o.concertId !== id);

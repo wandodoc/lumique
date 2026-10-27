@@ -53,10 +53,14 @@ const initialState = {
   activities: [],
   lastUpdated: null,
   loading: true,
+  loadError: false,
 };
 
 function reducer(state, action) {
   switch (action.type) {
+    case 'LOAD_FAILED':
+      // Firestore 읽기 실패. 로컬 데이터로 덮어쓰지 않도록 동기화를 잠근다.
+      return { ...state, loading: false, loadError: true };
     case 'INIT':
       return {
         ...state,
@@ -356,6 +360,22 @@ export function AppProvider({ children }) {
       // 1. Firebase에서 최신 상태 불러오기
       const fbState = await firebaseStorage.loadData();
       
+      // undefined = 읽기 실패. 아래의 "Firebase가 비어있다면 localStorage에서 마이그레이션" 분기로
+      // 절대 내려가면 안 된다 — 그 분기는 Firestore를 로컬 상태로 덮어쓴다. (2026-10-24 공연 데이터 유실 원인)
+      if (fbState === undefined) {
+        console.error('Firestore 읽기에 실패했습니다. 로컬 데이터로 덮어쓰지 않고 동기화를 중단합니다.');
+        dispatch({ type: 'LOAD_FAILED' });
+        return;
+      }
+
+      // undefined = 읽기 실패. 아래의 "Firebase가 비어있다면 localStorage에서 마이그레이션" 분기로
+      // 절대 내려가면 안 된다 — 그 분기는 Firestore를 로컬 상태로 덮어쓴다. (2026-10-24 공연 데이터 유실 원인)
+      if (fbState === undefined) {
+        console.error('Firestore 읽기에 실패했습니다. 로컬 데이터로 덮어쓰지 않고 동기화를 중단합니다.');
+        dispatch({ type: 'LOAD_FAILED' });
+        return;
+      }
+
       if (fbState) {
         let transactions = fbState.transactions || [];
         let updatedCount = 0;
@@ -578,7 +598,7 @@ export function AppProvider({ children }) {
 
   // 상태가 바뀔 때마다 Firebase 및 LocalStorage에 동기화 (단, 로딩이 끝난 후부터)
   useEffect(() => {
-    if (!state.loading) {
+    if (!state.loading && !state.loadError) {
       const syncState = {
         members: state.members,
         transactions: state.transactions,
@@ -637,6 +657,11 @@ export function AppProvider({ children }) {
 
   return (
     <AppContext.Provider value={{ state: providerState, dispatch }}>
+      {state.loadError && (
+        <div style={{ background: '#b91c1c', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600 }}>
+          서버(Firestore)에서 데이터를 불러오지 못했습니다. 데이터 보호를 위해 저장이 중단되었습니다. 네트워크를 확인한 뒤 페이지를 새로고침해 주세요.
+        </div>
+      )}
       {children}
     </AppContext.Provider>
   );
