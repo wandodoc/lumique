@@ -19,6 +19,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const PerformancePage = lazy(() => import('./pages/PerformancePage'));
 const ReservationManagementPage = lazy(() => import('./pages/ReservationManagementPage'));
 const TicketOrderForm = lazy(() => import('./pages/TicketOrderForm'));
+const RecoveryPage = lazy(() => import('./pages/RecoveryPage'));
 
 function PageLoadingFallback() {
   return (
@@ -59,6 +60,8 @@ export default function App() {
             <Route path="/manage/:id" element={<ReservationManagementPage />} />
             <Route path="/form/:showId" element={<TicketOrderFormWrapper />} />
             <Route path="/events/:showId" element={<TicketOrderFormWrapper />} />
+            {/* 다른 기기 브라우저에 남은 공연 사본을 서버로 되살리는 복구 페이지 (AppProvider 바깥) */}
+            <Route path="/recover" element={<RecoveryPage />} />
 
             {/* Layout이 적용되는 메인 앱 라우트 (여기서만 AppProvider로 전체 상태를 로드) */}
             <Route path="/*" element={
