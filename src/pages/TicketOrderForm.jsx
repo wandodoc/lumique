@@ -533,7 +533,15 @@ export default function TicketOrderForm({ showId }) {
     return () => clearInterval(timer);
   }, [show?.pricingMode]);
 
-  const soldByTier = countSoldByTier(orders, showId, show?.priceTiers || []);
+  // Legacy shared links can use a date-based ID while `show` resolves to the
+  // canonical Firestore show. Count legacy orders with the canonical show too,
+  // so entry points using either link display the same remaining quantity.
+  const canonicalShowId = show?.id || showId;
+  const legacyShowId = show?.date ? `show-legacy-${show.date}` : null;
+  const soldOrders = orders
+    .filter(order => [canonicalShowId, showId, legacyShowId].includes(order.concertId))
+    .map(order => ({ ...order, concertId: canonicalShowId }));
+  const soldByTier = countSoldByTier(soldOrders, canonicalShowId, show?.priceTiers || []);
   const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier, remainingQty, soldOut } = resolveActivePrice(show, now, soldByTier);
   const price = resolvedPrice || PRICE;
 
@@ -590,7 +598,7 @@ export default function TicketOrderForm({ showId }) {
         : (priceItems[0]?.label || activeTier?.label || '');
       const newOrder = {
         id: `ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        concertId: showId,
+        concertId: canonicalShowId,
         audienceName: name.trim(),
         phone: phone.trim(),
         ticketCount: Number(totalQty),
