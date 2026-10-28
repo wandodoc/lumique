@@ -2169,14 +2169,6 @@ export default function ReservationManagementPage() {
         return String(a.orderIds?.[0] || a.orderId || a.key).localeCompare(String(b.orderIds?.[0] || b.orderId || b.key));
       });
   }, [afterPartyRowsByKey, mgmtQuery, mgmtFilter]);
-  const afterPartyRowGroups = useMemo(() => {
-    const groups = [];
-    for (let start = 0; start < afterPartyRows.length; start += 10) {
-      groups.push({ start, rows: afterPartyRows.slice(start, start + 10) });
-    }
-    return groups;
-  }, [afterPartyRows]);
-
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
@@ -2732,7 +2724,7 @@ export default function ReservationManagementPage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="reservation-filter-bar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[
               ['전체', 'all'],
               ['입금대기', 'deposit-wait'],
@@ -2760,7 +2752,7 @@ export default function ReservationManagementPage() {
             <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 15, fontWeight: 500 }}>표시할 예매 정보가 없습니다.</div>
           ) : (
             <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 0', flexWrap: 'wrap' }}>
+            <div className="reservation-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 0', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: '#64748b' }}>
                 신청 최신순 · {visibleOrders.length === 0 ? 0 : reservationPage * 10 + 1}~{Math.min((reservationPage + 1) * 10, visibleOrders.length)} / {visibleOrders.length}건
               </span>
@@ -2770,7 +2762,7 @@ export default function ReservationManagementPage() {
                 <button type="button" disabled={reservationPage + 1 >= reservationPageCount} onClick={() => setReservationPage(page => Math.min(reservationPageCount - 1, page + 1))} style={{ padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', cursor: reservationPage + 1 >= reservationPageCount ? 'not-allowed' : 'pointer' }}>다음</button>
               </div>
             </div>
-            <div style={{ overflowX: 'auto', margin: '0 -24px' }}>
+            <div className="reservation-table-scroll" style={{ overflowX: 'auto', margin: '0 -24px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed', minWidth: checkinMode ? 480 : 720 }}>
                 <thead>
                   <tr style={{ background: checkinMode ? '#1e293b' : 'var(--slate-50)', borderBottom: '2px solid var(--slate-100)' }}>
@@ -3024,12 +3016,8 @@ export default function ReservationManagementPage() {
                 {afterPartyRows.length === 0 ? (
                   <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>검색/필터 조건에 맞는 참여자가 없습니다.</div>
                 ) : (
-                  <div style={{ display: 'grid', gap: 12, minWidth: 0 }}>
-                    {afterPartyRowGroups.map(({ start, rows }) => (
-                      <section key={start} style={{ minWidth: 0, padding: 12, borderRadius: 14, border: '1px solid #e2e8f0', background: '#fbfcfe' }}>
-                        <div style={{ marginBottom: 10, fontSize: 12, fontWeight: 800, color: '#64748b' }}>최근 예매 {start + 1}~{start + rows.length}명</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 165px), 1fr))', gap: 8 }}>
-                    {rows.map((row) => {
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 165px), 1fr))', gap: 8, minWidth: 0 }}>
+                    {afterPartyRows.map((row) => {
                       const isActive = activeEditKey === row.key;
                       const isChecked = row.kind === 'individual' && selectedUnassignedIds.includes(row.orderId);
                       const badge = AFTER_PARTY_TYPE_BADGE[row.type];
@@ -3060,9 +3048,6 @@ export default function ReservationManagementPage() {
                         </div>
                       );
                     })}
-                        </div>
-                      </section>
-                    ))}
                   </div>
                 )}
 
