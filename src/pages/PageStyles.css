@@ -218,6 +218,110 @@
 .dues-paid { font-size: 14px; font-weight: 600; color: var(--text-main); }
 .dues-diff { font-size: 12px; font-weight: 700; }
 .dues-diff.ok { color: var(--success); }
+
+/* ===== 티켓 예매 관리 ===== */
+.reservation-management-page {
+  --reservation-ink: var(--slate-900, #111827);
+  --reservation-muted: var(--slate-500, #64748b);
+  --reservation-border: #e4e4e7;
+  color: var(--reservation-ink);
+}
+.reservation-management-container {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  gap: 22px !important;
+  padding: 28px 28px 40px !important;
+}
+.reservation-page-header {
+  align-items: center !important;
+  padding: 4px 2px 18px;
+  border-bottom: 1px solid var(--reservation-border);
+}
+.reservation-page-header > div:first-child { gap: 6px !important; }
+.reservation-page-header h1 {
+  font-size: clamp(24px, 2.3vw, 32px) !important;
+  font-weight: 850 !important;
+  letter-spacing: -1px !important;
+}
+.reservation-page-header > div:first-child > span:first-child {
+  color: var(--reservation-muted) !important;
+  font-size: 11px !important;
+  letter-spacing: .12em !important;
+}
+.reservation-page-header button { border-radius: 10px !important; }
+.reservation-stats { gap: 12px !important; }
+.reservation-stats > .card {
+  min-height: 94px;
+  align-content: center;
+  border: 1px solid var(--reservation-border) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035) !important;
+  transition: border-color .18s ease, transform .18s ease;
+}
+.reservation-stats > .card:hover { border-color: #cbd5e1 !important; transform: translateY(-1px); }
+.reservation-stats > .card > div:last-child { font-size: 26px !important; letter-spacing: -.7px; }
+.reservation-list-card {
+  gap: 18px !important;
+  padding: 24px !important;
+  border-color: var(--reservation-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .04) !important;
+}
+.reservation-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 4px;
+}
+.reservation-section-kicker {
+  margin-bottom: 5px;
+  color: var(--reservation-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+.reservation-list-heading h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -.55px; }
+.reservation-list-heading p { margin: 5px 0 0; color: var(--reservation-muted); font-size: 12px; }
+.reservation-heading-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--reservation-border);
+  border-radius: 10px;
+  background: #fafafa;
+  color: var(--reservation-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.reservation-heading-count strong { color: var(--reservation-ink); font-size: 18px; }
+.reservation-checkin-toggle { min-height: 62px; }
+.reservation-toolbar .search-input { border-color: #d4d4d8 !important; }
+.reservation-list-card table { border-collapse: separate !important; border-spacing: 0; }
+.reservation-list-card thead th { position: sticky; top: 0; z-index: 1; }
+.reservation-list-card tbody tr:hover { background-color: #f8fafc; }
+.reservation-list-card td, .reservation-list-card th { border-bottom-color: #f1f5f9; }
+
+@media (max-width: 767px) {
+  .reservation-management-container { gap: 14px !important; padding: 18px 12px calc(var(--nav-h, 0px) + 24px) !important; }
+  .reservation-page-header { align-items: flex-start !important; padding: 0 2px 14px; }
+  .reservation-page-header h1 { font-size: 23px !important; }
+  .reservation-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .reservation-stats > .card { min-height: 78px; padding: 12px !important; }
+  .reservation-stats > .card > div:last-child { font-size: 21px !important; }
+  .reservation-list-card { gap: 14px !important; padding: 16px !important; border-radius: 14px !important; }
+  .reservation-list-heading h2 { font-size: 18px; }
+  .reservation-list-heading p { max-width: 250px; line-height: 1.45; }
+  .reservation-checkin-toggle { align-items: flex-start !important; padding: 13px !important; }
+  .reservation-checkin-toggle > div:first-child { align-items: flex-start !important; }
+  .reservation-checkin-toggle > div:first-child > div > div:last-child { line-height: 1.45; }
+  .reservation-toolbar { align-items: stretch !important; }
+  .reservation-toolbar > div:first-child { min-width: 100% !important; }
+  .reservation-toolbar > div:last-child { width: 100%; }
+  .reservation-toolbar > div:last-child button { flex: 1; }
+  .reservation-list-card table { font-size: 12px !important; }
+}
 .dues-diff.bad { color: var(--danger); }
 
 /* ===== 모달 ===== */

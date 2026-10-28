@@ -2600,7 +2600,7 @@ export default function ReservationManagementPage() {
   }
 
   return (
-    <div className="page fade-in" style={{ background: '#f8fafc', minHeight: '100dvh' }}>
+    <div className="page fade-in reservation-management-page" style={{ background: '#f8fafc', minHeight: '100dvh' }}>
       {showColSettings && (
         <ColumnSettingsPanel
           colOrder={colOrder}
@@ -2611,9 +2611,9 @@ export default function ReservationManagementPage() {
         />
       )}
 
-      <div className="page-container" style={{ display: 'grid', gap: 20, padding: '32px 16px' }}>
+      <div className="page-container reservation-management-container" style={{ display: 'grid', gap: 20, padding: '32px 16px' }}>
         {/* ── 페이지 헤더 ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div className="reservation-page-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ display: 'grid', gap: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', letterSpacing: '0.05em', textTransform: 'uppercase' }}>티켓 관리</span>
             {currentShow ? (
@@ -2640,7 +2640,7 @@ export default function ReservationManagementPage() {
         {/* ── [섹션 1] 상단 요약 카드 및 '입장 관리 모드(당일 모드)' 토글 + 예매자 관리 내역(테이블) ── */}
         
         {/* 1-1. 상단 통계 요약 카드 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        <div className="reservation-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <StatCard label="총 신청 매수" value={`${totals.tickets}매`} color="#111827" />
           <StatCard label="총 입장 인원" value={`${totals.enteredTotal}명`} color="#111827" />
           <StatCard label="입금 완료" value={`${totals.paidTickets}매`} color="#059669" />
@@ -2659,10 +2659,19 @@ export default function ReservationManagementPage() {
         )}
 
         {/* 1-2. 예매자 관리 내역 (테이블) 카드 */}
-        <div className="card card-pad" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
+        <div className="card card-pad reservation-list-card" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
+
+          <div className="reservation-list-heading">
+            <div>
+              <div className="reservation-section-kicker">RESERVATIONS</div>
+              <h2>예매 내역</h2>
+              <p>예매 정보와 입금·입장 상태를 확인하고 관리합니다.</p>
+            </div>
+            <div className="reservation-heading-count"><strong>{visibleOrders.length}</strong><span>건</span></div>
+          </div>
 
           {/* 입장 관리 모드 (당일 모드) 토글 */}
-          <div style={{
+          <div className="reservation-checkin-toggle" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
             padding: '14px 18px', borderRadius: 14,
             background: checkinMode ? '#111827' : '#f8fafc',
@@ -2700,7 +2709,7 @@ export default function ReservationManagementPage() {
           </div>
 
           {/* 검색창 & 액션 버튼들 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="reservation-toolbar" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: 15, color: '#94a3b8' }}>🔎</span>
               <input
