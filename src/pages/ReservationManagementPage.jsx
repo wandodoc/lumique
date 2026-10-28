@@ -884,6 +884,13 @@ export default function ReservationManagementPage() {
       return matchesSearch && matchesFilter;
     }).map((order, originalIndex) => ({ order, originalIndex, createdAt: Date.parse(order.createdAt) }))
       .sort((a, b) => {
+        if (checkinMode) {
+          const byName = String(a.order.audienceName || '').localeCompare(
+            String(b.order.audienceName || ''),
+            'ko'
+          );
+          return byName || a.originalIndex - b.originalIndex;
+        }
         const aHasDate = Number.isFinite(a.createdAt);
         const bHasDate = Number.isFinite(b.createdAt);
         if (aHasDate !== bHasDate) return aHasDate ? -1 : 1;
@@ -891,7 +898,7 @@ export default function ReservationManagementPage() {
         return a.originalIndex - b.originalIndex;
       })
       .map(({ order }) => order);
-  }, [orders, query, filter, concertId]);
+  }, [orders, query, filter, concertId, checkinMode]);
 
   useEffect(() => setReservationPage(0), [query, filter, concertId]);
   const reservationPageCount = Math.ceil(visibleOrders.length / 10);
