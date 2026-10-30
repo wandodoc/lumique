@@ -448,15 +448,15 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, setQty, tiers, 
             {/* 제출 버튼 */}
             <button
               type="submit"
-              disabled={submitting || soldOut || qty < 1 || availabilityLoading || inventoryLoadFailed}
+              disabled={submitting || soldOut || qty < 1}
               style={{
                 width: '100%', height: 56, borderRadius: 16,
-                background: (submitting || soldOut || qty < 1 || availabilityLoading || inventoryLoadFailed) ? '#4b5563' : '#111827',
+                background: (submitting || soldOut || qty < 1) ? '#4b5563' : '#111827',
                 color: '#fff', fontSize: 16, fontWeight: 800,
-                border: 'none', cursor: (submitting || soldOut || qty < 1 || availabilityLoading || inventoryLoadFailed) ? 'not-allowed' : 'pointer',
+                border: 'none', cursor: (submitting || soldOut || qty < 1) ? 'not-allowed' : 'pointer',
                 marginBottom: 8,
                 transition: 'background 0.2s, opacity 0.2s',
-                opacity: (submitting || soldOut || qty < 1 || availabilityLoading || inventoryLoadFailed) ? 0.7 : 1,
+                opacity: (submitting || soldOut || qty < 1) ? 0.7 : 1,
               }}
             >
               {inventoryLoadFailed ? '잔여 수량 확인 실패' : availabilityLoading ? '잔여 수량 확인 중...' : soldOut ? '매진되었습니다' : submitting ? '처리 중...' : '예매하기'}
@@ -492,7 +492,6 @@ export default function TicketOrderForm({ showId }) {
 
   const [now, setNow] = useState(() => new Date());
   const [orders, setOrders] = useState([]);
-  const [inventoryShowId, setInventoryShowId] = useState(null);
   const [inventoryLoadFailed, setInventoryLoadFailed] = useState(false);
 
   useEffect(() => {
@@ -515,21 +514,17 @@ export default function TicketOrderForm({ showId }) {
   const hasQuantityLimitedTier = show?.pricingMode === 'tiered'
     && (show.priceTiers || []).some(t => Number(t.quantityLimit) > 0);
   const canonicalShowId = show?.id || showId;
-  const inventoryReady = !hasQuantityLimitedTier || inventoryShowId === String(canonicalShowId);
-  const availabilityLoading = hasQuantityLimitedTier && !inventoryReady && !inventoryLoadFailed;
+  const availabilityLoading = false;
 
   // 한정 수량 구간이 있으면 잔여 수량을 파악하기 위해 주문 목록을 불러오고,
   // 다른 사람의 구매로 잔여량이 바뀔 수 있으므로 주기적으로 갱신한다.
   useEffect(() => {
     if (!hasQuantityLimitedTier) return;
     let active = true;
-    const watchedShowId = String(canonicalShowId);
-    setInventoryShowId(null);
     setInventoryLoadFailed(false);
-    const unsubscribe = firebaseStorage.subscribeOrders((list, fromCache) => {
+    const unsubscribe = firebaseStorage.subscribeOrders((list) => {
       if (!active || !Array.isArray(list)) return;
       setOrders(list);
-      if (!fromCache) setInventoryShowId(watchedShowId);
     }, () => {
       if (active) setInventoryLoadFailed(true);
     });
@@ -552,7 +547,8 @@ export default function TicketOrderForm({ showId }) {
   const soldOrders = orders
     .filter(order => showOrderIds.has(String(order.concertId)))
     .map(order => ({ ...order, concertId: canonicalShowId }));
-  const soldByTier = inventoryReady ? countSoldByTier(soldOrders, canonicalShowId, show?.priceTiers || []) : {};
+  // Use the latest locally available count immediately; submission rechecks inventory on the server.
+  const soldByTier = countSoldByTier(soldOrders, canonicalShowId, show?.priceTiers || []);
   const { price: resolvedPrice, tier: activeTier, nextCutoff, nextTier, remainingQty, soldOut } = resolveActivePrice(show, now, soldByTier);
   const price = resolvedPrice || PRICE;
 
@@ -578,7 +574,6 @@ export default function TicketOrderForm({ showId }) {
 
   const submit = (e) => {
     e.preventDefault();
-    if (hasQuantityLimitedTier && !inventoryReady) return toast(inventoryLoadFailed ? '잔여 티켓 수량을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.' : '잔여 티켓 수량을 확인하고 있습니다. 잠시만 기다려 주세요.');
     const activeFixedName = show?.customSections?.find(s => s.type === 'fixed_name' && s.active !== false);
     const activeFixedPhone = show?.customSections?.find(s => s.type === 'fixed_phone' && s.active !== false);
     const activeFixedQty = show?.customSections?.find(s => s.type === 'fixed_qty' && s.active !== false);
@@ -847,24 +842,24 @@ export default function TicketOrderForm({ showId }) {
         </div>
         <button
           id="open-reservation-sheet"
-          onClick={() => !soldOut && inventoryReady && setIsSheetOpen(true)}
-          disabled={soldOut || !inventoryReady}
+          onClick={() => !soldOut && setIsSheetOpen(true)}
+          disabled={soldOut}
           style={{
             flex: 2,
             height: 52,
             borderRadius: 16,
-            background: (soldOut || !inventoryReady) ? '#9ca3af' : '#111827',
+            background: soldOut ? '#9ca3af' : '#111827',
             color: '#fff',
             fontSize: 16,
             fontWeight: 800,
             border: 'none',
-            cursor: (soldOut || !inventoryReady) ? 'not-allowed' : 'pointer',
-            boxShadow: (soldOut || !inventoryReady) ? 'none' : '0 4px 20px rgba(0,0,0,0.25)',
+            cursor: soldOut ? 'not-allowed' : 'pointer',
+            boxShadow: soldOut ? 'none' : '0 4px 20px rgba(0,0,0,0.25)',
             transition: 'transform 0.15s, opacity 0.15s',
           }}
-          onMouseDown={e => { if (!soldOut && inventoryReady) e.currentTarget.style.opacity = '0.85'; }}
+          onMouseDown={e => { if (!soldOut) e.currentTarget.style.opacity = '0.85'; }}
           onMouseUp={e => { e.currentTarget.style.opacity = ''; }}
-          onTouchStart={e => { if (!soldOut && inventoryReady) e.currentTarget.style.opacity = '0.85'; }}
+          onTouchStart={e => { if (!soldOut) e.currentTarget.style.opacity = '0.85'; }}
           onTouchEnd={e => { e.currentTarget.style.opacity = ''; }}
         >
           {inventoryLoadFailed ? '잔여 수량 확인 실패' : availabilityLoading ? '잔여 수량 확인 중...' : soldOut ? '매진되었습니다' : '지금 예매하기 🎟'}
