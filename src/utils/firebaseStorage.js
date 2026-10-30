@@ -140,6 +140,7 @@ export const firebaseStorage = {
   },
   subscribeOrders: (onOrders, onError) => onSnapshot(
     DOC_REF,
+    { includeMetadataChanges: true },
     (snapshot) => {
       const orders = snapshot.data()?.orders;
       onOrders(Array.isArray(orders) ? orders : [], snapshot.metadata.fromCache);
