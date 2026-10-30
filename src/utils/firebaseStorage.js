@@ -1,4 +1,4 @@
-import { doc, getDoc, runTransaction, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 const DOC_REF = doc(db, "club_ledger", "main_state");
@@ -136,6 +136,14 @@ export const firebaseStorage = {
       return null;
     }
   },
+  subscribeOrders: (onOrders, onError) => onSnapshot(
+    DOC_REF,
+    (snapshot) => {
+      const orders = snapshot.data()?.orders;
+      onOrders(Array.isArray(orders) ? orders : [], snapshot.metadata.fromCache);
+    },
+    onError
+  ),
   // 서버 최신 예매 목록에 updater(list => nextList)를 적용해 저장한다. 관리자가 페이지를 열어 둔 사이
   // 들어온 새 예매가 관리자의 저장으로 사라지지 않도록, 화면의 목록을 그대로 쓰지 않는다.
   patchOrders: (updater, options) => readModifyWriteList('orders', updater, options),
