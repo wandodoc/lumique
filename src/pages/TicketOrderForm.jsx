@@ -9,6 +9,7 @@ const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, bor
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { resolveActivePrice, formatCountdown, countSoldByTier, openTiersWithAvailability } from '../utils/pricing';
+import { resolveShowByFormId } from '../utils/performances';
 
 const section = (s = {}) => ({
   id: String(s.id || '').trim(),
@@ -499,7 +500,7 @@ export default function TicketOrderForm({ showId }) {
       // 자동 생성 id(show-legacy-YYYY-MM-DD)로 공유된 링크는 같은 날짜의 공연으로 연결한다.
       // (2026-10-27 데이터 복구 과정에서 잠시 그 id로 예매 링크가 나간 적이 있다)
       const legacyDate = showId?.startsWith('show-legacy-') ? showId.slice('show-legacy-'.length) : null;
-      const found = shows.find(s => String(s.id) === String(showId) && !s.deletedAt)
+      const found = resolveShowByFormId(shows, showId)
         || (legacyDate ? shows.find(s => s.date === legacyDate && !s.deletedAt) : undefined);
       if (found) {
         setShow({ ...found, customSections: (found.customSections || []).map(section) });

@@ -132,9 +132,8 @@ export default function RecoveryPage() {
         updatedAt: new Date().toISOString(),
       };
       delete restored.restoreNote;
-      const exists = current.some(c => c.id === show.id);
-      const next = exists ? current.map(c => (c.id === show.id ? restored : c)) : [...current, restored];
-      const ok = await firebaseStorage.saveConcerts(next);
+      const saved = await firebaseStorage.upsertShow(restored);
+      const ok = Array.isArray(saved);
       if (!ok) throw new Error('저장이 거부되었습니다. (용량 초과 또는 네트워크 오류)');
       addLog(`✅ "${show.title || show.id}" 복원 완료`);
       await reloadServer();

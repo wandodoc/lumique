@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 const DOC_REF = doc(db, "club_ledger", "main_state");
@@ -47,18 +47,21 @@ async function stripEmptyOverwrites(payload, current) {
 // updater가 'missing'을 반환하면 저장하지 않고 'missing'을 돌려준다.
 async function readModifyWriteList(field, updater, { allowEmpty = false } = {}) {
   try {
-    const current = await readMainDoc();
-    const list = Array.isArray(current?.[field]) ? current[field] : [];
-    const result = updater(list);
-    if (result === 'missing') return 'missing';
-    if (!Array.isArray(result)) return null;
-    const next = clone(result);
-    if (next.length === 0 && !allowEmpty && list.length > 0) {
-      console.error(`[firebaseStorage] '${field}' 목록을 비우는 쓰기를 차단했습니다 (서버에 ${list.length}건 존재).`);
-      return null;
-    }
-    await setDoc(DOC_REF, { [field]: next }, { merge: true });
-    return next;
+    return await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(DOC_REF);
+      const current = snapshot.exists() ? snapshot.data() : null;
+      const list = Array.isArray(current?.[field]) ? current[field] : [];
+      const result = updater(list);
+      if (result === 'missing') return 'missing';
+      if (!Array.isArray(result)) return null;
+      const next = clone(result);
+      if (next.length === 0 && !allowEmpty && list.length > 0) {
+        console.error(`[firebaseStorage] '${field}' 목록을 비우는 쓰기를 차단했습니다 (서버에 ${list.length}건 존재).`);
+        return null;
+      }
+      transaction.set(DOC_REF, { [field]: next }, { merge: true });
+      return next;
+    });
   } catch (e) {
     console.error(`Firebase ${field} write error:`, e);
     return null;
@@ -110,18 +113,17 @@ export const firebaseStorage = {
   }),
   // 공연 1건 영구 삭제 (마지막 공연을 지우는 것은 명시적 의도이므로 허용).
   removeShow: (id) => readModifyWriteList('shows', list => list.filter(s => !sameId(s.id, id)), { allowEmpty: true }),
-  // 전체 목록 교체. 복구 도구 전용 — 화면 코드에서는 upsertShow/patchShow/removeShow를 쓴다.
+  // Merge-only compatibility API; remove shows through removeShow so omitted entries are never dropped.
   saveConcerts: async (shows) => {
-    try {
-      if (!Array.isArray(shows)) return false;
-      const sanitized = await stripEmptyOverwrites(clone({ shows }));
-      if (!('shows' in sanitized)) return false;
-      await setDoc(DOC_REF, sanitized, { merge: true });
-      return true;
-    } catch (e) {
-      console.error("Firebase Save Concerts Error:", e);
-      return false;
-    }
+    if (!Array.isArray(shows)) return false;
+    const result = await readModifyWriteList('shows', current => {
+      const byId = new Map(current.map(show => [String(show.id), show]));
+      shows.forEach(show => {
+        if (show?.id != null) byId.set(String(show.id), show);
+      });
+      return [...byId.values()];
+    });
+    return Array.isArray(result);
   },
 
   // ── 예매(orders) ─────────────────────────────────────────────────────────

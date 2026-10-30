@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { getPublicFormId } from '../utils/performances';
 import './PageStyles.css';
 
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
@@ -657,7 +658,7 @@ function ShowDetailModal({ show, orders = [], members = [], externalBandMembers 
   const [showExternalOpen, setShowExternalOpen] = useState(false);
 
   if (!show) return null;
-  const formUrl = `${window.location.origin}/form/${show.id}`;
+  const formUrl = `${window.location.origin}/form/${getPublicFormId(show)}`;
   const officialParticipants = members.filter(member => participantIds.includes(member.id));
   const externalParticipants = externalBandMembers.filter(member => participantIds.includes(member.id));
 
