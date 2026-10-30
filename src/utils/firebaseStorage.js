@@ -1,4 +1,4 @@
-import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { countSoldByTier } from './pricing';
 import { getPublicFormId } from './performances';
@@ -135,6 +135,16 @@ export const firebaseStorage = {
       return Array.isArray(data?.orders) ? data.orders : [];
     } catch (e) {
       console.error("Firebase Load Orders Error:", e);
+      return null;
+    }
+  },
+  loadOrdersFromServer: async () => {
+    try {
+      const snapshot = await getDocFromServer(DOC_REF);
+      const orders = snapshot.data()?.orders;
+      return Array.isArray(orders) ? orders : [];
+    } catch (e) {
+      console.error("Firebase Load Orders From Server Error:", e);
       return null;
     }
   },
