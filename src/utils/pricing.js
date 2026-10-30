@@ -83,7 +83,7 @@ export function countSoldByTier(orders = [], showId, tiers = []) {
   const idByLabel = new Map(tiers.filter(t => t.label).map(t => [t.label, t.id]));
   const result = {};
   for (const o of orders) {
-    if (o.concertId !== showId) continue;
+    if (String(o.concertId) !== String(showId)) continue;
     if (Array.isArray(o.priceBreakdown) && o.priceBreakdown.length > 0) {
       for (const item of o.priceBreakdown) {
         const tierId = item.tierId || (item.label ? idByLabel.get(item.label) : null);

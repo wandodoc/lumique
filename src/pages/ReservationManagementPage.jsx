@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import './PageStyles.css';
@@ -758,6 +758,8 @@ export default function ReservationManagementPage() {
   const { isAdmin } = useAuth();
   const { id: concertId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const routeShowTitle = searchParams.get('title');
 
   const [orders, setOrders] = useState([]);
   const [shows, setShows] = useState([]);
@@ -875,7 +877,7 @@ export default function ReservationManagementPage() {
     const q = query.trim().toLowerCase();
     const qStripped = stripHyphens(q);
     return orders.filter((order) => {
-      if (concertId && order.concertId !== concertId) return false;
+      if (concertId && String(order.concertId) !== String(concertId)) return false;
       
       const nameMatch = String(order.audienceName || '').toLowerCase().includes(q);
       const phoneMatch = qStripped.length > 0 && stripHyphens(order.phone).includes(qStripped);
@@ -950,7 +952,7 @@ export default function ReservationManagementPage() {
   }, [unitPriceFor]);
 
   const totals = useMemo(() => {
-    const allConcertOrders = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    const allConcertOrders = concertId ? orders.filter(o => String(o.concertId) === String(concertId)) : orders;
     const ticketPrice = currentShow?.price ?? 5000;
     const paidRevenue = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? totalPriceFor(o) : 0), 0);
     // 회비에서 충당된 것으로 표시된 예매 건의 합계. 총 모금액(실 티켓 수익)과는 별도로,
@@ -1017,7 +1019,7 @@ export default function ReservationManagementPage() {
   // 뒤풀이 참여자를 공연자/미매핑 텍스트/관리용 텍스트 그룹은 그룹으로 묶고,
   // 초대자 미기재 건은 서로 다른 공연자일 수 있어 개별 항목으로 따로 둔다.
   const afterPartyEntries = useMemo(() => {
-    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    const src = concertId ? orders.filter(o => String(o.concertId) === String(concertId)) : orders;
     const groupMap = {};
     const individuals = [];
     for (const o of src) {
@@ -1530,7 +1532,7 @@ export default function ReservationManagementPage() {
 
   // 공연자 매핑 상태와 무관하게, 뒤풀이 참여 체크한 모든 신청을 평평한 목록으로 — 테이블 배치는 이 목록만 본다.
   const afterPartyParticipants = useMemo(() => {
-    const src = concertId ? orders.filter(o => o.concertId === concertId) : orders;
+    const src = concertId ? orders.filter(o => String(o.concertId) === String(concertId)) : orders;
     return src
       .filter(o => o.isAfterParty)
       .map(o => ({
@@ -2628,7 +2630,7 @@ export default function ReservationManagementPage() {
               </>
             ) : (
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.4px', lineHeight: 1.3 }}>
-                {concertId ? '공연 정보를 찾을 수 없습니다' : '전체 공연 예매 관리'}
+                {routeShowTitle || (concertId ? '공연 예매 관리' : '전체 공연 예매 관리')}
               </h1>
             )}
           </div>

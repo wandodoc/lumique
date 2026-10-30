@@ -688,7 +688,7 @@ function ShowDetailModal({ show, orders = [], members = [], externalBandMembers 
             <div className="perf-modal-btn-row">
               <button 
                 type="button"
-                onClick={() => window.open(`/manage/${show.id}`, '_blank')}
+                onClick={() => window.open(`/manage/${show.id}?title=${encodeURIComponent(show.title || '')}`, '_blank')}
                 className="perf-btn-dark-primary"
               >
                 🎟️ 티켓 관리
@@ -997,7 +997,7 @@ export default function PerformancePage() {
   const navigate = useNavigate();
   
   const detail = useMemo(() => {
-    return paramId ? shows.find(s => s.id === paramId) : null;
+    return paramId ? shows.find(show => String(show.id) === String(paramId)) : null;
   }, [paramId, shows]);
 
   const setDetail = (show) => {
@@ -1129,7 +1129,7 @@ export default function PerformancePage() {
     if (!window.confirm('이 공연을 완전히 삭제할까요? 연결된 예매 주문/참여자 기록도 함께 삭제되며, 되돌릴 수 없습니다.')) return;
     const list = await firebaseStorage.removeShow(id);
     if (!Array.isArray(list)) { alert(SAVE_FAILED_MSG); return; }
-    const nextOrders = await firebaseStorage.patchOrders(all => all.filter(o => o.concertId !== id), { allowEmpty: true });
+    const nextOrders = await firebaseStorage.patchOrders(all => all.filter(o => String(o.concertId) !== String(id)), { allowEmpty: true });
     applyServerShows(list);
     if (Array.isArray(nextOrders)) setOrders(nextOrders);
     dispatch({ type: 'DELETE_PERFORMANCE_PARTICIPANTS', showId: id });
@@ -1284,7 +1284,7 @@ export default function PerformancePage() {
       {editing && <ShowFormModal show={editing === blankShow ? null : editing} orders={orders} onClose={() => setEditing(null)} onSave={saveShow} />}
       {detail && <ShowDetailModal
         show={detail}
-        orders={orders.filter(o => o.concertId === detail.id)}
+        orders={orders.filter(o => String(o.concertId) === String(detail.id))}
         members={members}
         externalBandMembers={externalBandMembers}
         participantIds={performanceParticipants[detail.id] || []}
