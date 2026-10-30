@@ -1,5 +1,7 @@
 import { doc, getDoc, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { countSoldByTier } from './pricing';
+import { getPublicFormId } from './performances';
 
 const DOC_REF = doc(db, "club_ledger", "main_state");
 const SETTINGS_REF = doc(db, "club_ledger", "settings");
@@ -148,6 +150,46 @@ export const firebaseStorage = {
   // 들어온 새 예매가 관리자의 저장으로 사라지지 않도록, 화면의 목록을 그대로 쓰지 않는다.
   patchOrders: (updater, options) => readModifyWriteList('orders', updater, options),
   appendOrder: (order) => readModifyWriteList('orders', list => [...list, order]),
+  appendOrderWithInventory: async (order) => {
+    try {
+      return await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(DOC_REF);
+        const data = snapshot.exists() ? snapshot.data() : null;
+        const shows = Array.isArray(data?.shows) ? data.shows : [];
+        const show = shows.find(item => sameId(item.id, order.concertId));
+        const orders = Array.isArray(data?.orders) ? data.orders : [];
+        if (!show) return { status: 'missing-show', orders };
+
+        const tiers = Array.isArray(show.priceTiers) ? show.priceTiers : [];
+        const limitedTiers = tiers.filter(tier => Number(tier.quantityLimit) > 0);
+        if (show.pricingMode === 'tiered' && limitedTiers.length > 0) {
+          const showIds = new Set([show.id, order.concertId, getPublicFormId(show), `show-legacy-${show.date}`].filter(Boolean).map(String));
+          const showOrders = orders
+            .filter(existing => showIds.has(String(existing.concertId)))
+            .map(existing => ({ ...existing, concertId: show.id }));
+          const sold = countSoldByTier(showOrders, show.id, tiers);
+          const byLabel = new Map(tiers.filter(tier => tier.label).map(tier => [tier.label, tier.id]));
+          const requested = new Map();
+          const lines = Array.isArray(order.priceBreakdown) && order.priceBreakdown.length > 0
+            ? order.priceBreakdown
+            : [{ tierId: order.tierId, label: order.priceTierLabel, qty: order.ticketCount }];
+          lines.forEach(line => {
+            const tierId = line.tierId || (line.label ? byLabel.get(line.label) : null);
+            if (tierId) requested.set(tierId, (requested.get(tierId) || 0) + (Number(line.qty) || 0));
+          });
+          const exceeded = limitedTiers.find(tier => (Number(sold[tier.id]) || 0) + (requested.get(tier.id) || 0) > Number(tier.quantityLimit));
+          if (exceeded) return { status: 'sold-out', orders };
+        }
+
+        const nextOrders = [...orders, order];
+        transaction.set(DOC_REF, { orders: nextOrders }, { merge: true });
+        return { status: 'saved', orders: nextOrders };
+      });
+    } catch (error) {
+      console.error('Firebase inventory order write error:', error);
+      return null;
+    }
+  },
   // 전체 목록 교체. 복구 도구 전용.
   saveOrders: async (orders) => {
     try {

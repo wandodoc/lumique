@@ -630,9 +630,15 @@ export default function TicketOrderForm({ showId }) {
       };
 
       // 서버 최신 목록에 추가(다른 신청자의 예매를 덮어쓰지 않음). 실패하면 완료 화면을 띄우지 않는다.
-      const savedOrders = await firebaseStorage.appendOrder(newOrder);
-      if (!Array.isArray(savedOrders)) throw new Error('order save failed');
-      setOrders(savedOrders);
+      const orderResult = await firebaseStorage.appendOrderWithInventory(newOrder);
+      if (orderResult?.status === 'sold-out') {
+        if (Array.isArray(orderResult.orders)) setOrders(orderResult.orders);
+        toast('방금 남은 수량이 모두 신청되었습니다. 잔여 수량을 새로 확인해 주세요.');
+        return;
+      }
+      if (orderResult?.status === 'missing-show') throw new Error('show not found');
+      if (orderResult?.status !== 'saved' || !Array.isArray(orderResult.orders)) throw new Error('order save failed');
+      setOrders(orderResult.orders);
       // 제출 직후 재집계(soldByTier 변화)로 가격 구간이 바뀌어도 완료 화면에는
       // 실제로 신청/저장된 금액이 그대로 보이도록 스냅샷을 고정해둔다.
       setConfirmedOrder(newOrder);
