@@ -810,7 +810,10 @@ export default function ReservationManagementPage() {
   const seatDragMovedRef = useRef(false);
   const seatMigrationRef = useRef(new Set());
 
-  const currentShow = useMemo(() => shows.find(s => s.id === concertId), [shows, concertId]);
+  const currentShow = useMemo(
+    () => (concertId ? shows.find(show => String(show.id) === String(concertId)) : null),
+    [shows, concertId]
+  );
 
   useEffect(() => {
     document.title = '티켓 신청 및 입장 관리';
@@ -2625,7 +2628,7 @@ export default function ReservationManagementPage() {
               </>
             ) : (
               <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.4px', lineHeight: 1.3 }}>
-                전체 공연 예매 관리
+                {concertId ? '공연 정보를 찾을 수 없습니다' : '전체 공연 예매 관리'}
               </h1>
             )}
           </div>
