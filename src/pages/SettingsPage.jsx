@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { firebaseStorage } from '../utils/firebaseStorage';
 import './Pages.css';
+
+const JSON_RESTORE_ENABLED = false;
 
 const REGULATIONS = [
   { label: '계좌', value: '토스뱅크 1001-7629-3105' },
@@ -32,6 +34,22 @@ export default function SettingsPage() {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [reservationContact, setReservationContact] = useState('');
+  const [reservationContactSaving, setReservationContactSaving] = useState(false);
+
+  useEffect(() => {
+    firebaseStorage.loadSettings().then(settings => {
+      if (settings && typeof settings.reservationContact === 'string') setReservationContact(settings.reservationContact);
+    });
+  }, []);
+
+  const handleReservationContactSave = async () => {
+    if (!isAdmin || reservationContactSaving) return;
+    setReservationContactSaving(true);
+    const ok = await firebaseStorage.saveSettings({ reservationContact: reservationContact.trim() });
+    setReservationContactSaving(false);
+    alert(ok ? '예매 문의처를 저장했습니다.' : '예매 문의처 저장에 실패했습니다. 네트워크를 확인해 주세요.');
+  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -78,6 +96,10 @@ export default function SettingsPage() {
 
   // 복원 = 백업 파일의 내용을 서버에 쓴다. 되돌릴 수 없으므로 현재 서버 건수와 파일 건수를 보여주고 확인받는다.
   const handleRestore = (e) => {
+    if (!JSON_RESTORE_ENABLED) {
+      alert('데이터 보호를 위해 JSON 복원 기능이 비활성화되어 있습니다.');
+      return;
+    }
     const file = e.target.files[0];
     e.target.value = ''; // reset
     if (!file) return;
@@ -237,6 +259,15 @@ export default function SettingsPage() {
         ))}
       </div>
 
+      <div className="card card-pad">
+        <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 8 }}>예매 문의처</span>
+        <p style={{ fontSize: 13, color: 'var(--slate-500)', margin: '0 0 12px' }}>공개 예매 페이지의 오류 안내에 표시할 전화번호 또는 문의 문구입니다.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={reservationContact} onChange={e => setReservationContact(e.target.value)} disabled={!isAdmin || reservationContactSaving} placeholder="예: 010-0000-0000" style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--slate-200)', fontSize: 14 }} />
+          <button type="button" className="btn-primary" onClick={handleReservationContactSave} disabled={!isAdmin || reservationContactSaving}>{reservationContactSaving ? '저장 중...' : '저장'}</button>
+        </div>
+      </div>
+
       {/* 수입 계정과목 */}
       <div className="card card-pad">
         <span className="card-title" style={{ fontSize: 18, fontWeight: 800, display: 'block', marginBottom: 16 }}>💰 수입 계정과목</span>
@@ -374,9 +405,9 @@ export default function SettingsPage() {
           <button className="btn-primary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 15 }} onClick={handleBackup}>
             데이터 전체 백업 (JSON 다운로드)
           </button>
-          <label className="btn-secondary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 15, textAlign: 'center', cursor: 'pointer', boxSizing: 'border-box' }}>
+          <label aria-disabled={!JSON_RESTORE_ENABLED} title="데이터 보호를 위해 비활성화되었습니다" className="btn-secondary" style={{ flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 15, textAlign: 'center', cursor: JSON_RESTORE_ENABLED ? 'pointer' : 'not-allowed', opacity: JSON_RESTORE_ENABLED ? 1 : 0.55, boxSizing: 'border-box' }}>
             데이터 복구 (JSON 업로드)
-            <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleRestore} />
+            <input type="file" accept=".json" disabled={!JSON_RESTORE_ENABLED} style={{ display: 'none' }} onChange={handleRestore} />
           </label>
         </div>
       </div>

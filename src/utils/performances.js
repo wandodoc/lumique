@@ -8,16 +8,61 @@ const PUBLIC_FORM_ID_BY_DATE = {
   '2026-12-04': 'show-1785978583307-jl1y9',
 };
 
+// Explicit aliases for identifiers that are known to refer to the same show.
+// Do not infer aliases from matching dates: different shows may share a date.
+const CANONICAL_SHOW_ID_BY_ALIAS = {
+  'show-legacy-2026-12-04': 'show-1785978583307-jl1y9',
+};
+
+export function getRelatedShowIds(showOrId) {
+  const show = showOrId && typeof showOrId === 'object' ? showOrId : null;
+  const requestedId = show ? show.id : showOrId;
+  const ids = new Set();
+  if (requestedId) ids.add(String(requestedId));
+  if (show?.publicFormId) ids.add(String(show.publicFormId));
+
+  const canonicalId = CANONICAL_SHOW_ID_BY_ALIAS[String(requestedId)] || String(requestedId || '');
+  if (canonicalId) ids.add(canonicalId);
+  Object.entries(CANONICAL_SHOW_ID_BY_ALIAS).forEach(([alias, canonical]) => {
+    if (canonical === canonicalId || alias === String(requestedId)) ids.add(alias);
+  });
+  return [...ids].filter(Boolean);
+}
+
+// Backfill eligibility is identity-based. A matching date alone never means
+// that an existing show is the same record; known aliases are explicit above.
+export function shouldBackfillLegacyPerformance(performance, shows) {
+  if (!performance?.key) return false;
+  const existingIds = new Set((Array.isArray(shows) ? shows : []).map(show => String(show?.id || '')));
+  const candidateId = `show-legacy-${performance.key}`;
+  return !getRelatedShowIds(candidateId).some(relatedId => existingIds.has(relatedId));
+}
+
+export function resolveShowByAnyId(shows, requestedId) {
+  const list = Array.isArray(shows) ? shows : [];
+  const ids = getRelatedShowIds(requestedId);
+  const canonicalId = CANONICAL_SHOW_ID_BY_ALIAS[String(requestedId)] || String(requestedId || '');
+  return list.find(show => String(show.id) === canonicalId && !show.deletedAt)
+    || list.find(show => ids.includes(String(show.id)) && !show.deletedAt)
+    || null;
+}
+
+export function filterOrdersForShow(orders, showOrId) {
+  const ids = new Set(getRelatedShowIds(showOrId));
+  return (Array.isArray(orders) ? orders : []).filter(order => ids.has(String(order.concertId)));
+}
+
 export function getPublicFormId(show) {
   return PUBLIC_FORM_ID_BY_DATE[show?.date] || show?.publicFormId || show?.id || '';
 }
 
 export function resolveShowByFormId(shows, formId) {
   const list = Array.isArray(shows) ? shows : [];
-  const direct = list.find(show => String(show.id) === String(formId) && !show.deletedAt);
+  const direct = resolveShowByAnyId(list, formId);
   if (direct) return direct;
   const aliasedDate = Object.entries(PUBLIC_FORM_ID_BY_DATE).find(([, id]) => id === String(formId))?.[0];
-  return aliasedDate ? list.find(show => show.date === aliasedDate && !show.deletedAt) : null;
+  const publicId = PUBLIC_FORM_ID_BY_DATE[aliasedDate];
+  return publicId ? resolveShowByAnyId(list, publicId) : null;
 }
 
 export function formatPerfLabel(key) {

@@ -11,6 +11,7 @@ const ATTEND_DONE = '입장완료';
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { countSoldByTier, resolveActivePrice, cleanPriceTier, formatTierUntil, regularPriceOf } from '../utils/pricing';
 import { sortByPartAndName } from '../utils/calculations';
+import { filterOrdersForShow, resolveShowByAnyId } from '../utils/performances';
 
 const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -769,6 +770,7 @@ export default function ReservationManagementPage() {
   const [filter, setFilter] = useState('all');
   const [reservationPage, setReservationPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [dataLoadFailed, setDataLoadFailed] = useState(false);
 
   // 건별 후원금 폼 입력값 및 아코디언 토글 상태
   const [donorName, setDonorName] = useState('');
@@ -813,7 +815,7 @@ export default function ReservationManagementPage() {
   const seatMigrationRef = useRef(new Set());
 
   const currentShow = useMemo(
-    () => (concertId ? shows.find(show => String(show.id) === String(concertId)) : null),
+    () => (concertId ? resolveShowByAnyId(shows, concertId) : null),
     [shows, concertId]
   );
 
@@ -832,12 +834,18 @@ export default function ReservationManagementPage() {
       let fbConcerts = await firebaseStorage.loadConcerts();
       let fbOrders = await firebaseStorage.loadOrders();
       // null = 읽기 실패. "비어 있음"과 구분해 빈 화면 + 오류 배너로 알리고, 어떤 로컬 사본도 쓰지 않는다.
-      if (fbConcerts === null || fbOrders === null) setMappingErrorMsg(SERVER_LOAD_FAILED_MSG);
+      const failed = fbConcerts === null || fbOrders === null;
+      if (failed) setMappingErrorMsg(SERVER_LOAD_FAILED_MSG);
+      setDataLoadFailed(failed);
       if (fbConcerts === null) fbConcerts = [];
       if (fbOrders === null) fbOrders = [];
       setShows(fbConcerts);
       setOrders(fbOrders);
       const fbData = await firebaseStorage.loadData();
+      if (fbData === undefined) {
+        setDataLoadFailed(true);
+        setMappingErrorMsg(SERVER_LOAD_FAILED_MSG);
+      }
       setMembers(fbData?.members || []);
       setLoading(false);
     }
@@ -877,7 +885,7 @@ export default function ReservationManagementPage() {
     const q = query.trim().toLowerCase();
     const qStripped = stripHyphens(q);
     return orders.filter((order) => {
-      if (concertId && String(order.concertId) !== String(concertId)) return false;
+      if (concertId && !filterOrdersForShow([order], concertId).length) return false;
       
       const nameMatch = String(order.audienceName || '').toLowerCase().includes(q);
       const phoneMatch = qStripped.length > 0 && stripHyphens(order.phone).includes(qStripped);
@@ -926,8 +934,8 @@ export default function ReservationManagementPage() {
 
   // 공연 1건에 부분 변경을 서버 최신 목록에 병합한다. 성공 시 서버가 돌려준 목록으로 화면을 맞춘다.
   const patchCurrentShow = async (patch) => {
-    if (!currentShow || !concertId) return false;
-    const list = await firebaseStorage.patchShow(concertId, patch);
+    if (dataLoadFailed || !currentShow || !concertId) return false;
+    const list = await firebaseStorage.patchShow(currentShow.id, patch);
     if (list === 'missing') { alert(CONCERT_SAVE_BLOCKED_MSG); return false; }
     if (!Array.isArray(list)) { alert(SERVER_SAVE_FAILED_MSG); return false; }
     setShows(list);
@@ -952,7 +960,7 @@ export default function ReservationManagementPage() {
   }, [unitPriceFor]);
 
   const totals = useMemo(() => {
-    const allConcertOrders = concertId ? orders.filter(o => String(o.concertId) === String(concertId)) : orders;
+    const allConcertOrders = concertId ? filterOrdersForShow(orders, concertId) : orders;
     const ticketPrice = currentShow?.price ?? 5000;
     const paidRevenue = allConcertOrders.reduce((sum, o) => sum + (o.depositStatus === DEPOSIT_DONE ? totalPriceFor(o) : 0), 0);
     // 회비에서 충당된 것으로 표시된 예매 건의 합계. 총 모금액(실 티켓 수익)과는 별도로,
@@ -1019,7 +1027,7 @@ export default function ReservationManagementPage() {
   // 뒤풀이 참여자를 공연자/미매핑 텍스트/관리용 텍스트 그룹은 그룹으로 묶고,
   // 초대자 미기재 건은 서로 다른 공연자일 수 있어 개별 항목으로 따로 둔다.
   const afterPartyEntries = useMemo(() => {
-    const src = concertId ? orders.filter(o => String(o.concertId) === String(concertId)) : orders;
+    const src = concertId ? filterOrdersForShow(orders, concertId) : orders;
     const groupMap = {};
     const individuals = [];
     for (const o of src) {
@@ -1074,7 +1082,7 @@ export default function ReservationManagementPage() {
   // 뒤풀이 매핑/배치 관련 쓰기 작업의 단일 통로. orderIds에 patch를 병합해 저장하고,
   // 실패 시 배너로 보여줄 오류 메시지를 지정한다.
   const applyAfterPartyPatch = async (orderIds, patch, failMsg) => {
-    if (!isAdmin || !orderIds || orderIds.length === 0) return 'error';
+    if (!isAdmin || dataLoadFailed || !orderIds || orderIds.length === 0) return 'error';
     setMappingErrorMsg('');
     const idSet = new Set(orderIds);
     try {
@@ -1532,7 +1540,7 @@ export default function ReservationManagementPage() {
 
   // 공연자 매핑 상태와 무관하게, 뒤풀이 참여 체크한 모든 신청을 평평한 목록으로 — 테이블 배치는 이 목록만 본다.
   const afterPartyParticipants = useMemo(() => {
-    const src = concertId ? orders.filter(o => String(o.concertId) === String(concertId)) : orders;
+    const src = concertId ? filterOrdersForShow(orders, concertId) : orders;
     return src
       .filter(o => o.isAfterParty)
       .map(o => ({
@@ -1622,10 +1630,10 @@ export default function ReservationManagementPage() {
   // 콘서트 레코드에 테이블/배치 패치를 저장한다. 서버 최신 목록을 읽어 해당 공연 1건에만 병합하므로
   // 오래 열어 둔 탭의 옛 목록이 다른 기기의 저장을 덮어쓰지 않는다. 실패 시 화면에도 반영하지 않고 오류를 알린다.
   const saveSeatingPatchNow = useCallback(async (patch) => {
-    if (!isAdmin || !currentShow || !concertId) return false;
+    if (!isAdmin || dataLoadFailed || !currentShow || !concertId) return false;
     setMappingErrorMsg('');
     try {
-      const list = await firebaseStorage.patchShow(concertId, patch);
+      const list = await firebaseStorage.patchShow(currentShow.id, patch);
       if (list === 'missing') {
         setMappingErrorMsg('서버에 이 공연이 없어 저장할 수 없습니다. 공연 목록을 새로고침한 뒤 다시 시도해 주세요.');
         return false;
@@ -1640,7 +1648,7 @@ export default function ReservationManagementPage() {
       setMappingErrorMsg('테이블 배치 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
       return false;
     }
-  }, [isAdmin, currentShow, concertId, setShows]);
+  }, [isAdmin, dataLoadFailed, currentShow, concertId, setShows]);
 
   const seatingSaveQueueRef = useRef(Promise.resolve());
   const saveSeatingPatch = useCallback((patch) => {
@@ -2222,6 +2230,7 @@ export default function ReservationManagementPage() {
   };
 
   const updateOrder = async (id, patch) => {
+    if (dataLoadFailed) return;
     const saved = await firebaseStorage.patchOrders(list => list.map((o) => (o.id === id ? { ...o, ...patch } : o)));
     if (!Array.isArray(saved)) { setMappingErrorMsg(SERVER_SAVE_FAILED_MSG); return; }
     setOrders(saved);
@@ -2229,7 +2238,7 @@ export default function ReservationManagementPage() {
 
   // 예매 내역 삭제 (관리자 전용) — 테스트 신청이나 취소 요청 등을 되돌릴 수 없이 완전히 제거한다.
   const deleteOrder = async (order) => {
-    if (!isAdmin) return;
+    if (!isAdmin || dataLoadFailed) return;
     if (!window.confirm(`${order.audienceName || '이름없음'}님의 예매 내역(${order.ticketCount}매)을 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
     const saved = await firebaseStorage.patchOrders(list => list.filter((o) => o.id !== order.id), { allowEmpty: true });
     if (!Array.isArray(saved)) { setMappingErrorMsg(SERVER_SAVE_FAILED_MSG); return; }

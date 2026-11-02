@@ -1,7 +1,8 @@
 import { createContext, useContext, useReducer, useEffect, useMemo, useRef, useState } from 'react';
 import { MEMBERS } from '../data/members';
 import { firebaseStorage } from '../utils/firebaseStorage';
-import { derivePerformances } from '../utils/performances';
+import { derivePerformances, shouldBackfillLegacyPerformance } from '../utils/performances';
+import { classifyMainStateRead } from '../utils/mainStateGuards';
 
 const AppContext = createContext(null);
 
@@ -357,16 +358,22 @@ export function AppProvider({ children }) {
     async function loadInitialData() {
       // 1. Firebase에서 최신 상태 불러오기
       const fbState = await firebaseStorage.loadData();
+      const readStatus = classifyMainStateRead(fbState);
       
       // undefined = 읽기 실패. 아래의 "문서 없음 → 초기 상태 생성" 분기로 절대 내려가면 안 된다.
       // (읽기 실패를 '비어 있음'으로 취급해 서버를 덮어쓴 것이 2026-10-24 공연 데이터 유실 원인)
-      if (fbState === undefined) {
+      if (readStatus.kind === 'read-failed') {
         console.error('Firestore 읽기에 실패했습니다. 로컬 데이터로 덮어쓰지 않고 동기화를 중단합니다.');
         dispatch({ type: 'LOAD_FAILED' });
         return;
       }
+      if (readStatus.kind === 'invalid') {
+        console.error(`Firestore 문서 구조를 확인할 수 없어 초기화 및 동기화를 중단합니다: ${readStatus.error}`);
+        dispatch({ type: 'LOAD_FAILED' });
+        return;
+      }
 
-      if (fbState) {
+      if (readStatus.kind === 'existing') {
         let transactions = fbState.transactions || [];
         let updatedCount = 0;
         transactions = transactions.map(t => {
@@ -415,10 +422,9 @@ export function AppProvider({ children }) {
         // 공연 데이터 단일화: shows(공연 관리/티켓) 를 공연의 단일 소스로 삼는다.
         // 기존에 performances에만 있던(=매칭되는 show가 없는) 날짜는 1회성으로
         // 최소 정보만 채운 show를 만들어 backfill 한다 (기존 회비/참여 데이터 보존).
-        let shows = fbState.shows || [];
-        const existingShowDates = new Set(shows.map(s => s.date));
+        let shows = fbState.shows;
         const backfillShows = performances
-          .filter(p => p.key && !existingShowDates.has(p.key))
+          .filter(p => shouldBackfillLegacyPerformance(p, shows))
           .map(p => ({
             id: `show-legacy-${p.key}`,
             title: p.label || p.key,
@@ -434,10 +440,17 @@ export function AppProvider({ children }) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }));
-        if (backfillShows.length > 0) {
-          shows = [...shows, ...backfillShows];
-          // 전체 목록 교체가 아니라 항목 단위 추가. 다른 기기가 방금 저장한 공연을 덮어쓰지 않도록.
-          for (const s of backfillShows) await firebaseStorage.upsertShow(s);
+        let backfillCreated = false;
+        for (const s of backfillShows) {
+          const result = await firebaseStorage.insertShowIfAbsent(s);
+          if (result.status === 'created' || result.status === 'exists') {
+            shows = result.shows;
+            backfillCreated ||= result.status === 'created';
+            continue;
+          }
+          console.error(`공연 backfill을 안전하게 완료할 수 없어 초기화를 중단합니다: ${result.status}`);
+          dispatch({ type: 'LOAD_FAILED' });
+          return;
         }
 
         // members.js에 하드코딩된 학생/직장인 및 2025 보정액을 파이어베이스 데이터에 병합
@@ -495,7 +508,7 @@ export function AppProvider({ children }) {
           shows,
           songs: fbState.songs ?? [],
           activities: fbState.activities ?? [],
-          lastUpdated: (updatedCount > 0 || needsPerfUpdate || backfillShows.length > 0) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
+          lastUpdated: (updatedCount > 0 || needsPerfUpdate || backfillCreated) ? new Date().toISOString() : (fbState.lastUpdated || new Date().toISOString())
         });
       } else {
         // 서버 문서가 아직 없는 완전히 새 환경. localStorage에서 가져오지 않고(로컬은 저장소가 아니다)
@@ -520,12 +533,18 @@ export function AppProvider({ children }) {
           performanceBandMembers: {},
           performanceSetlists: {},
           shows: [],
+          orders: [],
           songs: [],
           activities: [],
           lastUpdated: new Date().toISOString(),
         };
+        const initialization = await firebaseStorage.initializeMainStateIfAbsent(initialState);
+        if (initialization !== 'created') {
+          console.error(`Firestore 초기화를 중단했습니다: ${initialization}`);
+          dispatch({ type: 'LOAD_FAILED' });
+          return;
+        }
         dispatch({ type: 'INIT', ...initialState });
-        await firebaseStorage.saveData(initialState);
       }
     }
     loadInitialData();

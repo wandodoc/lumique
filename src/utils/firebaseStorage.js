@@ -1,7 +1,8 @@
 import { doc, getDoc, getDocFromServer, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { countSoldByTier } from './pricing';
-import { getPublicFormId } from './performances';
+import { getRelatedShowIds } from './performances';
+import { isFirestoreDocumentAbsent } from './mainStateGuards';
 
 const DOC_REF = doc(db, "club_ledger", "main_state");
 const SETTINGS_REF = doc(db, "club_ledger", "settings");
@@ -92,6 +93,19 @@ export const firebaseStorage = {
       return false;
     }
   },
+  initializeMainStateIfAbsent: async (state) => {
+    try {
+      return await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(DOC_REF);
+        if (!isFirestoreDocumentAbsent(snapshot)) return 'exists';
+        transaction.set(DOC_REF, clone(state));
+        return 'created';
+      });
+    } catch (e) {
+      console.error('Firebase initial document creation error:', e);
+      return 'error';
+    }
+  },
 
   // ── 공연(shows) ──────────────────────────────────────────────────────────
   loadConcerts: async () => {
@@ -107,6 +121,28 @@ export const firebaseStorage = {
   upsertShow: (show) => readModifyWriteList('shows', list => (
     list.some(s => sameId(s.id, show.id)) ? list.map(s => (sameId(s.id, show.id) ? show : s)) : [...list, show]
   )),
+  // Backfill-only insert: never replaces an existing show and never recreates
+  // a missing main document. Explicit aliases are considered the same identity.
+  insertShowIfAbsent: async (show) => {
+    try {
+      return await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(DOC_REF);
+        if (!snapshot.exists()) return { status: 'missing' };
+        const current = snapshot.data();
+        if (!Array.isArray(current?.shows)) return { status: 'invalid' };
+        const relatedIds = new Set(getRelatedShowIds(show));
+        if (current.shows.some(existing => relatedIds.has(String(existing?.id || '')))) {
+          return { status: 'exists', shows: current.shows };
+        }
+        const shows = [...current.shows, clone(show)];
+        transaction.set(DOC_REF, { shows }, { merge: true });
+        return { status: 'created', shows };
+      });
+    } catch (e) {
+      console.error('Firebase backfill insert error:', e);
+      return { status: 'error' };
+    }
+  },
   // 공연 1건에 부분 변경(좌석 배치, 가격 구간, 후원금 등)을 병합한다. 서버에 없으면 'missing'.
   patchShow: (id, patch) => readModifyWriteList('shows', list => {
     if (!list.some(s => sameId(s.id, id))) return 'missing';
@@ -165,25 +201,53 @@ export const firebaseStorage = {
     try {
       return await runTransaction(db, async (transaction) => {
         const snapshot = await transaction.get(DOC_REF);
-        const data = snapshot.exists() ? snapshot.data() : null;
-        const shows = Array.isArray(data?.shows) ? data.shows : [];
+        if (!snapshot.exists()) return { status: 'missing-show', orders: [] };
+        const data = snapshot.data();
+        // Firestore 문서가 존재하지만 orders 필드가 없거나 배열이 아닌 경우 — 비정상 데이터 구조로 판단하여 차단
+        if (!data || !('orders' in data) || !Array.isArray(data.orders)) {
+          console.error('[appendOrderWithInventory] orders 필드가 누락되었거나 배열이 아닙니다. 저장을 중단합니다.');
+          return { status: 'invalid-orders' };
+        }
+        const orders = data.orders;
+        const shows = Array.isArray(data.shows) ? data.shows : [];
         const show = shows.find(item => sameId(item.id, order.concertId));
-        const orders = Array.isArray(data?.orders) ? data.orders : [];
         if (!show) return { status: 'missing-show', orders };
 
+        // ── 입력 검증 ──────────────────────────────────────────────────
         const tiers = Array.isArray(show.priceTiers) ? show.priceTiers : [];
+        const tierIdSet = new Set(tiers.map(t => t.id));
+        const lines = Array.isArray(order.priceBreakdown) && order.priceBreakdown.length > 0
+          ? order.priceBreakdown
+          : [{ tierId: order.tierId, label: order.priceTierLabel, qty: order.ticketCount }];
+        const byLabel = new Map(tiers.filter(tier => tier.label).map(tier => [tier.label, tier.id]));
+
+        // 수량 검증: 0 이하, 소수, NaN 거부
+        for (const line of lines) {
+          const q = Number(line.qty);
+          if (!Number.isFinite(q) || q <= 0 || !Number.isInteger(q)) {
+            return { status: 'invalid-qty', orders };
+          }
+        }
+
+        // 티켓 등급 검증: tiered 공연에서 존재하지 않는 tierId 거부
+        if (show.pricingMode === 'tiered' && tiers.length > 0) {
+          for (const line of lines) {
+            const tierId = line.tierId || (line.label ? byLabel.get(line.label) : null);
+            if (tierId && !tierIdSet.has(tierId)) {
+              return { status: 'invalid-tier', orders };
+            }
+          }
+        }
+
+        // ── 재고 검증 (수량 제한 구간) ─────────────────────────────────
         const limitedTiers = tiers.filter(tier => Number(tier.quantityLimit) > 0);
         if (show.pricingMode === 'tiered' && limitedTiers.length > 0) {
-          const showIds = new Set([show.id, order.concertId, getPublicFormId(show), `show-legacy-${show.date}`].filter(Boolean).map(String));
+          const showIds = new Set([...getRelatedShowIds(show), order.concertId].filter(Boolean).map(String));
           const showOrders = orders
             .filter(existing => showIds.has(String(existing.concertId)))
             .map(existing => ({ ...existing, concertId: show.id }));
           const sold = countSoldByTier(showOrders, show.id, tiers);
-          const byLabel = new Map(tiers.filter(tier => tier.label).map(tier => [tier.label, tier.id]));
           const requested = new Map();
-          const lines = Array.isArray(order.priceBreakdown) && order.priceBreakdown.length > 0
-            ? order.priceBreakdown
-            : [{ tierId: order.tierId, label: order.priceTierLabel, qty: order.ticketCount }];
           lines.forEach(line => {
             const tierId = line.tierId || (line.label ? byLabel.get(line.label) : null);
             if (tierId) requested.set(tierId, (requested.get(tierId) || 0) + (Number(line.qty) || 0));

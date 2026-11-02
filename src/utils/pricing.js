@@ -8,6 +8,8 @@
 // (예: "24시간 내 20장" → 24시간이 지나거나 20장이 먼저 팔리면 마감)
 // 마지막 구간은 보통 조건 없이(until, quantityLimit 모두 비움) 계속 적용되도록 둔다.
 
+import { getRelatedShowIds } from './performances.js';
+
 const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 // 가격 구간 하나를 저장 가능한 형태로 정규화한다. (공연 관리 / 티켓 관리 양쪽에서 공용으로 사용)
@@ -80,19 +82,44 @@ export function resolveActivePrice(show, now = new Date(), soldByTier = {}) {
 // 한 주문이 여러 구간에 걸쳐 있는 경우(구간별로 매수를 나눠 신청) priceBreakdown을 우선 사용하고,
 // 없는 과거 주문(단일 구간 또는 수량 제한 기능 도입 이전)은 tierId/priceTierLabel로 집계한다.
 export function countSoldByTier(orders = [], showId, tiers = []) {
-  const idByLabel = new Map(tiers.filter(t => t.label).map(t => [t.label, t.id]));
+  const tierList = Array.isArray(tiers) ? tiers : [];
+  const tierIdSet = new Set(tierList.map(t => t.id).filter(Boolean));
+  const showIds = new Set(getRelatedShowIds(showId));
   const result = {};
+
+  const resolveTargetTierId = (candidateId, label, price) => {
+    // 1. tierId가 현재 공연에 존재하면 기존처럼 해당 ID 우선 사용
+    if (candidateId && tierIdSet.has(candidateId)) return candidateId;
+
+    // 2. 현재 공연에 동일한 label이 정확히 하나 존재할 때만 매핑 (2개 이상이면 매핑하지 않음)
+    const cleanLabel = String(label || '').trim();
+    if (cleanLabel) {
+      const matchedByLabel = tierList.filter(t => String(t.label || '').trim() === cleanLabel);
+      if (matchedByLabel.length === 1) return matchedByLabel[0].id;
+    }
+
+    // 3. label 매핑이 불가능한 경우 가격 fallback (동일 가격 등급이 정확히 하나일 때만 매핑)
+    const numPrice = Number(price);
+    if (Number.isFinite(numPrice) && numPrice > 0 && tierList.length > 0) {
+      const matchedByPrice = tierList.filter(t => Number(t.price) === numPrice);
+      if (matchedByPrice.length === 1) return matchedByPrice[0].id;
+    }
+
+    // 4. 모호하거나 매핑 불가능한 경우 기존 예약 객체를 변경하지 않고 임의 매핑 배제
+    return candidateId || null;
+  };
+
   for (const o of orders) {
-    if (String(o.concertId) !== String(showId)) continue;
+    if (!showIds.has(String(o.concertId))) continue;
     if (Array.isArray(o.priceBreakdown) && o.priceBreakdown.length > 0) {
       for (const item of o.priceBreakdown) {
-        const tierId = item.tierId || (item.label ? idByLabel.get(item.label) : null);
+        const tierId = resolveTargetTierId(item.tierId, item.label, item.price);
         if (!tierId) continue;
         result[tierId] = (result[tierId] || 0) + (Number(item.qty) || 0);
       }
       continue;
     }
-    const tierId = o.tierId || (o.priceTierLabel ? idByLabel.get(o.priceTierLabel) : null);
+    const tierId = resolveTargetTierId(o.tierId, o.priceTierLabel, o.unitPrice);
     if (!tierId) continue;
     result[tierId] = (result[tierId] || 0) + (Number(o.ticketCount) || 0);
   }

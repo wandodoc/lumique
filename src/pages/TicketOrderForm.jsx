@@ -9,7 +9,7 @@ const FIELD_STYLE = { width: '100%', padding: '12px 14px', borderRadius: 10, bor
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { resolveActivePrice, formatCountdown, countSoldByTier, openTiersWithAvailability } from '../utils/pricing';
-import { getPublicFormId, resolveShowByFormId } from '../utils/performances';
+import { filterOrdersForShow, resolveShowByFormId } from '../utils/performances';
 
 const section = (s = {}) => ({
   id: String(s.id || '').trim(),
@@ -472,6 +472,8 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, setQty, tiers, 
 export default function TicketOrderForm({ showId }) {
   const [show, setShow] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showLoadState, setShowLoadState] = useState('loading');
+  const [supportContact, setSupportContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
@@ -497,17 +499,35 @@ export default function TicketOrderForm({ showId }) {
 
   useEffect(() => {
     document.title = 'Lumique 공연 예매';
+    setLoading(true);
+    setShow(null);
+    setShowLoadState('loading');
     async function fetchShow() {
-      const shows = (await firebaseStorage.loadConcerts()) || [];
-      // 자동 생성 id(show-legacy-YYYY-MM-DD)로 공유된 링크는 같은 날짜의 공연으로 연결한다.
-      // (2026-10-27 데이터 복구 과정에서 잠시 그 id로 예매 링크가 나간 적이 있다)
-      const legacyDate = showId?.startsWith('show-legacy-') ? showId.slice('show-legacy-'.length) : null;
-      const found = resolveShowByFormId(shows, showId)
-        || (legacyDate ? shows.find(s => s.date === legacyDate && !s.deletedAt) : undefined);
-      if (found) {
+      try {
+        const shows = await firebaseStorage.loadConcerts();
+        if (shows === null) {
+          setShowLoadState('error');
+          return;
+        }
+        const found = resolveShowByFormId(shows, showId);
+        if (!found) {
+          setShowLoadState('notFound');
+          return;
+        }
+        if (!String(found.title || '').trim() || !String(found.date || '').trim() || !String(found.location || '').trim()) {
+          setShowLoadState('invalid');
+          return;
+        }
         setShow({ ...found, customSections: (found.customSections || []).map(section) });
+        setShowLoadState('ready');
+        const settings = await firebaseStorage.loadSettings();
+        if (typeof settings?.reservationContact === 'string') setSupportContact(settings.reservationContact.trim());
+      } catch (error) {
+        console.error('공연 정보 조회 오류:', error);
+        setShowLoadState('error');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     fetchShow();
   }, [showId]);
@@ -558,11 +578,7 @@ export default function TicketOrderForm({ showId }) {
   // Legacy shared links can use a date-based ID while `show` resolves to the
   // canonical Firestore show. Count legacy orders with the canonical show too,
   // so entry points using either link display the same remaining quantity.
-  const legacyShowId = show?.date ? `show-legacy-${show.date}` : null;
-  const publicFormId = getPublicFormId(show);
-  const showOrderIds = new Set([canonicalShowId, showId, legacyShowId, publicFormId].filter(Boolean).map(String));
-  const soldOrders = orders
-    .filter(order => showOrderIds.has(String(order.concertId)))
+  const soldOrders = filterOrdersForShow(orders, show || showId)
     .map(order => ({ ...order, concertId: canonicalShowId }));
   // Only use a server-confirmed order list for the shared remaining count.
   const soldByTier = inventoryReady ? countSoldByTier(soldOrders, canonicalShowId, show?.priceTiers || []) : {};
@@ -591,6 +607,7 @@ export default function TicketOrderForm({ showId }) {
 
   const submit = (e) => {
     e.preventDefault();
+    if (showLoadState !== 'ready' || !show) return toast('공연 정보를 확인할 수 없어 예매를 접수할 수 없습니다.');
     const activeFixedName = show?.customSections?.find(s => s.type === 'fixed_name' && s.active !== false);
     const activeFixedPhone = show?.customSections?.find(s => s.type === 'fixed_phone' && s.active !== false);
     const activeFixedQty = show?.customSections?.find(s => s.type === 'fixed_qty' && s.active !== false);
@@ -648,6 +665,18 @@ export default function TicketOrderForm({ showId }) {
         toast('방금 남은 수량이 모두 신청되었습니다. 잔여 수량을 새로 확인해 주세요.');
         return;
       }
+      if (orderResult?.status === 'invalid-orders') {
+        toast('예매 데이터를 확인할 수 없어 접수할 수 없습니다. 관리자에게 문의해 주세요.');
+        return;
+      }
+      if (orderResult?.status === 'invalid-qty') {
+        toast('신청 매수가 올바르지 않습니다. 다시 확인해 주세요.');
+        return;
+      }
+      if (orderResult?.status === 'invalid-tier') {
+        toast('선택한 티켓 등급을 확인할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
+        return;
+      }
       if (orderResult?.status === 'missing-show') throw new Error('show not found');
       if (orderResult?.status !== 'saved' || !Array.isArray(orderResult.orders)) throw new Error('order save failed');
       setOrders(orderResult.orders);
@@ -673,7 +702,11 @@ export default function TicketOrderForm({ showId }) {
     </div>
   );
 
-  if (!show) return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 찾을 수 없습니다.</div>;
+  const contactMessage = supportContact ? `문의: ${supportContact}` : '관리자에게 문의해 주세요.';
+  if (showLoadState === 'error') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.<br />{contactMessage}</div>;
+  if (showLoadState === 'notFound') return <div style={{ textAlign: 'center', padding: 50 }}>해당 공연을 찾을 수 없습니다. 예매 링크를 확인해 주세요.<br />{contactMessage}</div>;
+  if (showLoadState === 'invalid') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보가 완전하지 않아 예매를 접수할 수 없습니다.<br />{contactMessage}</div>;
+  if (!show) return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 확인할 수 없습니다.</div>;
 
   if (done) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh', background: '#f8fafc', padding: 20 }}>

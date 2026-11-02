@@ -72,9 +72,11 @@ const blankShow = {
 const id = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const LOAD_FAILED_MSG = '서버에서 공연 목록을 불러오지 못해 저장할 수 없습니다. 네트워크를 확인하고 새로고침한 뒤 다시 시도해 주세요.';
 const SAVE_FAILED_MSG = '서버 저장에 실패해 변경이 반영되지 않았습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
+const PERMANENT_DELETE_ENABLED = false;
 
 import { firebaseStorage } from '../utils/firebaseStorage';
 import { countSoldByTier, cleanPriceTier } from '../utils/pricing';
+import { filterOrdersForShow } from '../utils/performances';
 
 
 const score = (d, t = '19:00') => {
@@ -1126,6 +1128,10 @@ export default function PerformancePage() {
 
   const permanentlyDeleteShow = async (id, e) => {
     if (e) e.stopPropagation();
+    if (!PERMANENT_DELETE_ENABLED) {
+      alert('데이터 보호를 위해 공연 완전 삭제 기능이 비활성화되어 있습니다.');
+      return;
+    }
     if (loadFailed) { alert(LOAD_FAILED_MSG); return; }
     if (!window.confirm('이 공연을 완전히 삭제할까요? 연결된 예매 주문/참여자 기록도 함께 삭제되며, 되돌릴 수 없습니다.')) return;
     const list = await firebaseStorage.removeShow(id);
@@ -1181,7 +1187,7 @@ export default function PerformancePage() {
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={(e) => restoreShow(show.id, e)} style={{ background: 'var(--slate-100)', color: 'var(--slate-700)', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>복구</button>
-                  <button onClick={(e) => permanentlyDeleteShow(show.id, e)} style={{ background: 'var(--slate-100)', color: 'var(--red-500)', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>완전 삭제</button>
+                  <button disabled={!PERMANENT_DELETE_ENABLED} title="데이터 보호를 위해 비활성화되었습니다" onClick={(e) => permanentlyDeleteShow(show.id, e)} style={{ background: 'var(--slate-100)', color: 'var(--red-500)', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: PERMANENT_DELETE_ENABLED ? 'pointer' : 'not-allowed', opacity: PERMANENT_DELETE_ENABLED ? 1 : 0.55 }}>완전 삭제</button>
                 </div>
               </div>
             ))
@@ -1285,7 +1291,7 @@ export default function PerformancePage() {
       {editing && <ShowFormModal show={editing === blankShow ? null : editing} orders={orders} onClose={() => setEditing(null)} onSave={saveShow} />}
       {detail && <ShowDetailModal
         show={detail}
-        orders={orders.filter(o => String(o.concertId) === String(detail.id))}
+        orders={filterOrdersForShow(orders, detail)}
         members={members}
         externalBandMembers={externalBandMembers}
         participantIds={performanceParticipants[detail.id] || []}
