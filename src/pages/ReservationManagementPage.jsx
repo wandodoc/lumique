@@ -1102,15 +1102,17 @@ export default function ReservationManagementPage() {
     return { groups, individuals };
   }, [orders, concertId, members]);
 
-  // 상단 요약: 인원 수 기준(그룹 수가 아님). 미매핑 = 전체 - 공연자 매핑 완료 - 텍스트 그룹.
+  // 상단 요약: 인원 수 기준(그룹 수가 아님). 미매핑 = 전체 - 공연자 매핑 완료 - 텍스트 그룹 - 공연 참가자.
   const afterPartySummary = useMemo(() => {
+    const performerDirect = afterPartyPerformerIds.length;
     const performerMapped = afterPartyEntries.groups.filter(g => g.type === 'performer').reduce((s, g) => s + g.count, 0);
     const textGroup = afterPartyEntries.groups.filter(g => g.type === 'group').reduce((s, g) => s + g.count, 0);
     const unmappedGroupCount = afterPartyEntries.groups.filter(g => g.type === 'unmapped').reduce((s, g) => s + g.count, 0);
     const unassignedCount = afterPartyEntries.individuals.reduce((s, i) => s + i.count, 0);
-    const total = performerMapped + textGroup + unmappedGroupCount + unassignedCount;
-    return { total, performerMapped, textGroup, unmapped: unmappedGroupCount + unassignedCount };
-  }, [afterPartyEntries]);
+    const unmapped = unmappedGroupCount + unassignedCount;
+    const total = performerDirect + performerMapped + textGroup + unmapped;
+    return { total, performerDirect, performerMapped, textGroup, unmapped };
+  }, [afterPartyEntries, afterPartyPerformerIds]);
 
   // 관리자가 과거에 만들어 둔 텍스트 그룹명 목록 (재사용을 위해 전체 공연 기준으로 수집)
   const existingGroupLabels = useMemo(() => {
