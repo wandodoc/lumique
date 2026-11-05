@@ -213,6 +213,12 @@ export const firebaseStorage = {
         const show = shows.find(item => sameId(item.id, order.concertId));
         if (!show) return { status: 'missing-show', orders };
 
+        // 공연 객체 필수 정보 무결성 검증 (제목, 일시, 장소)
+        if (!String(show.title || '').trim() || !String(show.date || '').trim() || !String(show.location || '').trim()) {
+          console.error('[appendOrderWithInventory] 공연 필수 정보(title, date, location)가 누락되었습니다.');
+          return { status: 'invalid-show', orders };
+        }
+
         // ── 입력 검증 ──────────────────────────────────────────────────
         const tiers = Array.isArray(show.priceTiers) ? show.priceTiers : [];
         const tierIdSet = new Set(tiers.map(t => t.id));

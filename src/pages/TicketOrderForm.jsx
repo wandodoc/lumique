@@ -677,6 +677,10 @@ export default function TicketOrderForm({ showId }) {
         toast('선택한 티켓 등급을 확인할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.');
         return;
       }
+            if (orderResult?.status === 'invalid-show') {
+        toast('공연 정보가 완전하지 않아 예매를 접수할 수 없습니다.');
+        return;
+      }
       if (orderResult?.status === 'missing-show') throw new Error('show not found');
       if (orderResult?.status !== 'saved' || !Array.isArray(orderResult.orders)) throw new Error('order save failed');
       setOrders(orderResult.orders);
@@ -702,10 +706,11 @@ export default function TicketOrderForm({ showId }) {
     </div>
   );
 
-  const contactMessage = supportContact ? `문의: ${supportContact}` : '관리자에게 문의해 주세요.';
-  if (showLoadState === 'error') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.<br />{contactMessage}</div>;
-  if (showLoadState === 'notFound') return <div style={{ textAlign: 'center', padding: 50 }}>해당 공연을 찾을 수 없습니다. 예매 링크를 확인해 주세요.<br />{contactMessage}</div>;
-  if (showLoadState === 'invalid') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보가 완전하지 않아 예매를 접수할 수 없습니다.<br />{contactMessage}</div>;
+  const trimmedContact = String(supportContact || '').trim();
+  const contactNode = trimmedContact ? <><br />문의: {trimmedContact}</> : null;
+  if (showLoadState === 'error') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.{contactNode}</div>;
+  if (showLoadState === 'notFound') return <div style={{ textAlign: 'center', padding: 50 }}>해당 공연을 찾을 수 없습니다. 예매 링크를 확인해 주세요.{contactNode}</div>;
+  if (showLoadState === 'invalid') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보가 완전하지 않아 예매를 접수할 수 없습니다.{contactNode}</div>;
   if (!show) return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 확인할 수 없습니다.</div>;
 
   if (done) return (
