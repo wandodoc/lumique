@@ -1308,7 +1308,17 @@ export default function ReservationManagementPage() {
         setIndividualClassificationStatus('error');
         return;
       }
-      patch = { inviterMemberId: draft.memberId, inviterGroupLabel: null };
+      // 개별 편집에서 기존 2순위를 1순위로 선택한 경우에는 단순히 1순위
+      // 필드만 덮어쓰면 선택한 회원이 2순위 목록에도 남는다. 두 순위를
+      // 맞교환해 선택한 회원은 1순위로, 기존 1순위는 2순위 맨 앞으로 둔다.
+      const currentOrder = ordersById[draft.orderId];
+      const previousPrimary = currentOrder ? resolveInviterMember(currentOrder) : null;
+      const nextExtras = (currentOrder ? getExtraPerformerIds(currentOrder) : [])
+        .filter(id => id !== draft.memberId);
+      if (previousPrimary && previousPrimary.id !== draft.memberId && !nextExtras.includes(previousPrimary.id)) {
+        nextExtras.unshift(previousPrimary.id);
+      }
+      patch = { inviterMemberId: draft.memberId, inviterGroupLabel: null, inviterExtraMemberIds: nextExtras };
     } else if (draft.type === 'group') {
       const groupLabel = String(draft.groupLabel || '').trim();
       if (!groupLabel) {
