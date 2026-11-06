@@ -1285,6 +1285,7 @@ export default function ReservationManagementPage() {
         type: classification?.type === 'performer' ? 'performer' : classification?.type === 'group' ? 'group' : 'unmapped',
         memberId: classification?.type === 'performer' ? classification.member.id : '',
         groupLabel: classification?.type === 'group' ? classification.label : '',
+        groupPerformerIds: classification?.type === 'group' ? (order.inviterExtraMemberIds || []) : [],
         performerQuery: classification?.type === 'performer' ? classification.member.name : '',
       } : null);
       setIndividualClassificationStatus('idle');
@@ -1295,7 +1296,18 @@ export default function ReservationManagementPage() {
   };
 
   const updateIndividualClassificationDraft = (patch) => {
-    setIndividualClassificationDraft(previous => previous ? { ...previous, ...patch } : previous);
+    setIndividualClassificationDraft(previous => {
+      if (!previous) return previous;
+      let updated = { ...previous, ...patch };
+      if (patch.type === 'group') {
+        updated = { ...updated, memberId: '', performerQuery: '', groupPerformerIds: updated.groupPerformerIds || [] };
+      } else if (patch.type === 'performer') {
+        updated = { ...updated, groupLabel: '', groupPerformerIds: [] };
+      } else if (patch.type === 'unmapped') {
+        updated = { ...updated, memberId: '', groupLabel: '', groupPerformerIds: [], performerQuery: '' };
+      }
+      return updated;
+    });
     setIndividualClassificationStatus('idle');
   };
 
@@ -1325,7 +1337,7 @@ export default function ReservationManagementPage() {
         setIndividualClassificationStatus('error');
         return;
       }
-      patch = { inviterGroupLabel: groupLabel, inviterMemberId: null, inviterExtraMemberIds: [] };
+      patch = { inviterGroupLabel: groupLabel, inviterMemberId: null, inviterExtraMemberIds: draft.groupPerformerIds || [] };
     } else {
       patch = { inviterMemberId: 'unassigned', inviterGroupLabel: null };
     }
@@ -1531,6 +1543,26 @@ export default function ReservationManagementPage() {
                   value={draft.groupLabel} disabled={!isAdmin || isSavingIndividualClassification}
                   onChange={event => updateIndividualClassificationDraft({ groupLabel: event.target.value })}
                   style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12 }} />
+
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginTop: 6 }}>공연자 추가 (선택 사항)</div>
+                <div style={{ display: 'grid', gap: 4, maxHeight: 130, overflowY: 'auto', padding: '8px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+                  {activeMembersSorted.map(member => (
+                    <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                      <input type="checkbox" aria-label={`${member.name} 선택`}
+                        checked={(draft.groupPerformerIds || []).includes(member.id)}
+                        disabled={!isAdmin || isSavingIndividualClassification}
+                        onChange={event => {
+                          const newIds = event.target.checked
+                            ? [...(draft.groupPerformerIds || []), member.id]
+                            : (draft.groupPerformerIds || []).filter(id => id !== member.id);
+                          updateIndividualClassificationDraft({ groupPerformerIds: newIds });
+                        }}
+                        style={{ cursor: 'pointer' }} />
+                      <span>{member.name}{member.part ? ` (${member.part})` : ''}</span>
+                    </label>
+                  ))}
+                  {activeMembersSorted.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>활성 회원이 없습니다.</div>}
+                </div>
               </div>
             )}
 
