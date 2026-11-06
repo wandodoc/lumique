@@ -528,6 +528,31 @@
 .after-party-unassigned-items { display: grid !important; gap: 7px !important; }
 .after-party-unassigned-items > div { flex-wrap: wrap; padding: 8px !important; border-radius: 9px !important; }
 
+/* 참석자별 보기: 인라인 그룹 선택, 행 확장 상세, 실행 취소 토스트 */
+.after-party-participant-layout.is-single { grid-template-columns: minmax(0, 1fr); }
+.after-party-view-toggle { display: inline-flex; flex-shrink: 0; padding: 2px; border: 1px solid #e4e4e7; border-radius: 9px; background: #fafafa; }
+.after-party-view-toggle button { padding: 5px 10px; border: none; border-radius: 7px; background: transparent; color: #71717a; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.after-party-view-toggle button.is-active { background: #18181b; color: #fff; }
+.after-party-group-select { display: block; width: 100%; max-width: 260px; padding: 6px 8px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; color: #18181b; font-size: 12px; font-weight: 600; }
+.after-party-group-select:disabled { color: #71717a; background: #fafafa; }
+.after-party-attendee-table td { vertical-align: top; }
+.after-party-attendee-table .after-party-status { margin-top: 5px; }
+.after-party-attendee-note { color: #a16207 !important; font-size: 11px !important; }
+.after-party-participant-table tbody tr.after-party-attendee-detail { cursor: default; }
+.after-party-participant-table tbody tr.after-party-attendee-detail td { padding: 12px 14px 14px !important; background: #fafafa; }
+.after-party-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 16px; font-size: 12px; }
+.after-party-detail-grid > div { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.after-party-detail-grid > div > span { color: #71717a; font-size: 10px; font-weight: 700; }
+.after-party-detail-grid > div > strong { color: #18181b; font-weight: 600; }
+.after-party-detail-grid > div > small { color: #71717a; font-size: 10px; }
+.after-party-detail-wide { grid-column: 1 / -1; }
+.after-party-detail-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.after-party-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; font-size: 11px; font-weight: 700; color: #3f3f46; }
+.after-party-chip button { border: none; background: none; color: #dc2626; font-weight: 800; cursor: pointer; padding: 0; }
+.after-party-detail-empty { color: #a1a1aa; font-size: 11px; }
+.after-party-toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 14px; max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: 10px; background: #18181b; color: #fff; font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
+.after-party-toast button { border: none; background: none; color: #fde68a; font-size: 13px; font-weight: 800; cursor: pointer; padding: 0; white-space: nowrap; }
+
 @media (max-width: 900px) {
   .after-party-participant-layout { grid-template-columns: minmax(0, 1fr) minmax(270px, .8fr); }
   .after-party-seating-workspace { grid-template-columns: minmax(0, 1fr) 270px; }

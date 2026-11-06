@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import './PageStyles.css';
 
 const DEPOSIT_WAIT = '입금대기';
@@ -803,6 +803,11 @@ export default function ReservationManagementPage() {
   const [afterPartyTab, setAfterPartyTab] = useState('participants'); // 'participants' | 'tables'
   // 참여자 관리: 한 번에 하나의 편집 대상만 연다(아코디언). 그룹 key, 또는 개별 신청 "order:<id>".
   const [activeEditKey, setActiveEditKey] = useState(null);
+  // 참석 명단 보기 방식: 참석자별(예매 건 단위, 인라인 그룹 변경) / 그룹별(기존 그룹 단위 편집)
+  const [listView, setListView] = useState('attendees');
+  const [expandedAttendeeKey, setExpandedAttendeeKey] = useState(null);
+  const [afterPartyToast, setAfterPartyToast] = useState(null);
+  const afterPartyToastTimer = useRef(null);
   const [selectedSeatingIds, setSelectedSeatingIds] = useState([]); // 테이블 배치: 미배치 참여자 다중 선택
   const [selectedTableId, setSelectedTableId] = useState(null); // 배치도: 편집 중인 테이블(위치/정원/모양 등)
   // 배치도: 드래그 중인 테이블의 "확정 전" 임시 위치(포인터를 떼는 순간에만 실제로 저장한다).
@@ -959,6 +964,11 @@ export default function ReservationManagementPage() {
   // 공연 참가자 뒤풀이 직접 추가 목록: currentShow.afterPartyPerformerIds 에 저장된 memberId 배열
   const afterPartyPerformerIds = useMemo(() => (
     Array.isArray(currentShow?.afterPartyPerformerIds) ? currentShow.afterPartyPerformerIds : []
+  ), [currentShow]);
+
+  // 직접 참석 공연자가 소속된 "직접 만든 그룹" (memberId → 그룹명). 집계·좌석과 무관한 표시용 정보.
+  const performerGroupMapping = useMemo(() => (
+    currentShow?.performerGroupMapping && typeof currentShow.performerGroupMapping === 'object' ? currentShow.performerGroupMapping : {}
   ), [currentShow]);
 
   // 공연자 본인이 예매 뒤풀이 인원에도 포함된 경우를 명시적으로 연결한다. 초대자 매핑은
@@ -1212,6 +1222,22 @@ export default function ReservationManagementPage() {
   const clearInviterClassification = (orderIds) =>
     applyAfterPartyPatch(orderIds, { inviterMemberId: 'unassigned', inviterGroupLabel: null }, '초대자 없음 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
 
+  // 직접 참석 공연자의 소속 그룹(직접 만든 그룹)을 기록하거나 해제한다. 공연자는 직접 참석
+  // 목록에 그대로 남아 인원·좌석 집계는 바뀌지 않고, 명단에서 어느 그룹에 보이는지만 달라진다.
+  const setPerformerGroup = async (memberId, groupLabel) => {
+    if (!isAdmin || !currentShow) return 'error';
+    const next = { ...performerGroupMapping };
+    if (groupLabel) next[memberId] = groupLabel; else delete next[memberId];
+    const ids = afterPartyPerformerIds.includes(memberId) ? afterPartyPerformerIds : [...afterPartyPerformerIds, memberId];
+    try {
+      const ok = await patchCurrentShow({ performerGroupMapping: next, afterPartyPerformerIds: ids });
+      return ok ? 'firebase' : 'error';
+    } catch {
+      setMappingErrorMsg('공연자 그룹 지정 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+      return 'error';
+    }
+  };
+
   // ── 복수 공연자(2순위 이하) 관리 — 한 건(order) 단위로만 동작한다 ──
   // inviterExtraMemberIds: 2순위부터의 참고용 공연자 id 배열(수동 전용, 실적 집계에는 영향 없음).
   const getExtraPerformerIds = (o) => (Array.isArray(o?.inviterExtraMemberIds) ? o.inviterExtraMemberIds : []);
@@ -1343,15 +1369,8 @@ export default function ReservationManagementPage() {
         setIndividualClassificationStatus('saving');
         setMappingErrorMsg('');
         try {
-          // 직접 추가된 공연자를 afterPartyPerformerIds에서 제거하고,
-          // performerGroupMapping에 그룹 정보를 저장한다.
-          const nextPerformerIds = afterPartyPerformerIds.filter(id => id !== draft.performerId);
-          const nextPerformerGroups = currentShow?.performerGroupMapping ? { ...currentShow.performerGroupMapping } : {};
-          nextPerformerGroups[draft.performerId] = groupLabel;
-          await patchCurrentShow({
-            afterPartyPerformerIds: nextPerformerIds,
-            performerGroupMapping: nextPerformerGroups,
-          });
+          const saved = await setPerformerGroup(draft.performerId, groupLabel);
+          if (saved !== 'firebase') throw new Error('save failed');
           setIndividualClassificationStatus('success');
         } catch {
           setIndividualClassificationStatus('error');
@@ -2447,19 +2466,12 @@ export default function ReservationManagementPage() {
     // 초대자 그룹과 분리해 보이지 않으면서도, 직접 참석 여부는 메타데이터로 보존한다.
     afterPartyPerformerIds.forEach(id => {
       const m = members.find(x => x.id === id) || bandMembers[id] || { id, name: id, part: '공연자' };
-      const key = `member:${id}`;
+      const mappedLabel = performerGroupMapping[id] || '';
+      const key = mappedLabel ? `group:${mappedLabel}` : `member:${id}`;
       if (!map[key]) {
-        map[key] = {
-          kind: 'group',
-          type: 'performer',
-          key,
-          label: m.name,
-          count: 0,
-          orderIds: [],
-          attendees: [],
-          memberId: m.id,
-          member: m,
-        };
+        map[key] = mappedLabel
+          ? { kind: 'group', type: 'group', key, label: mappedLabel, count: 0, orderIds: [], attendees: [], memberId: null }
+          : { kind: 'group', type: 'performer', key, label: m.name, count: 0, orderIds: [], attendees: [], memberId: m.id, member: m };
       }
       map[key] = {
         ...map[key],
@@ -2477,7 +2489,7 @@ export default function ReservationManagementPage() {
       };
     });
     return map;
-  }, [afterPartyEntries, afterPartyPerformerIds, members, bandMembers]);
+  }, [afterPartyEntries, afterPartyPerformerIds, members, bandMembers, performerGroupMapping]);
 
   // 위 통합 행을 검색/필터/정렬해 목록에 실제로 표시할 순서를 만든다.
   // 기본 정렬은 미매핑(텍스트 불일치·미기재)을 우선 노출한다.
@@ -2497,10 +2509,189 @@ export default function ReservationManagementPage() {
         return String(a.orderIds?.[0] || a.orderId || a.key).localeCompare(String(b.orderIds?.[0] || b.orderId || b.key));
       });
   }, [afterPartyRowsByKey, mgmtQuery, mgmtFilter]);
-  const afterPartyPageSize = 10;
-  const afterPartyPageCount = Math.max(1, Math.ceil(afterPartyRows.length / afterPartyPageSize));
+  // ── 참석자별 보기: 예매 건과 직접 참석 공연자를 한 행씩 평평하게 나열한다 ──
+  const groupOptionLabels = useMemo(() => {
+    const set = new Set(existingGroupLabels);
+    Object.values(performerGroupMapping).forEach(label => { if (label) set.add(label); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [existingGroupLabels, performerGroupMapping]);
+
+  const afterPartyAttendeeRows = useMemo(() => {
+    const src = concertId ? filterOrdersForShow(orders, concertId) : orders;
+    const rows = [];
+    for (const o of src) {
+      if (!o.isAfterParty) continue;
+      const count = effectiveAfterPartyCount(o);
+      if (count <= 0) continue;
+      const c = classifyAfterPartyOrder(o);
+      const rawInviter = (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '';
+      rows.push({
+        key: `order:${o.id}`, kind: 'order', order: o, orderId: o.id,
+        name: o.audienceName || '(이름없음)', phone: o.phone || '', count,
+        type: c.type,
+        groupLabel: c.type === 'performer' ? c.member.name : c.type === 'group' ? c.label : '',
+        selectValue: c.type === 'performer' ? `member:${c.member.id}` : c.type === 'group' ? `group:${c.label}` : c.type === 'unassigned' ? 'unassigned' : 'unmapped',
+        originalInviterName: c.originalInviterName || rawInviter,
+        createdAt: o.createdAt || '',
+      });
+    }
+    afterPartyPerformerIds.forEach(id => {
+      const m = members.find(x => x.id === id) || bandMembers[id] || { id, name: id, part: '' };
+      const label = performerGroupMapping[id] || '';
+      rows.push({
+        key: `performer:${id}`, kind: 'performer', memberId: id, member: m,
+        name: m.name, phone: m.phone || '', count: 1,
+        type: label ? 'group' : 'performer',
+        groupLabel: label || '공연자 본인',
+        selectValue: label ? `group:${label}` : 'self',
+        originalInviterName: '', createdAt: '',
+      });
+    });
+    return rows;
+  }, [orders, concertId, effectiveAfterPartyCount, afterPartyPerformerIds, members, bandMembers, performerGroupMapping]);
+
+  // 확인이 필요한 건을 먼저, 그다음 최근 신청 순으로 보여준다.
+  const afterPartyAttendeeList = useMemo(() => {
+    const q = mgmtQuery.trim().toLowerCase();
+    const priority = { unmapped: 0, unassigned: 1, performer: 2, group: 2 };
+    return afterPartyAttendeeRows
+      .filter(r => mgmtFilter === 'all' || r.type === mgmtFilter)
+      .filter(r => !q || r.name.toLowerCase().includes(q) || stripHyphens(r.phone).includes(stripHyphens(q)) || r.groupLabel.toLowerCase().includes(q) || r.originalInviterName.toLowerCase().includes(q))
+      .sort((a, b) => {
+        if (priority[a.type] !== priority[b.type]) return priority[a.type] - priority[b.type];
+        const timeA = Date.parse(a.createdAt || '') || 0;
+        const timeB = Date.parse(b.createdAt || '') || 0;
+        if (timeA !== timeB) return timeB - timeA;
+        return a.name.localeCompare(b.name);
+      });
+  }, [afterPartyAttendeeRows, mgmtQuery, mgmtFilter]);
+
+  // 즉시 저장한 변경을 알려주고 몇 초 동안 되돌릴 수 있게 하는 토스트.
+  const showAfterPartyToast = (message, undo) => {
+    clearTimeout(afterPartyToastTimer.current);
+    setAfterPartyToast({ message, undo });
+    afterPartyToastTimer.current = setTimeout(() => setAfterPartyToast(null), 6000);
+  };
+  const undoAfterPartyToast = async () => {
+    const toast = afterPartyToast;
+    clearTimeout(afterPartyToastTimer.current);
+    setAfterPartyToast(null);
+    if (toast?.undo) await toast.undo();
+  };
+
+  // "소속 그룹" 드롭다운 변경 — 예매 한 건을 즉시 저장하고 실행 취소를 제공한다.
+  const changeOrderGroup = async (order, value) => {
+    if (!order) return;
+    const previous = {
+      inviterMemberId: order.inviterMemberId ?? null,
+      inviterGroupLabel: order.inviterGroupLabel ?? null,
+      inviterExtraMemberIds: Array.isArray(order.inviterExtraMemberIds) ? order.inviterExtraMemberIds : [],
+    };
+    const name = order.audienceName || '(이름없음)';
+    let result = 'error';
+    let targetLabel = '';
+    if (value === '__new') {
+      const label = String(window.prompt('새 그룹 이름을 입력하세요') || '').trim();
+      if (!label) return;
+      result = await assignGroupLabel([order.id], label);
+      targetLabel = label;
+    } else if (value.startsWith('member:')) {
+      const memberId = value.slice('member:'.length);
+      const member = members.find(m => m.id === memberId);
+      result = await assignPerformer([order.id], memberId);
+      targetLabel = `공연자 ${member?.name || ''} 초대`;
+    } else if (value.startsWith('group:')) {
+      targetLabel = value.slice('group:'.length);
+      result = await assignGroupLabel([order.id], targetLabel);
+    } else if (value === 'unassigned') {
+      result = await clearInviterClassification([order.id]);
+      targetLabel = '초대자 없음';
+    } else {
+      return;
+    }
+    if (result === 'firebase') {
+      showAfterPartyToast(`${name} → ${targetLabel}`, () => applyAfterPartyPatch([order.id], previous, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.'));
+    }
+  };
+
+  const changePerformerGroup = async (row, value) => {
+    const previousLabel = performerGroupMapping[row.memberId] || null;
+    let nextLabel = null;
+    if (value === '__new') {
+      nextLabel = String(window.prompt('새 그룹 이름을 입력하세요') || '').trim();
+      if (!nextLabel) return;
+    } else if (value.startsWith('group:')) {
+      nextLabel = value.slice('group:'.length);
+    } else if (value !== 'self') {
+      return;
+    }
+    const result = await setPerformerGroup(row.memberId, nextLabel);
+    if (result === 'firebase') {
+      showAfterPartyToast(`${row.name} → ${nextLabel || '공연자 본인 (그룹 없음)'}`, () => setPerformerGroup(row.memberId, previousLabel));
+    }
+  };
+
+  const renderOrderDetail = (row) => {
+    const o = row.order;
+    const primary = resolveInviterMember(o);
+    const extras = getExtraPerformerIds(o);
+    const extraMembers = extras.map(id => members.find(m => m.id === id) || bandMembers[id] || { id, name: id, part: '' });
+    return (
+      <div className="after-party-detail-grid">
+        <div><span>연락처</span><strong>{o.phone || '-'}</strong></div>
+        <div><span>입금</span><strong>{o.depositStatus || '-'}</strong></div>
+        <div><span>신청 시간</span><strong>{o.createdAt && Number.isFinite(Date.parse(o.createdAt)) ? new Date(o.createdAt).toLocaleString('ko-KR') : '-'}</strong></div>
+        <div><span>원본 초대자 입력</span><strong>{row.originalInviterName ? `"${row.originalInviterName}"` : '없음'}</strong></div>
+        <div className="after-party-detail-wide">
+          <span>함께한 공연자 (참고용 · 집계에 영향 없음)</span>
+          <div className="after-party-detail-chips">
+            {extraMembers.map(m => (
+              <span key={m.id} className="after-party-chip">{m.name}{m.part ? ` (${m.part})` : ''}
+                {isAdmin && <button type="button" aria-label={`${m.name} 빼기`} onClick={() => removeExtraPerformer(o.id, m.id)}>✕</button>}
+              </span>
+            ))}
+            {extraMembers.length === 0 && <span className="after-party-detail-empty">없음</span>}
+            {isAdmin && <AddPerformerPicker members={activeMembersSorted} excludeIds={[primary?.id, ...extras].filter(Boolean)} onAdd={(memberId) => addExtraPerformer(o.id, memberId)} triggerText="+ 추가" />}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPerformerDetail = (row) => {
+    const selectedOrderId = afterPartyPerformerOrderIds[row.memberId] || '';
+    const availableOrders = (concertId ? filterOrdersForShow(orders, concertId) : orders).filter(order => {
+      if (!order.isAfterParty) return false;
+      if (order.id === selectedOrderId) return true;
+      return (performerDuplicateCountByOrder[order.id] || 0) < (Number(order.afterPartyCount) || 1);
+    });
+    return (
+      <div className="after-party-detail-grid">
+        <div className="after-party-detail-wide">
+          <span>본인 명의 예매가 있나요?</span>
+          <select className="after-party-group-select" value={selectedOrderId} disabled={!isAdmin} aria-label={`${row.name} 본인 예매 연결`}
+            onChange={event => setPerformerDuplicateOrder(row.memberId, event.target.value)}>
+            <option value="">별도 참석 (중복 없음)</option>
+            {availableOrders.map(order => <option key={order.id} value={order.id}>{order.audienceName || '이름 없음'} · 뒤풀이 {Number(order.afterPartyCount) || 1}명</option>)}
+          </select>
+          <small>연결하면 그 예매 인원에서 1명을 빼서 인원·좌석이 겹치지 않게 해요.</small>
+        </div>
+        {isAdmin && (
+          <div className="after-party-detail-wide">
+            <button type="button" className="after-party-edit-button" style={{ border: '1px solid #fca5a5', color: '#dc2626', background: '#fff' }} onClick={() => removePerformerFromAfterParty(row.memberId)}>뒤풀이 참석 취소</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const chipSource = listView === 'attendees' ? afterPartyAttendeeRows : Object.values(afterPartyRowsByKey);
+  const listRows = listView === 'attendees' ? afterPartyAttendeeList : afterPartyRows;
+  const listPageSize = listView === 'attendees' ? 20 : 10;
+  const afterPartyPageCount = Math.max(1, Math.ceil(listRows.length / listPageSize));
   const effectiveAfterPartyPage = Math.min(afterPartyPage, afterPartyPageCount - 1);
-  const visibleAfterPartyRows = afterPartyRows.slice(effectiveAfterPartyPage * afterPartyPageSize, (effectiveAfterPartyPage + 1) * afterPartyPageSize);
+  const visibleListRows = listRows.slice(effectiveAfterPartyPage * listPageSize, (effectiveAfterPartyPage + 1) * listPageSize);
+  const visibleAfterPartyRows = visibleListRows;
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
@@ -3490,7 +3681,7 @@ export default function ReservationManagementPage() {
                   )}
                 </div>
 
-                {afterPartyPerformerIds.length > 0 && (
+                {listView === 'groups' && afterPartyPerformerIds.length > 0 && (
                   <div style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #fde68a', background: '#fffbeb', display: 'grid', gap: 8 }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e' }}>공연자 본인 중복 예매 처리</div>
                     <div style={{ fontSize: 11, color: '#92400e' }}>공연자 본인이 예매 뒤풀이 인원에 포함되면 해당 예매 건을 연결하세요. 공연자 1명은 직접 참석으로 유지하고 예매 인원에서만 1명을 제외해 중복 집계와 중복 좌석을 막습니다.</div>
@@ -3515,11 +3706,14 @@ export default function ReservationManagementPage() {
                   </div>
                 )}
 
-                <div className="after-party-participant-layout">
+                <div className={listView === 'attendees' ? 'after-party-participant-layout is-single' : 'after-party-participant-layout'}>
                   <section className="after-party-list-panel">
                     <div className="after-party-panel-heading">
-                      <div><h3>참석 명단</h3><p>각 참석자가 어느 그룹에 속하는지 확인하고 바꿀 수 있어요.</p></div>
-                      <span className="after-party-result-count">검색 결과 {afterPartyRows.length}개</span>
+                      <div><h3>참석 명단</h3><p>{listView === 'attendees' ? '소속 그룹을 바로 바꿀 수 있어요. 행을 누르면 자세한 정보가 열립니다.' : '그룹 단위로 한 번에 옮기거나 해제할 수 있어요.'}</p></div>
+                      <div className="after-party-view-toggle" role="group" aria-label="보기 방식">
+                        <button type="button" className={listView === 'attendees' ? 'is-active' : ''} aria-pressed={listView === 'attendees'} onClick={() => { setListView('attendees'); setAfterPartyPage(0); }}>참석자별</button>
+                        <button type="button" className={listView === 'groups' ? 'is-active' : ''} aria-pressed={listView === 'groups'} onClick={() => { setListView('groups'); setAfterPartyPage(0); }}>그룹별</button>
+                      </div>
                     </div>
                     <div className="after-party-list-toolbar">
                       <input
@@ -3531,11 +3725,11 @@ export default function ReservationManagementPage() {
                     </div>
                     <div className="after-party-filter-row" role="group" aria-label="그룹 상태 필터">
                       {[
-                        { value: 'all', label: '전체', count: Object.keys(afterPartyRowsByKey).length },
-                        { value: 'unmapped', label: '확인 필요', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'unmapped').length },
-                        { value: 'performer', label: '공연자 초대', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'performer').length },
-                        { value: 'group', label: '직접 만든 그룹', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'group').length },
-                        { value: 'unassigned', label: '초대자 없음', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'unassigned').length },
+                        { value: 'all', label: '전체', count: chipSource.length },
+                        { value: 'unmapped', label: '확인 필요', count: chipSource.filter(row => row.type === 'unmapped').length },
+                        { value: 'performer', label: '공연자 초대', count: chipSource.filter(row => row.type === 'performer').length },
+                        { value: 'group', label: '직접 만든 그룹', count: chipSource.filter(row => row.type === 'group').length },
+                        { value: 'unassigned', label: '초대자 없음', count: chipSource.filter(row => row.type === 'unassigned').length },
                       ].map(f => (
                         <button key={f.value} type="button" aria-pressed={mgmtFilter === f.value}
                           className={mgmtFilter === f.value ? 'after-party-filter is-active' : 'after-party-filter'}
@@ -3543,6 +3737,81 @@ export default function ReservationManagementPage() {
                         >{f.label}<span>{f.count}</span></button>
                       ))}
                     </div>
+                    {listView === 'attendees' ? (
+                    <div className="after-party-table-wrap">
+                      <table className="after-party-participant-table after-party-attendee-table">
+                        <thead><tr><th>참석자</th><th>인원</th><th>소속 그룹</th><th>비고</th></tr></thead>
+                        <tbody>
+                          {listRows.length === 0 ? (
+                            <tr><td colSpan={4} className="after-party-empty-row">검색/필터 조건에 맞는 참석자가 없습니다.</td></tr>
+                          ) : visibleListRows.map(row => {
+                            const isOpen = expandedAttendeeKey === row.key;
+                            const badge = AFTER_PARTY_TYPE_BADGE[row.type];
+                            const groupOptions = groupOptionLabels.map(label => <option key={label} value={`group:${label}`}>🏷 {label}</option>);
+                            const currentMemberMissing = row.selectValue.startsWith('member:') && !activeMembersSorted.some(m => `member:${m.id}` === row.selectValue);
+                            const subText = row.kind === 'performer' ? '공연자 본인 참석'
+                              : row.originalInviterName ? `초대자 입력: "${row.originalInviterName}"` : '초대자 미기재';
+                            const noteText = row.kind === 'performer'
+                              ? (afterPartyPerformerOrderIds[row.memberId] ? '본인 예매와 연결됨' : '')
+                              : row.type === 'unmapped' ? '회원 이름과 일치하지 않아요' : '';
+                            return (
+                              <Fragment key={row.key}>
+                                <tr className={isOpen ? 'is-selected' : ''} aria-expanded={isOpen} onClick={() => setExpandedAttendeeKey(isOpen ? null : row.key)}>
+                                  <td>
+                                    <div className="after-party-row-title">
+                                      <span><strong>{row.name}{row.kind === 'performer' ? ' 🎤' : ''}</strong><small>{subText}</small></span>
+                                    </div>
+                                  </td>
+                                  <td><strong>{row.count}명</strong></td>
+                                  <td onClick={event => event.stopPropagation()}>
+                                    <select
+                                      className="after-party-group-select"
+                                      value={row.selectValue}
+                                      disabled={!isAdmin}
+                                      aria-label={`${row.name} 소속 그룹`}
+                                      onChange={event => (row.kind === 'performer' ? changePerformerGroup(row, event.target.value) : changeOrderGroup(row.order, event.target.value))}
+                                    >
+                                      {row.kind === 'performer' ? (
+                                        <>
+                                          <option value="self">🎤 공연자 본인 (그룹 없음)</option>
+                                          <optgroup label="직접 만든 그룹">
+                                            {groupOptions}
+                                            <option value="__new">➕ 새 그룹 만들기…</option>
+                                          </optgroup>
+                                        </>
+                                      ) : (
+                                        <>
+                                          {row.selectValue === 'unmapped' && <option value="unmapped" disabled>⚠️ 확인 필요 — 그룹을 골라 주세요</option>}
+                                          {currentMemberMissing && <option value={row.selectValue}>🎤 {row.groupLabel}</option>}
+                                          <optgroup label="공연자 초대">
+                                            {activeMembersSorted.map(m => <option key={m.id} value={`member:${m.id}`}>🎤 {m.name}{m.part ? ` (${m.part})` : ''}</option>)}
+                                          </optgroup>
+                                          <optgroup label="직접 만든 그룹">
+                                            {groupOptions}
+                                            <option value="__new">➕ 새 그룹 만들기…</option>
+                                          </optgroup>
+                                          <option value="unassigned">⊘ 초대자 없음</option>
+                                        </>
+                                      )}
+                                    </select>
+                                    <span className={`after-party-status after-party-status-${row.type}`}><i />{badge.text}</span>
+                                  </td>
+                                  <td className="after-party-attendee-note">{noteText}</td>
+                                </tr>
+                                {isOpen && (
+                                  <tr className="after-party-attendee-detail">
+                                    <td colSpan={4} onClick={event => event.stopPropagation()}>
+                                      {row.kind === 'performer' ? renderPerformerDetail(row) : renderOrderDetail(row)}
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    ) : (
                     <div className="after-party-table-wrap">
                       <table className="after-party-participant-table">
                         <thead><tr><th>참석자 · 원본 초대자</th><th>인원</th><th>소속 그룹</th><th>편집</th></tr></thead>
@@ -3600,8 +3869,9 @@ export default function ReservationManagementPage() {
                         </tbody>
                       </table>
                     </div>
+                    )}
                     <div className="after-party-list-pagination">
-                      <span>{afterPartyRows.length === 0 ? '0개' : `${effectiveAfterPartyPage * afterPartyPageSize + 1}–${Math.min((effectiveAfterPartyPage + 1) * afterPartyPageSize, afterPartyRows.length)}개`} / {afterPartyRows.length}개</span>
+                      <span>{listRows.length === 0 ? '0개' : `${effectiveAfterPartyPage * listPageSize + 1}–${Math.min((effectiveAfterPartyPage + 1) * listPageSize, listRows.length)}개`} / {listRows.length}개</span>
                       <div>
                         <button type="button" disabled={effectiveAfterPartyPage === 0} onClick={() => setAfterPartyPage(Math.max(0, effectiveAfterPartyPage - 1))}>이전</button>
                         <span>{effectiveAfterPartyPage + 1} / {afterPartyPageCount}</span>
@@ -3609,12 +3879,20 @@ export default function ReservationManagementPage() {
                       </div>
                     </div>
                   </section>
+                  {listView === 'groups' && (
                   <aside className="after-party-editor-column">
                     <div className="after-party-editor-heading"><h3>{selectedUnassignedIds.length ? `${selectedUnassignedIds.length}건 한 번에 그룹 지정` : '그룹 지정'}</h3><p>그룹 변경은 좌석 배치에 영향을 주지 않습니다.</p></div>
                     {!selectedUnassignedIds.length && !activeEditKey && <div className="after-party-editor-placeholder">목록에서 참석자나 그룹을 선택하면 여기서 그룹을 바꿀 수 있어요.</div>}
                     {renderMappingEditorPanel()}
                   </aside>
+                  )}
                 </div>
+                {afterPartyToast && (
+                  <div className="after-party-toast" role="status" aria-live="polite">
+                    <span>{afterPartyToast.message}</span>
+                    {afterPartyToast.undo && <button type="button" onClick={undoAfterPartyToast}>실행 취소</button>}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="after-party-seating-view" style={{ display: 'grid', gap: 16 }}>
