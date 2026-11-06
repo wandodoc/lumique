@@ -62,10 +62,10 @@ const DEFAULT_COLUMN_ORDER = ALL_COLUMNS.map(c => c.id);
 
 // ── 뒤풀이 관리 섹션: 분류 유형별 배지 텍스트/색상, 기본 정렬 우선순위(미매핑 우선) ──
 const AFTER_PARTY_TYPE_BADGE = {
-  performer: { text: '✓ 공연자', color: '#059669' },
-  unmapped: { text: '미매핑', color: '#b45309' },
-  unassigned: { text: '미기재·미분류', color: '#64748b' },
-  group: { text: '텍스트 그룹', color: '#7c3aed' },
+  performer: { text: '공연자 초대', color: '#059669' },
+  unmapped: { text: '확인 필요', color: '#b45309' },
+  unassigned: { text: '초대자 없음', color: '#64748b' },
+  group: { text: '직접 만든 그룹', color: '#7c3aed' },
 };
 
 // ── 뒤풀이 테이블 배치도: 고정 가상 좌표계(px 단위) — 화면 크기가 달라져도 테이블의
@@ -557,7 +557,7 @@ function InviterMappingPicker({
     return null;
   }
 
-  const label = triggerText || (currentMember ? `공연자: ${currentMember.name}` : currentGroupLabel ? `텍스트 그룹: ${currentGroupLabel}` : '매핑하기');
+  const label = triggerText || (currentMember ? `공연자: ${currentMember.name}` : currentGroupLabel ? `그룹: ${currentGroupLabel}` : '그룹 지정');
   const color = currentMember ? '#059669' : currentGroupLabel ? '#7c3aed' : '#475569';
   const bg = currentMember ? '#ecfdf5' : currentGroupLabel ? '#f5f3ff' : '#fff';
   const border = currentMember ? '#10b981' : currentGroupLabel ? '#c4b5fd' : '#e2e8f0';
@@ -585,12 +585,12 @@ function InviterMappingPicker({
               flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
               border: `1.5px solid ${tab === 'performer' ? '#111827' : '#e2e8f0'}`,
               background: tab === 'performer' ? '#111827' : '#fff', color: tab === 'performer' ? '#fff' : '#64748b'
-            }}>공연자</button>
+            }}>공연자 초대</button>
             <button type="button" onClick={() => setTab('group')} style={{
               flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
               border: `1.5px solid ${tab === 'group' ? '#111827' : '#e2e8f0'}`,
               background: tab === 'group' ? '#111827' : '#fff', color: tab === 'group' ? '#fff' : '#64748b'
-            }}>텍스트 그룹</button>
+            }}>직접 만든 그룹</button>
           </div>
 
           {tab === 'performer' ? (
@@ -653,7 +653,7 @@ function InviterMappingPicker({
           {(currentMemberId || currentGroupLabel) && (
             <button type="button" onClick={() => { onClear(); setOpen(false); }}
               style={{ width: '100%', marginTop: 10, padding: '6px 0', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            >매핑 해제</button>
+            >그룹 해제</button>
           )}
         </div>
       )}
@@ -1156,7 +1156,7 @@ export default function ReservationManagementPage() {
     return { groups, individuals };
   }, [orders, concertId, members, effectiveAfterPartyCount]);
 
-  // 상단 요약: 인원 수 기준(그룹 수가 아님). 미매핑 = 전체 - 공연자 매핑 완료 - 텍스트 그룹 - 공연 참가자.
+  // 상단 요약: 인원 수 기준. 확인 필요 = 이름 불일치 그룹 + 초대자 미기재 개별 건.
   const afterPartySummary = useMemo(() => {
     const performerDirect = afterPartyPerformerIds.length;
     const performerMapped = afterPartyEntries.groups.filter(g => g.type === 'performer').reduce((s, g) => s + g.count, 0);
@@ -1165,7 +1165,7 @@ export default function ReservationManagementPage() {
     const unassignedCount = afterPartyEntries.individuals.reduce((s, i) => s + i.count, 0);
     const unmapped = unmappedGroupCount + unassignedCount;
     const total = performerDirect + performerMapped + textGroup + unmapped;
-    return { total, performerDirect, performerMapped, textGroup, unmapped };
+    return { total, unmapped, needsReview: unmappedGroupCount, noInviter: unassignedCount };
   }, [afterPartyEntries, afterPartyPerformerIds]);
 
   // 관리자가 과거에 만들어 둔 텍스트 그룹명 목록 (재사용을 위해 전체 공연 기준으로 수집)
@@ -1199,7 +1199,7 @@ export default function ReservationManagementPage() {
   // orderIds를 실제 공연자(회원)에게 한 번에 매핑한다(=1순위 지정). 기존에 지정돼 있던
   // 관리용 텍스트 그룹은 해제된다. 2순위 이하 참고용 목록(inviterExtraMemberIds)은 그대로 둔다.
   const assignPerformer = (orderIds, memberId) =>
-    applyAfterPartyPatch(orderIds, { inviterMemberId: memberId || null, inviterGroupLabel: null }, '공연자 매핑 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    applyAfterPartyPatch(orderIds, { inviterMemberId: memberId || null, inviterGroupLabel: null }, '공연자 초대 연결 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
 
   // orderIds를 관리자가 지정한 텍스트 그룹으로 분류한다. 공연자 매핑과 참고용 복수 공연자
   // 목록은 모두 해제한다 — 텍스트 그룹은 공연자 실적과 별개의 분류이기 때문이다.
@@ -1210,7 +1210,7 @@ export default function ReservationManagementPage() {
   // 원본 텍스트가 회원 이름과 일치하더라도 자동 매칭이 다시 적용되지 않도록 한다(미매핑 유지).
   // 2순위 이하 참고용 목록은 유지한다(1순위 확정 여부와 무관한 별개의 참고 정보).
   const clearInviterClassification = (orderIds) =>
-    applyAfterPartyPatch(orderIds, { inviterMemberId: 'unassigned', inviterGroupLabel: null }, '미분류 지정 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    applyAfterPartyPatch(orderIds, { inviterMemberId: 'unassigned', inviterGroupLabel: null }, '초대자 없음 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
 
   // ── 복수 공연자(2순위 이하) 관리 — 한 건(order) 단위로만 동작한다 ──
   // inviterExtraMemberIds: 2순위부터의 참고용 공연자 id 배열(수동 전용, 실적 집계에는 영향 없음).
@@ -1348,14 +1348,14 @@ export default function ReservationManagementPage() {
           const nextPerformerIds = afterPartyPerformerIds.filter(id => id !== draft.performerId);
           const nextPerformerGroups = currentShow?.performerGroupMapping ? { ...currentShow.performerGroupMapping } : {};
           nextPerformerGroups[draft.performerId] = groupLabel;
-          const result = await patchCurrentShow({
+          await patchCurrentShow({
             afterPartyPerformerIds: nextPerformerIds,
             performerGroupMapping: nextPerformerGroups,
           });
           setIndividualClassificationStatus('success');
-        } catch (error) {
+        } catch {
           setIndividualClassificationStatus('error');
-          setMappingErrorMsg('공연자 분류 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+          setMappingErrorMsg('공연자 그룹 지정 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
         } finally {
           setIsSavingIndividualClassification(false);
           setTimeout(closeActiveEdit, 800);
@@ -1399,7 +1399,7 @@ export default function ReservationManagementPage() {
       const result = await applyAfterPartyPatch(
         [draft.orderId],
         patch,
-        '개별 분류 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
+        '그룹 지정 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
       );
       setIndividualClassificationStatus(result === 'firebase' ? 'success' : 'error');
     } finally {
@@ -1494,13 +1494,13 @@ export default function ReservationManagementPage() {
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>일괄 매핑:</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>한 번에 그룹 지정:</span>
             <InviterMappingPicker
               members={activeMembersSorted}
               existingGroupLabels={existingGroupLabels}
               currentMemberId={null}
               currentGroupLabel={null}
-              triggerText="공연자/텍스트 그룹 선택"
+              triggerText="그룹 지정"
               onSelectPerformer={(memberId) => { assignPerformer(selectedUnassignedIds, memberId); setSelectedUnassignedIds([]); }}
               onSelectGroup={(groupLabel) => { assignGroupLabel(selectedUnassignedIds, groupLabel); setSelectedUnassignedIds([]); }}
               onClear={() => setSelectedUnassignedIds([])}
@@ -1519,20 +1519,20 @@ export default function ReservationManagementPage() {
       const draft = individualClassificationDraft?.performerId === memberId ? individualClassificationDraft : null;
       if (!draft) return null;
       const isDraftValid = draft.type === 'group' ? Boolean(String(draft.groupLabel || '').trim()) : false;
-      const statusText = individualClassificationStatus === 'saving' ? '분류를 저장하고 있습니다…'
-        : individualClassificationStatus === 'success' ? '분류 변경을 저장했습니다.'
+      const statusText = individualClassificationStatus === 'saving' ? '그룹을 저장하고 있습니다…'
+        : individualClassificationStatus === 'success' ? '그룹 변경을 저장했습니다.'
           : individualClassificationStatus === 'error' ? (mappingErrorMsg || '그룹명을 입력해 주세요.') : '';
       return (
         <div className="after-party-editor-form" style={editorPanelStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>공연자 "{member.name}" 분류 변경</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>공연자 "{member.name}" 그룹 지정</span>
             <button type="button" onClick={closeActiveEdit} style={closeBtnStyle} aria-label="편집 닫기">✕</button>
           </div>
           <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
             현재: 뒤풀이 공연자 직접 참석 · 이를 텍스트 그룹으로 분류하면 직접 참석 목록에서 제거됩니다.
           </div>
           <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff' }}>
-            <label style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>분류할 텍스트 그룹</label>
+            <label style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>넣을 그룹</label>
             {existingGroupLabels.length > 0 && (
               <select aria-label="기존 텍스트 그룹 선택" value={existingGroupLabels.includes(draft.groupLabel) ? draft.groupLabel : ''}
                 disabled={!isAdmin || isSavingIndividualClassification}
@@ -1583,8 +1583,8 @@ export default function ReservationManagementPage() {
       const draft = individualClassificationDraft?.orderId === orderId ? individualClassificationDraft : null;
       if (!o || !draft) return null;
       const currentClassification = classifyAfterPartyOrder(o);
-      const currentTypeLabel = currentClassification.type === 'performer' ? '공연자 그룹'
-        : currentClassification.type === 'group' ? '텍스트 그룹' : '미분류';
+      const currentTypeLabel = currentClassification.type === 'performer' ? '공연자 초대'
+        : currentClassification.type === 'group' ? '직접 만든 그룹' : '초대자 없음';
       const currentTargetLabel = currentClassification.type === 'performer' ? currentClassification.member.name
         : currentClassification.type === 'group' ? currentClassification.label
           : currentClassification.type === 'unmapped' ? `원본 초대자: ${currentClassification.label}` : '연결된 공연자/그룹 없음';
@@ -1593,13 +1593,13 @@ export default function ReservationManagementPage() {
       const selectedPerformer = members.find(member => member.id === draft.memberId);
       const isDraftValid = draft.type === 'performer' ? Boolean(selectedPerformer)
         : draft.type === 'group' ? Boolean(String(draft.groupLabel || '').trim()) : true;
-      const statusText = individualClassificationStatus === 'saving' ? '분류를 저장하고 있습니다…'
-        : individualClassificationStatus === 'success' ? '분류 변경을 저장했습니다.'
+      const statusText = individualClassificationStatus === 'saving' ? '그룹을 저장하고 있습니다…'
+        : individualClassificationStatus === 'success' ? '그룹 변경을 저장했습니다.'
           : individualClassificationStatus === 'error' ? (mappingErrorMsg || (draft.type === 'performer' ? '공연자를 선택해 주세요.' : '그룹명을 입력해 주세요.')) : '';
       return (
         <div className="after-party-editor-form" style={editorPanelStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{o.audienceName || '(이름없음)'} 개별 분류 편집</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{o.audienceName || '(이름없음)'} · 이 예매 건만 그룹 지정</span>
             <button type="button" onClick={closeActiveEdit} style={closeBtnStyle} aria-label="개별 편집 닫기">✕</button>
           </div>
           <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
@@ -1609,7 +1609,7 @@ export default function ReservationManagementPage() {
           {o.inviterName && (
             <div style={{ fontSize: 12, color: '#b45309', background: '#fffbeb', padding: '6px 10px', borderRadius: 8, border: '1px solid #fde68a', marginBottom: 8 }}>
               입력된 초대자 이름: <strong>{o.inviterName}</strong>
-              <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>초대자를 잘못 입력한 경우 '미분류 / 미기재'로 변경하거나 올바른 공연자를 직접 선택하세요.</div>
+              <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>초대자를 잘못 입력한 경우 '초대자 없음'으로 변경하거나 올바른 공연자를 직접 선택하세요.</div>
             </div>
           )}
           <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff' }}>
@@ -1617,9 +1617,9 @@ export default function ReservationManagementPage() {
             <select id={`individual-classification-${orderId}`} value={draft.type} disabled={!isAdmin || isSavingIndividualClassification}
               onChange={event => updateIndividualClassificationDraft({ type: event.target.value })}
               style={{ padding: '7px 9px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12 }}>
-              <option value="performer">공연자 그룹</option>
-              <option value="group">텍스트 그룹</option>
-              <option value="unmapped">미분류 / 미기재</option>
+              <option value="performer">공연자 초대</option>
+              <option value="group">직접 만든 그룹</option>
+              <option value="unmapped">초대자 없음</option>
             </select>
 
             {draft.type === 'performer' && (
@@ -1693,7 +1693,7 @@ export default function ReservationManagementPage() {
           </div>
           <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
             {renderPerformerPriorityPanel(orderId, { includePrimaryMapping: false })}
-            <div style={{ fontSize: 11, color: '#64748b' }}>분류 변경은 테이블/좌석 배정에 영향을 주지 않습니다. 재배치는 테이블 배치 탭에서 별도로 실행하고 확인해 주세요.</div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>그룹 변경은 테이블/좌석 배정에 영향을 주지 않습니다. 재배치는 테이블 배치 탭에서 별도로 실행하고 확인해 주세요.</div>
           </div>
         </div>
       );
@@ -1709,7 +1709,7 @@ export default function ReservationManagementPage() {
           <button type="button" onClick={closeActiveEdit} style={closeBtnStyle}>✕</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>그룹 전체 재분류 · 이 그룹 {row.orderIds.length}건 모두 변경 (선택 즉시 저장)</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>이 그룹의 예매 {row.orderIds.length}건을 한 번에 옮기기 (선택 즉시 저장)</span>
           <InviterMappingPicker
             members={activeMembersSorted}
             existingGroupLabels={existingGroupLabels}
@@ -1725,14 +1725,14 @@ export default function ReservationManagementPage() {
               type="button"
               onClick={() => clearInviterClassification(row.orderIds)}
               style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              title="이 그룹의 모든 예매 건을 미분류(미기재)로 이동합니다"
+              title="이 그룹의 모든 예매 건을 '초대자 없음'으로 되돌립니다"
             >
-              전체 미분류로 분리
+              이 그룹 전체 해제
             </button>
           )}
         </div>
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, fontWeight: 600 }}>
-          아래 개별 편집은 선택한 예매 ID 한 건에만 적용됩니다. 그룹 전체 변경과 별도로 저장하세요.
+          아래는 예매 한 건씩 따로 옮길 때 사용합니다. 위의 한 번에 옮기기와는 별도로 저장됩니다.
         </div>
         {row.type === 'group' && (
           <form onSubmit={(event) => {
@@ -1748,8 +1748,8 @@ export default function ReservationManagementPage() {
           {row.attendees.filter(a => a.orderId).map((a) => {
             const order = ordersById[a.orderId];
             const classification = order ? classifyAfterPartyOrder(order) : null;
-            const typeLabel = classification?.type === 'performer' ? '공연자 그룹'
-              : classification?.type === 'group' ? '텍스트 그룹' : '미분류';
+            const typeLabel = classification?.type === 'performer' ? '공연자 초대'
+              : classification?.type === 'group' ? '직접 만든 그룹' : '초대자 없음';
             const targetLabel = classification?.type === 'performer' ? classification.member.name
               : classification?.type === 'group' ? classification.label
                 : classification?.type === 'unmapped' ? `원본 초대자: ${classification.label}` : '연결된 공연자/그룹 없음';
@@ -1757,7 +1757,7 @@ export default function ReservationManagementPage() {
               <div key={a.orderId} data-testid="after-party-member-row" data-order-id={a.orderId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff' }}>
                 <div style={{ minWidth: 0, display: 'grid', gap: 2 }}>
                   <span style={{ fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{a.name} · {a.count}명</span>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>현재 분류: {typeLabel} · {targetLabel}</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>현재 그룹: {typeLabel} · {targetLabel}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   {isAdmin && (
@@ -1765,7 +1765,7 @@ export default function ReservationManagementPage() {
                       type="button"
                       onClick={() => clearInviterClassification([a.orderId])}
                       style={{ padding: '5px 9px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-                      title="이 예매 건을 미분류(미기재)로 분리하여 다른 공연자와 매핑 가능하게 합니다"
+                      title="이 예매 건만 '초대자 없음'으로 빼서 다른 그룹에 넣을 수 있게 합니다"
                     >
                       미분류로 이동
                     </button>
@@ -2181,7 +2181,7 @@ export default function ReservationManagementPage() {
     });
     const autoEligible = mapped.filter(person => !manualSeatAssignments[person.orderId] && (!assignmentOverride[person.orderId] || autoSeatAssignments[person.orderId]));
     if (mapped.length === 0) {
-      setSeatingActionStatus('실행할 수 없습니다: 뒤풀이 참여 예매 중 유효한 1순위 공연자 매핑이 없습니다. 참여 여부와 공연자 매핑을 확인하세요.');
+      setSeatingActionStatus('실행할 수 없습니다: 뒤풀이 참여 예매 중 공연자 초대로 연결된 예매가 없습니다. 참여 여부와 그룹 지정을 확인하세요.');
       return;
     }
     if (autoEligible.length === 0) {
@@ -2194,7 +2194,7 @@ export default function ReservationManagementPage() {
     }).length;
     const previousAutoCount = Object.values(autoSeatAssignments).filter(Boolean).length;
     const performerCount = new Set(autoEligible.map(person => person.performerId)).size;
-    if (!window.confirm(`1순위 공연자 ${performerCount}명과 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명을 배치합니다. 자동 배정 ${previousAutoCount}건을 갱신하고, 수동 배정은 유지합니다. 미매핑 참여자는 배치하지 않습니다. 예상 변경 ${movedCount}건. 공연자도 테이블 좌석과 정원에 포함됩니다. 계속할까요?`)) {
+    if (!window.confirm(`1순위 공연자 ${performerCount}명과 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명을 배치합니다. 자동 배정 ${previousAutoCount}건을 갱신하고, 수동 배정은 유지합니다. 그룹 확인이 필요한 참여자는 배치하지 않습니다. 예상 변경 ${movedCount}건. 공연자도 테이블 좌석과 정원에 포함됩니다. 계속할까요?`)) {
       setSeatingActionStatus('자동 배치를 취소했습니다. 기존 배치는 변경하지 않았습니다.');
       return;
     }
@@ -2472,7 +2472,7 @@ export default function ReservationManagementPage() {
           name: m.name,
           phone: m.phone || '',
           count: 1,
-          inviterName: '공연 참가자 · 뒤풀이 참석',
+          inviterName: '공연자 본인 참석',
         }],
       };
     });
@@ -3309,10 +3309,10 @@ export default function ReservationManagementPage() {
               <div>
                 <div className="after-party-eyebrow">공연 운영</div>
                 <h2>뒤풀이 관리</h2>
-                <p>참여자 분류와 좌석 배치는 서로 독립적으로 관리됩니다.</p>
+                <p>참석 명단과 좌석 배치는 서로 독립적으로 관리됩니다.</p>
               </div>
               <div className="after-party-tabs" role="tablist" aria-label="뒤풀이 관리 작업">
-                {[{ value: 'participants', label: '참여자 분류' }, { value: 'tables', label: '좌석 배치' }].map(t => (
+                {[{ value: 'participants', label: '참석 명단' }, { value: 'tables', label: '좌석 배치' }].map(t => (
                   <button key={t.value} type="button" role="tab" aria-selected={afterPartyTab === t.value}
                     className={afterPartyTab === t.value ? 'after-party-tab is-active' : 'after-party-tab'}
                     onClick={() => setAfterPartyTab(t.value)}
@@ -3335,12 +3335,22 @@ export default function ReservationManagementPage() {
             {afterPartyTab === 'participants' ? (
               <div className="after-party-participants-view">
                 {/* 상단 요약 (그룹 수가 아닌 실제 인원 기준) */}
-                <div className="after-party-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 16 }}>
-                  <StatCard label="전체 뒤풀이 인원" value={`${afterPartySummary.total}명`} color="#111827" />
-                  <StatCard label="공연 참가자" value={`${afterPartySummary.performerDirect}명`} color="#2563eb" />
-                  <StatCard label="공연자 매핑 완료" value={`${afterPartySummary.performerMapped}명`} color="#059669" />
-                  <StatCard label="분류 확인 필요" value={`${afterPartySummary.unmapped}명`} color="#b45309" />
-                  <StatCard label="텍스트 그룹" value={`${afterPartySummary.textGroup}명`} color="#7c3aed" />
+                <div className="after-party-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 16 }}>
+                  <StatCard label="뒤풀이 참석 총원" value={`${afterPartySummary.total}명`} color="#111827" />
+                  {afterPartySummary.unmapped > 0 ? (
+                    <button type="button"
+                      onClick={() => { setMgmtFilter(afterPartySummary.needsReview > 0 ? 'unmapped' : 'unassigned'); setAfterPartyPage(0); }}
+                      style={{ textAlign: 'left', display: 'grid', gap: 6, padding: '12px 14px', borderRadius: 12, border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer' }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>그룹 확인이 필요한 참석자</span>
+                      <span style={{ fontSize: 20, fontWeight: 950, color: '#b45309' }}>{afterPartySummary.unmapped}명 · 정리하기 →</span>
+                    </button>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 6, padding: '12px 14px', borderRadius: 12, border: '1px solid #a7f3d0', background: '#ecfdf5' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#047857' }}>그룹 정리</span>
+                      <span style={{ fontSize: 16, fontWeight: 900, color: '#047857' }}>✅ 모두 정리됐어요</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 공연 참가자 뒤풀이 참석 관리 패널 */}
@@ -3508,24 +3518,24 @@ export default function ReservationManagementPage() {
                 <div className="after-party-participant-layout">
                   <section className="after-party-list-panel">
                     <div className="after-party-panel-heading">
-                      <div><h3>참여자 분류</h3><p>분류 대상과 적용 범위를 확인한 뒤 변경하세요.</p></div>
+                      <div><h3>참석 명단</h3><p>각 참석자가 어느 그룹에 속하는지 확인하고 바꿀 수 있어요.</p></div>
                       <span className="after-party-result-count">검색 결과 {afterPartyRows.length}개</span>
                     </div>
                     <div className="after-party-list-toolbar">
                       <input
                         type="search" value={mgmtQuery}
                         onChange={(e) => { setMgmtQuery(e.target.value); setAfterPartyPage(0); }}
-                        placeholder="초대자, 분류명, 예매자 검색"
+                        placeholder="초대자, 그룹명, 예매자 검색"
                         aria-label="뒤풀이 참여자 검색"
                       />
                     </div>
-                    <div className="after-party-filter-row" role="group" aria-label="분류 상태 필터">
+                    <div className="after-party-filter-row" role="group" aria-label="그룹 상태 필터">
                       {[
                         { value: 'all', label: '전체', count: Object.keys(afterPartyRowsByKey).length },
-                        { value: 'unmapped', label: '연결 확인', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'unmapped').length },
-                        { value: 'performer', label: '공연자', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'performer').length },
-                        { value: 'group', label: '텍스트 그룹', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'group').length },
-                        { value: 'unassigned', label: '미기재·미분류', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'unassigned').length },
+                        { value: 'unmapped', label: '확인 필요', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'unmapped').length },
+                        { value: 'performer', label: '공연자 초대', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'performer').length },
+                        { value: 'group', label: '직접 만든 그룹', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'group').length },
+                        { value: 'unassigned', label: '초대자 없음', count: Object.values(afterPartyRowsByKey).filter(row => row.type === 'unassigned').length },
                       ].map(f => (
                         <button key={f.value} type="button" aria-pressed={mgmtFilter === f.value}
                           className={mgmtFilter === f.value ? 'after-party-filter is-active' : 'after-party-filter'}
@@ -3535,7 +3545,7 @@ export default function ReservationManagementPage() {
                     </div>
                     <div className="after-party-table-wrap">
                       <table className="after-party-participant-table">
-                        <thead><tr><th>분류 대상 · 원본 초대자</th><th>인원</th><th>현재 분류</th><th>편집</th></tr></thead>
+                        <thead><tr><th>참석자 · 원본 초대자</th><th>인원</th><th>소속 그룹</th><th>편집</th></tr></thead>
                         <tbody>
                           {afterPartyRows.length === 0 ? (
                             <tr><td colSpan={4} className="after-party-empty-row">검색/필터 조건에 맞는 참여자가 없습니다.</td></tr>
@@ -3543,10 +3553,10 @@ export default function ReservationManagementPage() {
                             const isActive = activeEditKey === row.key;
                             const isChecked = row.kind === 'individual' && selectedUnassignedIds.includes(row.orderId);
                             const badge = AFTER_PARTY_TYPE_BADGE[row.type];
-                            const originText = row.kind === 'performer_attendee' ? '공연 참가자 · 뒤풀이 참석'
-                              : row.kind === 'individual' ? (row.originalInviterName || row.inviterName ? `초대자 입력: "${row.originalInviterName || row.inviterName}" · 미분류` : '개별 예매 · 초대자 미기재')
-                              : row.type === 'performer' ? `공연자 연결 · ${row.label}`
-                                : row.type === 'group' ? '관리용 텍스트 그룹' : `원본 초대자: ${row.label}`;
+                            const originText = row.kind === 'performer_attendee' ? '공연자 본인 참석'
+                              : row.kind === 'individual' ? (row.originalInviterName || row.inviterName ? `초대자 입력: "${row.originalInviterName || row.inviterName}" · 확인 필요` : '개별 예매 · 초대자 없음')
+                              : row.type === 'performer' ? `공연자 초대 · ${row.label}`
+                                : row.type === 'group' ? '직접 만든 그룹' : `원본 초대자: ${row.label}`;
                             return (
                               <tr key={row.key} className={isActive ? 'is-selected' : ''} aria-selected={isActive} onClick={() => toggleActiveEdit(row.key)}>
                                 <td>
@@ -3566,7 +3576,7 @@ export default function ReservationManagementPage() {
                                           className="after-party-edit-button"
                                           onClick={event => { event.stopPropagation(); toggleActiveEdit(`performer:${row.memberId}`); }}
                                         >
-                                          분류 변경
+                                          그룹 지정
                                         </button>
                                         <button
                                           type="button"
@@ -3580,7 +3590,7 @@ export default function ReservationManagementPage() {
                                     )
                                   ) : (
                                     <button type="button" className="after-party-edit-button" onClick={event => { event.stopPropagation(); toggleActiveEdit(row.key); }}>
-                                      {row.type === 'unmapped' || row.type === 'unassigned' ? '검토' : '편집'}
+                                      {row.type === 'unmapped' || row.type === 'unassigned' ? '그룹 지정' : '편집'}
                                     </button>
                                   )}
                                 </td>
@@ -3600,8 +3610,8 @@ export default function ReservationManagementPage() {
                     </div>
                   </section>
                   <aside className="after-party-editor-column">
-                    <div className="after-party-editor-heading"><h3>{selectedUnassignedIds.length ? `${selectedUnassignedIds.length}건 일괄 분류` : (activeEditKey ? '분류 편집' : '선택된 분류')}</h3><p>분류 변경은 좌석 배치에 영향을 주지 않습니다.</p></div>
-                    {!selectedUnassignedIds.length && !activeEditKey && <div className="after-party-editor-placeholder">목록에서 분류 대상을 선택하면 상세 정보와 편집 항목이 여기에 표시됩니다.</div>}
+                    <div className="after-party-editor-heading"><h3>{selectedUnassignedIds.length ? `${selectedUnassignedIds.length}건 한 번에 그룹 지정` : '그룹 지정'}</h3><p>그룹 변경은 좌석 배치에 영향을 주지 않습니다.</p></div>
+                    {!selectedUnassignedIds.length && !activeEditKey && <div className="after-party-editor-placeholder">목록에서 참석자나 그룹을 선택하면 여기서 그룹을 바꿀 수 있어요.</div>}
                     {renderMappingEditorPanel()}
                   </aside>
                 </div>
@@ -3627,7 +3637,7 @@ export default function ReservationManagementPage() {
                         >+ 테이블 추가</button>
                         <button type="button" onClick={() => autoAssignTables()}
                           disabled={performerAutoCandidateCount === 0 || isAutoAssigning}
-                          title="1순위 공연자 매핑의 예매자만 공연자 ID에 연결된 테이블로 배치합니다. 자동 배치는 갱신하고 수동 배정은 보존합니다. 미매핑 참여자는 배치하지 않습니다."
+                          title="1순위 공연자 매핑의 예매자만 공연자 ID에 연결된 테이블로 배치합니다. 자동 배치는 갱신하고 수동 배정은 보존합니다. 그룹 확인이 필요한 참여자는 배치하지 않습니다."
                           style={{
                             padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 13, fontWeight: 700,
                             cursor: performerAutoCandidateCount === 0 || isAutoAssigning ? 'not-allowed' : 'pointer',
@@ -3636,7 +3646,7 @@ export default function ReservationManagementPage() {
                         >{isAutoAssigning ? '배치 저장 중…' : '공연자 기준 자동 배치'}</button>
                         {seatingActionStatus && <div role="status" style={{ flexBasis: '100%', padding: '8px 10px', borderRadius: 8, background: seatingActionStatus.startsWith('배치 완료') ? '#ecfdf5' : '#fff7ed', color: seatingActionStatus.startsWith('배치 완료') ? '#047857' : '#9a3412', fontSize: 12, fontWeight: 700 }}>{seatingActionStatus}</div>}
                         <span style={{ flexBasis: '100%', fontSize: 11, color: performerAutoCandidateCount ? '#64748b' : '#b45309' }}>
-                          {performerAutoCandidateCount ? `공연자 ID로 매핑된 참여자 그룹 ${performerAutoCandidateCount}개를 처리합니다. 수동 예매자 배정은 보존됩니다.` : '자동 배치 대상이 없습니다. 뒤풀이 참여 여부와 1순위 공연자 매핑을 먼저 확인하세요.'}
+                          {performerAutoCandidateCount ? `공연자 ID로 매핑된 참여자 그룹 ${performerAutoCandidateCount}개를 처리합니다. 수동 예매자 배정은 보존됩니다.` : '자동 배치 대상이 없습니다. 뒤풀이 참여 여부와 공연자 초대 연결을 먼저 확인하세요.'}
                         </span>
                         <button type="button" onClick={resetAllSeating}
                           disabled={Object.keys(seatAssignments).length === 0 && Object.keys(participantSeatAssignments).length === 0 && Object.keys(performerSeatAssignments).length === 0}
