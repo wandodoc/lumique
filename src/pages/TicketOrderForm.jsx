@@ -503,6 +503,10 @@ export default function TicketOrderForm({ showId }) {
     setShow(null);
     setShowLoadState('loading');
     async function fetchShow() {
+      // 문의 연락처는 공연 조회 결과와 무관하게 먼저 가져온다 — 오류/미발견 화면에서도 보여야 한다.
+      const contactPromise = firebaseStorage.loadSettings()
+        .then(settings => { if (typeof settings?.reservationContact === 'string' && settings.reservationContact.trim()) setSupportContact(settings.reservationContact.trim()); })
+        .catch(() => {});
       try {
         const shows = await firebaseStorage.loadConcerts();
         if (shows === null) {
@@ -520,12 +524,11 @@ export default function TicketOrderForm({ showId }) {
         }
         setShow({ ...found, customSections: (found.customSections || []).map(section) });
         setShowLoadState('ready');
-        const settings = await firebaseStorage.loadSettings();
-        if (typeof settings?.reservationContact === 'string') setSupportContact(settings.reservationContact.trim());
       } catch (error) {
         console.error('공연 정보 조회 오류:', error);
         setShowLoadState('error');
       } finally {
+        await contactPromise;
         setLoading(false);
       }
     }
@@ -707,10 +710,24 @@ export default function TicketOrderForm({ showId }) {
   );
 
   const trimmedContact = String(supportContact || '').trim();
-  const contactNode = trimmedContact ? <><br />문의: {trimmedContact}</> : null;
-  if (showLoadState === 'error') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.{contactNode}</div>;
-  if (showLoadState === 'notFound') return <div style={{ textAlign: 'center', padding: 50 }}>해당 공연을 찾을 수 없습니다. 예매 링크를 확인해 주세요.{contactNode}</div>;
-  if (showLoadState === 'invalid') return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보가 완전하지 않아 예매를 접수할 수 없습니다.{contactNode}</div>;
+  const renderUnavailable = (headline) => (
+    <div style={{ textAlign: 'center', padding: '48px 20px', lineHeight: 1.7 }}>
+      <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{headline}</div>
+      <div style={{ color: '#475569' }}>지금은 이 페이지에서 예매가 접수되지 않습니다.</div>
+      {trimmedContact ? (
+        <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', display: 'inline-block', textAlign: 'left' }}>
+          <div style={{ fontWeight: 800, color: '#92400e' }}>예매를 원하시면 아래 연락처로 알려 주세요</div>
+          <div style={{ fontSize: 13, color: '#78350f' }}>이름 · 연락처 · 매수(· 뒤풀이 참석 여부)를 보내 주시면 대신 접수해 드립니다.</div>
+          <div style={{ marginTop: 6, fontSize: 16, fontWeight: 800, color: '#111827' }}>문의: {trimmedContact}</div>
+        </div>
+      ) : (
+        <div style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>예매를 원하시면 공연을 안내한 분(초대자)에게 직접 연락해 주세요.</div>
+      )}
+    </div>
+  );
+  if (showLoadState === 'error') return renderUnavailable('공연 정보를 불러오지 못했습니다');
+  if (showLoadState === 'notFound') return renderUnavailable('예매 페이지에 문제가 생겼습니다');
+  if (showLoadState === 'invalid') return renderUnavailable('공연 정보가 완전하지 않아 접수할 수 없습니다');
   if (!show) return <div style={{ textAlign: 'center', padding: 50 }}>공연 정보를 확인할 수 없습니다.</div>;
 
   if (done) return (

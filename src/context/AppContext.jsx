@@ -353,6 +353,10 @@ function reducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  // 이 탭이 마지막으로 서버와 맞춘 lastUpdated. 자동 저장 때 서버 값과 비교해, 다른 기기가 먼저
+  // 저장했거나 이 탭이 오래된 상태를 들고 있으면 저장을 잠근다 (2026-11-09 데이터 역행 사고 재발 방지).
+  const serverLastUpdatedRef = useRef(null);
+  const [syncConflict, setSyncConflict] = useState(null); // null | 'conflict' | 'stale' | 'missing'
 
   useEffect(() => {
     async function loadInitialData() {
@@ -374,6 +378,7 @@ export function AppProvider({ children }) {
       }
 
       if (readStatus.kind === 'existing') {
+        serverLastUpdatedRef.current = typeof fbState.lastUpdated === 'string' ? fbState.lastUpdated : null;
         let transactions = fbState.transactions || [];
         let updatedCount = 0;
         transactions = transactions.map(t => {
@@ -544,6 +549,7 @@ export function AppProvider({ children }) {
           dispatch({ type: 'LOAD_FAILED' });
           return;
         }
+        serverLastUpdatedRef.current = initialState.lastUpdated;
         dispatch({ type: 'INIT', ...initialState });
       }
     }
@@ -556,7 +562,7 @@ export function AppProvider({ children }) {
   const [saveRetryTick, setSaveRetryTick] = useState(0);
   const saveSeqRef = useRef(0);
   useEffect(() => {
-    if (!state.loading && !state.loadError) {
+    if (!state.loading && !state.loadError && !syncConflict) {
       const syncState = {
         members: state.members,
         transactions: state.transactions,
@@ -576,17 +582,26 @@ export function AppProvider({ children }) {
       
       const seq = ++saveSeqRef.current;
       (async () => {
-        let ok = false;
+        let result = 'error';
         try {
-          ok = await firebaseStorage.saveData(JSON.parse(JSON.stringify(syncState)));
+          result = await firebaseStorage.saveMainState(JSON.parse(JSON.stringify(syncState)), { baseLastUpdated: serverLastUpdatedRef.current });
         } catch (e) {
           console.error("Firebase Sync Error:", e);
         }
         // 더 최신 저장이 이미 진행 중이면 이 결과는 무시한다.
-        if (seq === saveSeqRef.current) setSaveFailed(!ok);
+        if (seq !== saveSeqRef.current) return;
+        if (result === 'saved') {
+          if (typeof syncState.lastUpdated === 'string') serverLastUpdatedRef.current = syncState.lastUpdated;
+          setSaveFailed(false);
+        } else if (result === 'conflict' || result === 'stale' || result === 'missing') {
+          setSyncConflict(result);
+          setSaveFailed(false);
+        } else {
+          setSaveFailed(true);
+        }
       })();
     }
-  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.songs, state.activities, state.lastUpdated, state.loading, state.loadError, saveRetryTick]);
+  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.songs, state.activities, state.lastUpdated, state.loading, state.loadError, saveRetryTick, syncConflict]);
 
   const derivedPerformances = useMemo(() => derivePerformances(state.shows), [state.shows]);
   const providerState = useMemo(
@@ -601,7 +616,20 @@ export function AppProvider({ children }) {
           서버(Firestore)에서 데이터를 불러오지 못했습니다. 데이터 보호를 위해 저장이 중단되었습니다. 네트워크를 확인한 뒤 페이지를 새로고침해 주세요.
         </div>
       )}
-      {saveFailed && !state.loadError && (
+      {syncConflict && !state.loadError && (
+        <div style={{ background: '#b91c1c', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600, display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>
+            {syncConflict === 'missing'
+              ? '서버에서 데이터 문서를 찾을 수 없어 저장을 중단했습니다. 관리자에게 알려 주세요.'
+              : '이 화면은 오래된 데이터를 보고 있습니다. 다른 기기(또는 다른 탭)에서 저장한 최신 데이터를 지키기 위해 이 화면의 변경은 저장하지 않았습니다. 새로고침하면 최신 데이터를 불러옵니다.'}
+          </span>
+          <button type="button" onClick={() => window.location.reload()}
+            style={{ background: '#fff', color: '#b91c1c', border: 0, borderRadius: 6, padding: '6px 12px', fontWeight: 700, cursor: 'pointer' }}>
+            새로고침
+          </button>
+        </div>
+      )}
+      {saveFailed && !state.loadError && !syncConflict && (
         <div style={{ background: '#b45309', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600, display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
           <span>마지막 변경이 서버에 저장되지 않았습니다. 이 화면을 닫으면 변경 내용이 사라집니다. 네트워크를 확인한 뒤 다시 저장해 주세요.</span>
           <button type="button" onClick={() => setSaveRetryTick(t => t + 1)}

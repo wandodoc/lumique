@@ -16,6 +16,10 @@ const SETTINGS_REF = doc(db, "club_ledger", "settings");
 //     읽어 와서 항목 단위로 병합(upsert/patch/remove)한 뒤 쓴다. 오래 열어 둔 탭의 옛 목록이
 //     다른 기기에서 저장한 내용을 덮어쓰는 사고(2026-10-27)를 막기 위해서다.
 //  4. 서버에 데이터가 있는 목록 필드를 빈 배열로 덮어쓰는 쓰기는 저장 계층에서 한 번 더 막는다.
+//  5. (2026-11-09 사고 이후) 오래 열어 둔 탭의 자동 저장이 서버를 옛 상태로 되돌리는 것을 막는다.
+//     - 서버 lastUpdated가 이 탭이 마지막으로 동기화한 값과 다르면 'conflict' (다른 기기가 먼저 저장함)
+//     - 서버에 있는 항목이 저장하려는 목록에서 여러 건 빠져 있으면 'stale' (옛 목록으로 덮어쓰기 시도)
+//     두 경우 모두 아무것도 쓰지 않고, 화면에서는 저장을 잠근 뒤 새로고침을 안내한다.
 //
 // 읽기 반환값
 //  - loadData   : object | null(문서 없음) | undefined(읽기 실패)
@@ -32,6 +36,8 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 
 // 서버에 이미 데이터가 있는 컬렉션 필드를 빈 배열로 덮어쓰려는 시도를 차단한다.
 const PROTECTED_LIST_FIELDS = ['shows', 'orders', 'transactions', 'members'];
+// 한 번의 저장에서 서버 항목이 이 개수보다 많이 사라지면 옛 목록으로 간주해 차단한다 (정상 삭제는 1건씩 일어난다).
+const MAX_DROPPED_PER_SAVE = 3;
 async function stripEmptyOverwrites(payload, current) {
   const emptyFields = PROTECTED_LIST_FIELDS.filter(k => Array.isArray(payload[k]) && payload[k].length === 0);
   if (emptyFields.length === 0) return payload;
@@ -82,6 +88,44 @@ export const firebaseStorage = {
       return undefined;
     }
   },
+  // 메인 상태 자동 저장 전용. 반환: 'saved' | 'conflict' | 'stale' | 'missing' | 'error'
+  //  - baseLastUpdated: 이 탭이 마지막으로 서버와 맞춘 lastUpdated. 서버 값이 더 새로우면 'conflict'.
+  saveMainState: async (state, { baseLastUpdated = null } = {}) => {
+    try {
+      const payload = clone(state);
+      return await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(DOC_REF);
+        if (!snapshot.exists()) return 'missing';
+        const server = snapshot.data() || {};
+        const serverStamp = typeof server.lastUpdated === 'string' ? server.lastUpdated : null;
+        if (serverStamp && baseLastUpdated && serverStamp !== baseLastUpdated && serverStamp > baseLastUpdated) {
+          console.error(`[firebaseStorage] 서버가 더 최신입니다 (서버 ${serverStamp}, 이 탭 ${baseLastUpdated}). 저장을 차단했습니다.`);
+          return 'conflict';
+        }
+        for (const field of PROTECTED_LIST_FIELDS) {
+          if (!Array.isArray(payload[field]) || !Array.isArray(server[field])) continue;
+          if (payload[field].length === 0 && server[field].length > 0) {
+            console.error(`[firebaseStorage] '${field}' 필드를 빈 배열로 덮어쓰려는 시도를 차단했습니다 (서버에 ${server[field].length}건 존재).`);
+            delete payload[field];
+            continue;
+          }
+          const keep = new Set(payload[field].map(item => String(item?.id)));
+          const dropped = server[field].filter(item => !keep.has(String(item?.id))).length;
+          if (dropped > MAX_DROPPED_PER_SAVE) {
+            console.error(`[firebaseStorage] '${field}'에서 서버 항목 ${dropped}건이 사라지는 저장을 차단했습니다 (오래된 화면의 목록으로 판단).`);
+            return 'stale';
+          }
+        }
+        if (Object.keys(payload).length === 0) return 'saved';
+        transaction.set(DOC_REF, payload, { merge: true });
+        return 'saved';
+      });
+    } catch (e) {
+      console.error("Firebase Save Error:", e);
+      return 'error';
+    }
+  },
+  // 설정 화면의 명시적 복원 등 사람이 확인한 쓰기. 빈 배열 덮어쓰기만 막고 나머지는 그대로 쓴다.
   saveData: async (state) => {
     try {
       const sanitized = await stripEmptyOverwrites(clone(state));
