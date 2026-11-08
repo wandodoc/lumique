@@ -1,8 +1,42 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+    // 2026-11-09: 오래 열어 둔 브라우저 탭이 옛 상태를 통째로 저장해 서버가 과거로 되돌아가는 사고가
+    // 두 번(10/24, 11/8) 반복됐다. 앱 코드의 가드는 옛 코드로 도는 탭에는 적용되지 않으므로
+    // 서버 규칙에서 "과거로 되돌리는 쓰기"를 직접 거부한다.
+    //  - lastUpdated가 서버 값보다 과거인 저장 거부
+    //  - 보호 목록(transactions/members/shows/orders)이 한 번에 4건 이상 줄어드는 저장 거부
+    //    (정상 삭제는 1건씩 일어난다)
+    function notRolledBack() {
+      return !('lastUpdated' in resource.data)
+        || !('lastUpdated' in request.resource.data)
+        || !(resource.data.lastUpdated is string)
+        || !(request.resource.data.lastUpdated is string)
+        || request.resource.data.lastUpdated >= resource.data.lastUpdated;
+    }
+    function listKept(field) {
+      return !(field in resource.data)
+        || !(field in request.resource.data)
+        || !(resource.data[field] is list)
+        || !(request.resource.data[field] is list)
+        || request.resource.data[field].size() >= resource.data[field].size() - 3;
+    }
+
+    match /club_ledger/main_state {
+      allow read: if true;
+      allow create: if true;
+      allow delete: if false;
+      allow update: if notRolledBack()
+        && listKept('transactions')
+        && listKept('members')
+        && listKept('shows')
+        && listKept('orders');
+    }
+
+    // 설정, 복구 사본 등 나머지 문서는 기존처럼 열어 둔다 (main_state는 위 규칙만 적용).
+    match /club_ledger/{docId} {
+      allow read: if true;
+      allow write: if docId != 'main_state';
     }
   }
 }
