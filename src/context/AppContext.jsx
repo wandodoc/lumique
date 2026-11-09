@@ -1,10 +1,47 @@
 import { createContext, useContext, useReducer, useEffect, useMemo, useRef, useState } from 'react';
 import { MEMBERS } from '../data/members';
-import { firebaseStorage } from '../utils/firebaseStorage';
+import { firebaseStorage, listItemKey } from '../utils/firebaseStorage';
 import { derivePerformances, shouldBackfillLegacyPerformance } from '../utils/performances';
 import { classifyMainStateRead } from '../utils/mainStateGuards';
 
 const AppContext = createContext(null);
+
+// ── 자동 저장: 전체 상태가 아니라 "직전 동기화 상태 → 현재 상태"의 차이만 서버에 보낸다 ──
+const SYNC_LIST_FIELDS = ['members', 'transactions', 'performances', 'songs', 'activities'];
+const SYNC_MAP_FIELDS = ['performanceParticipants', 'memberAvailability', 'bandMembers', 'bandMemberAvailability', 'practiceStatuses', 'confirmedRehearsals', 'performanceBandMembers', 'performanceSetlists'];
+const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+export function computeMainStateDiff(prev, next) {
+  const lists = {};
+  const maps = {};
+  let changed = false;
+  for (const field of SYNC_LIST_FIELDS) {
+    const prevList = Array.isArray(prev?.[field]) ? prev[field] : [];
+    const nextList = Array.isArray(next?.[field]) ? next[field] : [];
+    if (prevList === nextList) continue;
+    const prevByKey = new Map(prevList.map(item => [String(listItemKey(item)), item]));
+    const nextKeys = new Set(nextList.map(item => String(listItemKey(item))));
+    const upserts = nextList.filter(item => {
+      const before = prevByKey.get(String(listItemKey(item)));
+      return before === undefined || !sameJson(before, item);
+    });
+    const removeIds = [...prevByKey.keys()].filter(key => !nextKeys.has(key));
+    if (upserts.length || removeIds.length) { lists[field] = { upserts, removeIds }; changed = true; }
+  }
+  for (const field of SYNC_MAP_FIELDS) {
+    const prevObj = prev?.[field] && typeof prev[field] === 'object' ? prev[field] : {};
+    const nextObj = next?.[field] && typeof next[field] === 'object' ? next[field] : {};
+    if (prevObj === nextObj) continue;
+    const set = {};
+    const remove = [];
+    for (const [key, value] of Object.entries(nextObj)) {
+      if (!(key in prevObj) || !sameJson(prevObj[key], value)) set[key] = value;
+    }
+    for (const key of Object.keys(prevObj)) if (!(key in nextObj)) remove.push(key);
+    if (Object.keys(set).length || remove.length) { maps[field] = { set, remove }; changed = true; }
+  }
+  return changed ? { lists, maps, lastUpdated: typeof next?.lastUpdated === 'string' ? next.lastUpdated : new Date().toISOString() } : null;
+}
 
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
 
@@ -353,10 +390,10 @@ function reducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  // 이 탭이 마지막으로 서버와 맞춘 lastUpdated. 자동 저장 때 서버 값과 비교해, 다른 기기가 먼저
-  // 저장했거나 이 탭이 오래된 상태를 들고 있으면 저장을 잠근다 (2026-11-09 데이터 역행 사고 재발 방지).
-  const serverLastUpdatedRef = useRef(null);
-  const [syncConflict, setSyncConflict] = useState(null); // null | 'conflict' | 'stale' | 'missing'
+  // 이 탭이 마지막으로 서버에 반영한 상태. 자동 저장은 이 상태와 현재 상태의 차이만 보낸다
+  // (2026-11-09 데이터 역행 사고 재발 방지: 오래된 탭도 전체를 덮어쓸 수 없다).
+  const lastSyncedStateRef = useRef(null);
+  const [syncLocked, setSyncLocked] = useState(null); // null | 'stale' | 'missing'
 
   useEffect(() => {
     async function loadInitialData() {
@@ -378,7 +415,7 @@ export function AppProvider({ children }) {
       }
 
       if (readStatus.kind === 'existing') {
-        serverLastUpdatedRef.current = typeof fbState.lastUpdated === 'string' ? fbState.lastUpdated : null;
+        lastSyncedStateRef.current = fbState; // 서버에서 읽은 그대로를 기준점으로 삼아, 아래 마이그레이션 결과도 차이로 반영된다.
         let transactions = fbState.transactions || [];
         let updatedCount = 0;
         transactions = transactions.map(t => {
@@ -549,7 +586,7 @@ export function AppProvider({ children }) {
           dispatch({ type: 'LOAD_FAILED' });
           return;
         }
-        serverLastUpdatedRef.current = initialState.lastUpdated;
+        lastSyncedStateRef.current = initialState;
         dispatch({ type: 'INIT', ...initialState });
       }
     }
@@ -562,46 +599,32 @@ export function AppProvider({ children }) {
   const [saveRetryTick, setSaveRetryTick] = useState(0);
   const saveSeqRef = useRef(0);
   useEffect(() => {
-    if (!state.loading && !state.loadError && !syncConflict) {
-      const syncState = {
-        members: state.members,
-        transactions: state.transactions,
-        performances: state.performances,
-        performanceParticipants: state.performanceParticipants,
-        memberAvailability: state.memberAvailability,
-        bandMembers: state.bandMembers,
-        bandMemberAvailability: state.bandMemberAvailability,
-        practiceStatuses: state.practiceStatuses,
-        confirmedRehearsals: state.confirmedRehearsals,
-        performanceBandMembers: state.performanceBandMembers,
-        performanceSetlists: state.performanceSetlists,
-        songs: state.songs,
-        activities: state.activities,
-        lastUpdated: state.lastUpdated
-      };
-      
+    if (!state.loading && !state.loadError && !syncLocked) {
+      const diff = computeMainStateDiff(lastSyncedStateRef.current, state);
+      if (!diff) return;
+      const target = state;
       const seq = ++saveSeqRef.current;
       (async () => {
         let result = 'error';
         try {
-          result = await firebaseStorage.saveMainState(JSON.parse(JSON.stringify(syncState)), { baseLastUpdated: serverLastUpdatedRef.current });
+          result = await firebaseStorage.applyMainStateDiff(JSON.parse(JSON.stringify(diff)));
         } catch (e) {
           console.error("Firebase Sync Error:", e);
         }
-        // 더 최신 저장이 이미 진행 중이면 이 결과는 무시한다.
+        // 더 최신 저장이 이미 진행 중이면 이 결과는 무시한다 (그쪽 차이에 이번 변경도 포함돼 있다).
         if (seq !== saveSeqRef.current) return;
         if (result === 'saved') {
-          if (typeof syncState.lastUpdated === 'string') serverLastUpdatedRef.current = syncState.lastUpdated;
+          lastSyncedStateRef.current = target;
           setSaveFailed(false);
-        } else if (result === 'conflict' || result === 'stale' || result === 'missing') {
-          setSyncConflict(result);
+        } else if (result === 'stale' || result === 'missing') {
+          setSyncLocked(result);
           setSaveFailed(false);
         } else {
           setSaveFailed(true);
         }
       })();
     }
-  }, [state.members, state.transactions, state.performances, state.performanceParticipants, state.memberAvailability, state.bandMembers, state.bandMemberAvailability, state.practiceStatuses, state.confirmedRehearsals, state.performanceBandMembers, state.performanceSetlists, state.songs, state.activities, state.lastUpdated, state.loading, state.loadError, saveRetryTick, syncConflict]);
+  }, [state, saveRetryTick, syncLocked]);
 
   const derivedPerformances = useMemo(() => derivePerformances(state.shows), [state.shows]);
   const providerState = useMemo(
@@ -616,12 +639,12 @@ export function AppProvider({ children }) {
           서버(Firestore)에서 데이터를 불러오지 못했습니다. 데이터 보호를 위해 저장이 중단되었습니다. 네트워크를 확인한 뒤 페이지를 새로고침해 주세요.
         </div>
       )}
-      {syncConflict && !state.loadError && (
+      {syncLocked && !state.loadError && (
         <div style={{ background: '#b91c1c', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600, display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
           <span>
-            {syncConflict === 'missing'
+            {syncLocked === 'missing'
               ? '서버에서 데이터 문서를 찾을 수 없어 저장을 중단했습니다. 관리자에게 알려 주세요.'
-              : '이 화면은 오래된 데이터를 보고 있습니다. 다른 기기(또는 다른 탭)에서 저장한 최신 데이터를 지키기 위해 이 화면의 변경은 저장하지 않았습니다. 새로고침하면 최신 데이터를 불러옵니다.'}
+              : '이 화면의 변경이 서버 데이터를 한 번에 여러 건 지우려 해서, 데이터 보호를 위해 저장하지 않았습니다. 새로고침하면 최신 데이터를 불러옵니다.'}
           </span>
           <button type="button" onClick={() => window.location.reload()}
             style={{ background: '#fff', color: '#b91c1c', border: 0, borderRadius: 6, padding: '6px 12px', fontWeight: 700, cursor: 'pointer' }}>
@@ -629,7 +652,7 @@ export function AppProvider({ children }) {
           </button>
         </div>
       )}
-      {saveFailed && !state.loadError && !syncConflict && (
+      {saveFailed && !state.loadError && !syncLocked && (
         <div style={{ background: '#b45309', color: '#fff', padding: '10px 16px', textAlign: 'center', fontWeight: 600, display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
           <span>마지막 변경이 서버에 저장되지 않았습니다. 이 화면을 닫으면 변경 내용이 사라집니다. 네트워크를 확인한 뒤 다시 저장해 주세요.</span>
           <button type="button" onClick={() => setSaveRetryTick(t => t + 1)}

@@ -1,4 +1,4 @@
-import { doc, getDoc, getDocFromServer, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
+import { FieldPath, deleteField, doc, getDoc, getDocFromServer, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { countSoldByTier } from './pricing';
 import { getRelatedShowIds } from './performances';
@@ -16,10 +16,11 @@ const SETTINGS_REF = doc(db, "club_ledger", "settings");
 //     읽어 와서 항목 단위로 병합(upsert/patch/remove)한 뒤 쓴다. 오래 열어 둔 탭의 옛 목록이
 //     다른 기기에서 저장한 내용을 덮어쓰는 사고(2026-10-27)를 막기 위해서다.
 //  4. 서버에 데이터가 있는 목록 필드를 빈 배열로 덮어쓰는 쓰기는 저장 계층에서 한 번 더 막는다.
-//  5. (2026-11-09 사고 이후) 오래 열어 둔 탭의 자동 저장이 서버를 옛 상태로 되돌리는 것을 막는다.
-//     - 서버 lastUpdated가 이 탭이 마지막으로 동기화한 값과 다르면 'conflict' (다른 기기가 먼저 저장함)
-//     - 서버에 있는 항목이 저장하려는 목록에서 여러 건 빠져 있으면 'stale' (옛 목록으로 덮어쓰기 시도)
-//     두 경우 모두 아무것도 쓰지 않고, 화면에서는 저장을 잠근 뒤 새로고침을 안내한다.
+//  5. (2026-11-09 사고 이후) 메인 상태(회원·거래·밴드 등)도 통째로 올리지 않는다. 화면은 "직전에
+//     동기화한 상태와 지금 상태의 차이"만 계산해 applyMainStateDiff로 보내고, 저장 계층은 서버 최신
+//     문서를 읽어 그 차이(항목 추가/수정/삭제, 맵 키 설정/삭제)만 적용한다. 오래 열어 둔 탭이 할 수
+//     있는 최악은 자기 조작 몇 건이지, 전체를 과거로 되돌리는 일은 구조적으로 불가능하다.
+//     (추가로 firestore.rules가 lastUpdated 역행·목록 급감 쓰기를 서버에서 거부한다.)
 //
 // 읽기 반환값
 //  - loadData   : object | null(문서 없음) | undefined(읽기 실패)
@@ -78,6 +79,8 @@ async function readModifyWriteList(field, updater, { allowEmpty = false } = {}) 
 }
 
 const sameId = (a, b) => String(a) === String(b);
+// 목록 항목의 식별자: 거래/회원/곡은 id, 공연 키 목록(performances)은 key.
+export const listItemKey = (item) => item?.id ?? item?.key ?? JSON.stringify(item);
 
 export const firebaseStorage = {
   loadData: async () => {
@@ -88,36 +91,41 @@ export const firebaseStorage = {
       return undefined;
     }
   },
-  // 메인 상태 자동 저장 전용. 반환: 'saved' | 'conflict' | 'stale' | 'missing' | 'error'
-  //  - baseLastUpdated: 이 탭이 마지막으로 서버와 맞춘 lastUpdated. 서버 값이 더 새로우면 'conflict'.
-  saveMainState: async (state, { baseLastUpdated = null } = {}) => {
+  // 메인 상태 자동 저장 전용. 화면이 계산한 "차이"만 서버 최신 문서에 적용한다.
+  //  diff = { lists: { [field]: { upserts: [item], removeIds: [id] } },
+  //           maps:  { [field]: { set: { [key]: value }, remove: [key] } },
+  //           lastUpdated: string }
+  // 반환: 'saved' | 'stale'(한 번에 너무 많은 삭제) | 'missing'(문서 없음) | 'error'
+  applyMainStateDiff: async (diff) => {
     try {
-      const payload = clone(state);
       return await runTransaction(db, async (transaction) => {
         const snapshot = await transaction.get(DOC_REF);
         if (!snapshot.exists()) return 'missing';
         const server = snapshot.data() || {};
-        const serverStamp = typeof server.lastUpdated === 'string' ? server.lastUpdated : null;
-        if (serverStamp && baseLastUpdated && serverStamp !== baseLastUpdated && serverStamp > baseLastUpdated) {
-          console.error(`[firebaseStorage] 서버가 더 최신입니다 (서버 ${serverStamp}, 이 탭 ${baseLastUpdated}). 저장을 차단했습니다.`);
-          return 'conflict';
-        }
-        for (const field of PROTECTED_LIST_FIELDS) {
-          if (!Array.isArray(payload[field]) || !Array.isArray(server[field])) continue;
-          if (payload[field].length === 0 && server[field].length > 0) {
-            console.error(`[firebaseStorage] '${field}' 필드를 빈 배열로 덮어쓰려는 시도를 차단했습니다 (서버에 ${server[field].length}건 존재).`);
-            delete payload[field];
-            continue;
-          }
-          const keep = new Set(payload[field].map(item => String(item?.id)));
-          const dropped = server[field].filter(item => !keep.has(String(item?.id))).length;
-          if (dropped > MAX_DROPPED_PER_SAVE) {
-            console.error(`[firebaseStorage] '${field}'에서 서버 항목 ${dropped}건이 사라지는 저장을 차단했습니다 (오래된 화면의 목록으로 판단).`);
+        const args = [];
+        for (const [field, change] of Object.entries(diff?.lists || {})) {
+          const upserts = Array.isArray(change?.upserts) ? change.upserts : [];
+          const removeIds = new Set((Array.isArray(change?.removeIds) ? change.removeIds : []).map(String));
+          if (upserts.length === 0 && removeIds.size === 0) continue;
+          if (removeIds.size > MAX_DROPPED_PER_SAVE) {
+            console.error(`[firebaseStorage] '${field}'에서 한 번에 ${removeIds.size}건을 지우는 저장을 차단했습니다.`);
             return 'stale';
           }
+          const current = Array.isArray(server[field]) ? server[field] : [];
+          const byKey = new Map(current.map(item => [String(listItemKey(item)), item]));
+          for (const id of removeIds) byKey.delete(id);
+          for (const item of upserts) byKey.set(String(listItemKey(item)), clone(item));
+          const next = [...byKey.values()];
+          if (field === 'transactions') next.sort((a, b) => String(b?.datetime || '').localeCompare(String(a?.datetime || '')));
+          args.push(new FieldPath(field), next);
         }
-        if (Object.keys(payload).length === 0) return 'saved';
-        transaction.set(DOC_REF, payload, { merge: true });
+        for (const [field, change] of Object.entries(diff?.maps || {})) {
+          for (const [key, value] of Object.entries(change?.set || {})) args.push(new FieldPath(field, key), clone(value));
+          for (const key of (Array.isArray(change?.remove) ? change.remove : [])) args.push(new FieldPath(field, key), deleteField());
+        }
+        if (args.length === 0) return 'saved';
+        if (typeof diff?.lastUpdated === 'string') args.push(new FieldPath('lastUpdated'), diff.lastUpdated);
+        transaction.update(DOC_REF, ...args);
         return 'saved';
       });
     } catch (e) {
