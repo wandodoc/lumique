@@ -564,7 +564,7 @@ function AddPerformerPicker({ members, excludeIds = [], onAdd, triggerText = '+ 
             {candidates.map(m => (
               <button key={m.id} type="button" onClick={() => { onAdd(m.id); setOpen(false); setQuery(''); }}
                 style={{ textAlign: 'left', padding: '7px 10px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1px solid #f1f5f9', background: '#f8fafc', color: '#1e293b' }}
-              >{m.name} ({m.part})</button>
+              >{m.name}{m.part ? ` (${m.part})` : m.type === 'external' ? ' (외부)' : ''}</button>
             ))}
           </div>
         </div>
@@ -843,6 +843,31 @@ export default function ReservationManagementPage() {
     currentShow?.performerGroupMapping && typeof currentShow.performerGroupMapping === 'object' ? currentShow.performerGroupMapping : {}
   ), [currentShow]);
 
+  // 그룹으로 지정할 수 있는 공연자 전체: 활동 회원 + 이 공연의 참가자/직접 참석 공연자.
+  // 외부 세션 등은 회원 목록(members)에 없고 bandMembers에만 있어, 회원만 보면 그룹 카드는
+  // 생기는데 드롭다운에서 고를 수 없고 수동 지정도 인식되지 않았다.
+  const findPerformer = useCallback((id) => {
+    if (!id) return null;
+    const member = members.find(m => m.id === id);
+    if (member) return member;
+    const band = bandMembers[id];
+    return band ? { part: '', ...band, id } : null;
+  }, [members, bandMembers]);
+  const performerOptions = useMemo(() => {
+    const seen = new Set(activeMembersSorted.map(m => m.id));
+    const extras = [];
+    [...currentShowParticipantIds, ...afterPartyPerformerIds].forEach(id => {
+      if (seen.has(id)) return;
+      const performer = findPerformer(id);
+      if (!performer) return;
+      seen.add(id);
+      extras.push(performer);
+    });
+    extras.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return [...activeMembersSorted, ...extras];
+  }, [activeMembersSorted, currentShowParticipantIds, afterPartyPerformerIds, findPerformer]);
+  const performerSuffix = (m) => (m?.part ? ` (${m.part})` : m?.type === 'external' ? ' (외부)' : '');
+
   // 공연자 본인이 예매 뒤풀이 인원에도 포함된 경우를 명시적으로 연결한다. 초대자 매핑은
   // 예매자 본인을 뜻하지 않으므로, 이름/초대자 정보로 자동 차감하지 않는다.
   const afterPartyPerformerOrderIds = useMemo(() => (
@@ -950,7 +975,7 @@ export default function ReservationManagementPage() {
     if (!inviterNameText || inviterNameText === '없음') return null;
     const firstName = inviterNameText.split(',')[0]?.trim();
     if (!firstName) return null;
-    const matches = members.filter(m => m.status === 'active' && m.name === firstName);
+    const matches = performerOptions.filter(m => m.name === firstName);
     return matches.length === 1 ? matches[0] : null;
   };
 
@@ -961,7 +986,7 @@ export default function ReservationManagementPage() {
   // - null/undefined       → 아직 아무 조작도 하지 않은 상태 → 자동 매칭을 적용
   // 기존 데이터에는 이 필드가 아예 없어(undefined) 항상 자동 매칭 경로를 타므로 이전 동작과 호환된다.
   const resolveInviterMember = (o) => {
-    if (o.inviterMemberId && o.inviterMemberId !== 'unassigned') return members.find(m => m.id === o.inviterMemberId) || null;
+    if (o.inviterMemberId && o.inviterMemberId !== 'unassigned') return findPerformer(o.inviterMemberId);
     if (o.inviterMemberId === '' || o.inviterMemberId === 'unassigned') return null;
     return autoMatchInviterMember(o.inviterName);
   };
@@ -1036,7 +1061,7 @@ export default function ReservationManagementPage() {
     }
     const groups = Object.values(groupMap);
     return { groups, individuals };
-  }, [orders, concertId, members, effectiveAfterPartyCount]);
+  }, [orders, concertId, members, effectiveAfterPartyCount, performerOptions, findPerformer]);
 
   // 상단 요약: 인원 수 기준. 확인 필요 = 이름 불일치 그룹 + 초대자 미기재 개별 건.
   const afterPartySummary = useMemo(() => {
@@ -1818,7 +1843,7 @@ export default function ReservationManagementPage() {
       });
     });
     return rows;
-  }, [orders, concertId, effectiveAfterPartyCount, afterPartyPerformerIds, members, bandMembers, performerGroupMapping]);
+  }, [orders, concertId, effectiveAfterPartyCount, afterPartyPerformerIds, members, bandMembers, performerGroupMapping, performerOptions, findPerformer]);
 
   // 확인이 필요한 건을 먼저, 그다음 최근 신청 순으로 보여준다.
   const afterPartyAttendeeList = useMemo(() => {
@@ -1921,7 +1946,7 @@ export default function ReservationManagementPage() {
               </span>
             ))}
             {extraMembers.length === 0 && <span className="after-party-detail-empty">없음</span>}
-            {isAdmin && <AddPerformerPicker members={activeMembersSorted} excludeIds={[primary?.id, ...extras].filter(Boolean)} onAdd={(memberId) => addExtraPerformer(o.id, memberId)} triggerText="+ 추가" />}
+            {isAdmin && <AddPerformerPicker members={performerOptions} excludeIds={[primary?.id, ...extras].filter(Boolean)} onAdd={(memberId) => addExtraPerformer(o.id, memberId)} triggerText="+ 추가" />}
           </div>
         </div>
       </div>
@@ -1965,20 +1990,20 @@ export default function ReservationManagementPage() {
     if (!originalText) return null;
     const cleanOrig = String(originalText).replace(/\s+/g, '').toLowerCase();
     if (!cleanOrig) return null;
-    let match = activeMembersSorted.find(m => m.name.replace(/\s+/g, '').toLowerCase() === cleanOrig);
+    let match = performerOptions.find(m => m.name.replace(/\s+/g, '').toLowerCase() === cleanOrig);
     if (match) return match;
     if (cleanOrig.length >= 2) {
-      match = activeMembersSorted.find(m => {
+      match = performerOptions.find(m => {
         const cName = m.name.replace(/\s+/g, '').toLowerCase();
         return cName.includes(cleanOrig) || cleanOrig.includes(cName);
       });
       if (match) return match;
       const prefix = cleanOrig.slice(0, 2);
-      match = activeMembersSorted.find(m => m.name.replace(/\s+/g, '').toLowerCase().startsWith(prefix));
+      match = performerOptions.find(m => m.name.replace(/\s+/g, '').toLowerCase().startsWith(prefix));
       if (match) return match;
     }
     return null;
-  }, [activeMembersSorted]);
+  }, [performerOptions]);
 
   const inboxItems = useMemo(() => {
     const unmapped = [];
@@ -2041,63 +2066,49 @@ export default function ReservationManagementPage() {
     }
   };
 
+  // 그룹 카드는 참석 명단과 같은 분류 결과(afterPartyEntries)로 만든다. 예전에는 수동 지정된
+  // inviterMemberId만 세어, 이름으로 자동 연결된 예매나 다른 공연의 예매가 카드와 명단에서 다르게 보였다.
   const afterPartyGroupsList = useMemo(() => {
-    const list = [];
-    const perfIds = new Set(afterPartyPerformerIds);
-    orders.forEach(o => {
-      if (o.isAfterParty && o.inviterMemberId && o.inviterMemberId !== 'unassigned') {
-        perfIds.add(o.inviterMemberId);
-      }
-    });
-
-    perfIds.forEach(memberId => {
-      const m = members.find(x => x.id === memberId) || bandMembers[memberId] || { id: memberId, name: memberId, part: '' };
-      const isDirect = afterPartyPerformerIds.includes(memberId) && !performerGroupMapping[memberId];
-      const relatedOrders = orders.filter(o => o.isAfterParty && o.inviterMemberId === memberId);
-      const orderAttendees = relatedOrders.reduce((sum, o) => sum + effectiveAfterPartyCount(o), 0);
-      const total = orderAttendees + (isDirect ? 1 : 0);
-      if (total > 0 || afterPartyPerformerIds.includes(memberId)) {
-        list.push({
-          id: `member:${memberId}`,
-          kind: 'perf',
-          memberId,
-          name: m.name,
-          sub: m.part ? `${m.part} · 공연자 초대` : '공연자 초대',
-          orderCount: relatedOrders.length,
-          orderAttendees,
-          directCount: isDirect ? 1 : 0,
-          totalCount: total,
-          orders: relatedOrders,
-          performers: isDirect ? [m] : [],
+    const cards = new Map();
+    const perfCard = (memberId) => {
+      const id = `member:${memberId}`;
+      if (!cards.has(id)) {
+        const m = findPerformer(memberId) || { id: memberId, name: memberId, part: '' };
+        cards.set(id, {
+          id, kind: 'perf', memberId, name: m.name,
+          sub: m.part ? `${m.part} · 공연자 초대` : m.type === 'external' ? '외부 공연자 · 공연자 초대' : '공연자 초대',
+          orderCount: 0, orderAttendees: 0, directCount: 0, totalCount: 0, orders: [], performers: [],
         });
       }
-    });
+      return cards.get(id);
+    };
+    const groupCard = (label) => {
+      const id = `group:${label}`;
+      if (!cards.has(id)) {
+        cards.set(id, { id, kind: 'group', name: label, sub: '직접 만든 그룹', orderCount: 0, orderAttendees: 0, directCount: 0, totalCount: 0, orders: [], performers: [] });
+      }
+      return cards.get(id);
+    };
 
-    groupOptionLabels.forEach(label => {
-      const relatedOrders = orders.filter(o => o.isAfterParty && o.inviterGroupLabel === label);
-      const orderAttendees = relatedOrders.reduce((sum, o) => sum + effectiveAfterPartyCount(o), 0);
-      const mappedPerformerIds = Object.entries(performerGroupMapping)
-        .filter(([_, grp]) => grp === label)
-        .map(([id]) => id)
-        .filter(id => afterPartyPerformerIds.includes(id));
-      const mappedPerformers = mappedPerformerIds.map(id => members.find(m => m.id === id) || bandMembers[id] || { id, name: id, part: '' });
-      const total = orderAttendees + mappedPerformers.length;
-      list.push({
-        id: `group:${label}`,
-        kind: 'group',
-        name: label,
-        sub: '직접 만든 그룹',
-        orderCount: relatedOrders.length,
-        orderAttendees,
-        directCount: mappedPerformers.length,
-        totalCount: total,
-        orders: relatedOrders,
-        performers: mappedPerformers,
-      });
+    afterPartyEntries.groups.forEach(g => {
+      const card = g.type === 'performer' && g.memberId ? perfCard(g.memberId) : g.type === 'group' ? groupCard(g.label) : null;
+      if (!card) return; // 이름 불일치(확인 필요) 묶음은 정리함에서 다룬다
+      card.orders = g.orderIds.map(orderId => ordersById[orderId]).filter(Boolean);
+      card.orderCount = card.orders.length;
+      card.orderAttendees = g.count;
+      card.totalCount += g.count;
     });
+    afterPartyPerformerIds.forEach(memberId => {
+      const label = performerGroupMapping[memberId];
+      const card = label ? groupCard(label) : perfCard(memberId);
+      card.performers.push(findPerformer(memberId) || { id: memberId, name: memberId, part: '' });
+      card.directCount += 1;
+      card.totalCount += 1;
+    });
+    groupOptionLabels.forEach(label => groupCard(label)); // 아직 비어 있는 직접 만든 그룹도 카드로 보여 준다
 
-    return list.sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
-  }, [orders, afterPartyPerformerIds, performerGroupMapping, groupOptionLabels, members, bandMembers, effectiveAfterPartyCount]);
+    return [...cards.values()].sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
+  }, [afterPartyEntries, afterPartyPerformerIds, performerGroupMapping, groupOptionLabels, ordersById, findPerformer]);
 
   const handleRenameGroup = async (oldLabel) => {
     const newLabel = String(window.prompt('새 그룹 이름을 입력하세요', oldLabel) || '').trim();
@@ -3109,7 +3120,7 @@ export default function ReservationManagementPage() {
                         {isAdmin && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px dashed #bfdbfe' }}>
                             <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a' }}>다른 회원 직접 추가:</span>
-                            <AddPerformerPicker members={activeMembersSorted} excludeIds={afterPartyPerformerIds} onAdd={(memberId) => addPerformerToAfterParty(memberId)} triggerText="+ 공연자 직접 추가" />
+                            <AddPerformerPicker members={performerOptions} excludeIds={afterPartyPerformerIds} onAdd={(memberId) => addPerformerToAfterParty(memberId)} triggerText="+ 공연자 직접 추가" />
                             {afterPartyPerformerIds.filter(id => !currentShowParticipantIds.includes(id)).map(id => {
                               const m = members.find(x => x.id === id) || bandMembers[id] || { id, name: id, part: '' };
                               return (
@@ -3134,7 +3145,7 @@ export default function ReservationManagementPage() {
                             const isOpen = expandedAttendeeKey === row.key;
                             const badge = AFTER_PARTY_TYPE_BADGE[row.type];
                             const groupOptions = groupOptionLabels.map(label => <option key={label} value={`group:${label}`}>🏷 {label}</option>);
-                            const currentMemberMissing = row.selectValue.startsWith('member:') && !activeMembersSorted.some(m => `member:${m.id}` === row.selectValue);
+                            const currentMemberMissing = row.selectValue.startsWith('member:') && !performerOptions.some(m => `member:${m.id}` === row.selectValue);
                             const subText = row.kind === 'performer' ? '공연자 본인 참석'
                               : row.originalInviterName ? `초대자 입력: "${row.originalInviterName}"` : '초대자 미기재';
                             const noteText = row.kind === 'performer'
@@ -3170,7 +3181,7 @@ export default function ReservationManagementPage() {
                                           {row.selectValue === 'unmapped' && <option value="unmapped" disabled>⚠️ 확인 필요 — 그룹을 골라 주세요</option>}
                                           {currentMemberMissing && <option value={row.selectValue}>🎤 {row.groupLabel}</option>}
                                           <optgroup label="공연자 초대">
-                                            {activeMembersSorted.map(m => <option key={m.id} value={`member:${m.id}`}>🎤 {m.name}{m.part ? ` (${m.part})` : ''}</option>)}
+                                            {performerOptions.map(m => <option key={m.id} value={`member:${m.id}`}>🎤 {m.name}{performerSuffix(m)}</option>)}
                                           </optgroup>
                                           <optgroup label="직접 만든 그룹">
                                             {groupOptions}
@@ -3269,7 +3280,7 @@ export default function ReservationManagementPage() {
                           >
                             <option value="">다른 그룹 선택…</option>
                             <optgroup label="공연자 초대">
-                              {activeMembersSorted.map(m => <option key={m.id} value={`member:${m.id}`}>🎤 {m.name}{m.part ? ` (${m.part})` : ''}</option>)}
+                              {performerOptions.map(m => <option key={m.id} value={`member:${m.id}`}>🎤 {m.name}{performerSuffix(m)}</option>)}
                             </optgroup>
                             <optgroup label="직접 만든 그룹">
                               {groupOptionLabels.map(l => <option key={l} value={`group:${l}`}>🏷 {l}</option>)}
