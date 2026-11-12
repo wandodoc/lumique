@@ -148,26 +148,21 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>
                 뒤풀이 참여 인원 (본인 포함) &nbsp;
-                <span style={{ color: '#94a3b8' }}>티켓 {fixed.qty}매 기준 최대 {fixed.qty}명</span>
+                <span style={{ color: '#94a3b8' }}>{Number(fixed.qty) > 0 ? `티켓 ${fixed.qty}매 기준 최대 ${fixed.qty}명` : '티켓 매수를 먼저 선택해 주세요'}</span>
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button type="button" onClick={() => fixed.setAfterPartyCount(Math.max(1, fixed.afterPartyCount - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 18 }}>-</button>
-                <span style={{ fontSize: 15, fontWeight: 700 }}>{fixed.afterPartyCount}명</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (fixed.afterPartyCount >= fixed.qty) {
-                      window.alert(`뒤풀이 인원은 티켓 매수(${fixed.qty}매)를 초과할 수 없습니다.`);
-                      return;
-                    }
-                    fixed.setAfterPartyCount(fixed.afterPartyCount + 1);
-                  }}
-                  style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 18 }}
-                >+</button>
-                {fixed.afterPartyCount >= fixed.qty && (
-                  <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>매수 제한 도달</span>
-                )}
-              </div>
+              {(() => {
+                // 티켓 매수를 줄이면 뒤풀이 인원도 그 안으로 맞춰 보여 준다 (접수 시에도 같은 기준으로 저장).
+                const maxCount = Math.max(1, Number(fixed.qty) || 1);
+                const count = Math.min(Math.max(1, Number(fixed.afterPartyCount) || 1), maxCount);
+                const stepStyle = (disabled) => ({ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: disabled ? '#f1f5f9' : '#fff', color: disabled ? '#cbd5e1' : '#111827', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 18 });
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button type="button" aria-label="뒤풀이 인원 줄이기" disabled={count <= 1} onClick={() => fixed.setAfterPartyCount(count - 1)} style={stepStyle(count <= 1)}>-</button>
+                    <span style={{ fontSize: 15, fontWeight: 700 }}>{count}명</span>
+                    <button type="button" aria-label="뒤풀이 인원 늘리기" disabled={count >= maxCount} onClick={() => fixed.setAfterPartyCount(count + 1)} style={stepStyle(count >= maxCount)}>+</button>
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -654,7 +649,7 @@ export default function TicketOrderForm({ showId }) {
         depositStatus: '입금대기',
         attendanceStatus: '미입장',
         isAfterParty,
-        afterPartyCount: isAfterParty ? Number(afterPartyCount) : 0,
+        afterPartyCount: isAfterParty ? Math.min(Math.max(1, Number(afterPartyCount) || 1), Math.max(1, Number(totalQty) || 1)) : 0,
         inviterName: isAfterParty ? (noInviter ? '없음' : inviterName.trim()) : '',
         comment: comment.trim(),
         customResponses,
