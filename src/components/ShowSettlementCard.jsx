@@ -144,7 +144,7 @@ export default function ShowSettlementCard({
   const personNames = [...officials.map(m => m.name), ...guests.map(g => g.name)];
 
   return (
-    <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0', background: '#fff', display: 'grid', gap: 18 }}>
+    <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0', background: '#fff', display: 'grid', gap: 18, width: '100%', maxWidth: 720, boxSizing: 'border-box' }}>
       <div>
         <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: '0.08em' }}>공연 정산</div>
         <h2 style={{ margin: '4px 0 0', fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>이 공연의 돈 정리</h2>
