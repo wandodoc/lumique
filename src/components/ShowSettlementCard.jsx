@@ -43,6 +43,7 @@ export default function ShowSettlementCard({
   const [expenseLabel, setExpenseLabel] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expensePaidBy, setExpensePaidBy] = useState('');
+  const [editingExpense, setEditingExpense] = useState(null); // { id, label, amount, paidBy }
 
   const settlement = useMemo(() => {
     const raw = show?.settlement && typeof show.settlement === 'object' ? show.settlement : {};
@@ -118,6 +119,18 @@ export default function ShowSettlementCard({
     if (ok) { setExpenseLabel(''); setExpenseAmount(''); setExpensePaidBy(''); }
   };
   const toggleReimbursed = (id) => save({ expenses: settlement.expenses.map(e => (e.id === id ? { ...e, reimbursed: !e.reimbursed } : e)) });
+  const saveEditedExpense = async () => {
+    const label = String(editingExpense?.label || '').trim();
+    const amount = toAmount(editingExpense?.amount);
+    if (!label || amount <= 0) {
+      window.alert('지출 항목 이름과 금액을 입력해 주세요.');
+      return;
+    }
+    const ok = await save({
+      expenses: settlement.expenses.map(e => (e.id === editingExpense.id ? { ...e, label, amount, paidBy: String(editingExpense.paidBy || '').trim() } : e)),
+    });
+    if (ok) setEditingExpense(null);
+  };
   const removeExpense = (expense) => {
     if (!window.confirm(`'${expense.label}' ${won(expense.amount)} 지출 기록을 삭제할까요?`)) return;
     save({ expenses: settlement.expenses.filter(e => e.id !== expense.id) });
@@ -221,6 +234,17 @@ export default function ShowSettlementCard({
             <div style={{ ...rowStyle, color: '#94a3b8', fontSize: 13 }}>아직 기록된 지출이 없습니다. 대관료, 연습실, 팜플렛 등 공연에 쓴 돈을 적어 주세요.</div>
           )}
           {settlement.expenses.map(e => (
+            editingExpense?.id === e.id ? (
+              <div key={e.id} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
+                <input type="text" value={editingExpense.label} onChange={ev => setEditingExpense(prev => ({ ...prev, label: ev.target.value }))} placeholder="항목" aria-label="지출 항목 수정" style={{ ...inputStyle, flex: '2 1 150px' }} />
+                <input type="number" min="0" value={editingExpense.amount} onChange={ev => setEditingExpense(prev => ({ ...prev, amount: ev.target.value }))} placeholder="금액" aria-label="지출 금액 수정" style={{ ...inputStyle, flex: '1 1 90px' }} />
+                <input type="text" value={editingExpense.paidBy} onChange={ev => setEditingExpense(prev => ({ ...prev, paidBy: ev.target.value }))} placeholder="먼저 결제한 사람" aria-label="먼저 결제한 사람 수정" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 110px' }} />
+                <span style={{ display: 'inline-flex', gap: 6, flexShrink: 0 }}>
+                  <button type="button" disabled={saving} onClick={saveEditedExpense} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none' }}>{saving ? '저장 중…' : '저장'}</button>
+                  <button type="button" disabled={saving} onClick={() => setEditingExpense(null)} style={smallButton}>취소</button>
+                </span>
+              </div>
+            ) : (
             <div key={e.id} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 0, flex: '1 1 180px' }}>
                 <div style={nameStyle}>{e.label}</div>
@@ -232,9 +256,11 @@ export default function ShowSettlementCard({
                   돌려줌
                 </label>
                 <div style={amountStyle}>{won(e.amount)}</div>
+                {isAdmin && <button type="button" aria-label={`${e.label} 지출 수정`} disabled={saving} onClick={() => setEditingExpense({ id: e.id, label: e.label, amount: String(e.amount), paidBy: e.paidBy || '' })} style={{ ...smallButton, padding: '4px 8px' }}>수정</button>}
                 {isAdmin && <button type="button" aria-label={`${e.label} 지출 삭제`} disabled={saving} onClick={() => removeExpense(e)} style={{ ...smallButton, border: '1px solid #fca5a5', color: '#dc2626', padding: '4px 8px' }}>삭제</button>}
               </div>
             </div>
+            )
           ))}
 
           {isAdmin && (
