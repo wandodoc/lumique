@@ -12,6 +12,7 @@ import { firebaseStorage } from '../utils/firebaseStorage';
 import { countSoldByTier, resolveActivePrice, cleanPriceTier, formatTierUntil, regularPriceOf } from '../utils/pricing';
 import { sortByPartAndName } from '../utils/calculations';
 import { filterOrdersForShow, resolveShowByAnyId } from '../utils/performances';
+import ShowSettlementCard from '../components/ShowSettlementCard';
 
 const genTierId = () => `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -956,6 +957,8 @@ export default function ReservationManagementPage() {
     // 공연 정산 시 "회비 쪽에서 메꾼 금액"을 따로 확인할 수 있도록 집계한다.
     const duesCoveredSum = allConcertOrders.reduce((sum, o) => sum + (o.duesMemberId ? (Number(o.duesCoveredAmount) || 0) : 0), 0);
     const duesCoveredCount = allConcertOrders.filter(o => o.duesMemberId).length;
+    // 입금 완료 금액 중 회비로 충당된 부분을 뺀, 관객이 실제로 입금한 티켓값 (공연 정산표의 "티켓 판매").
+    const duesCoveredPaidSum = allConcertOrders.reduce((sum, o) => sum + (o.duesMemberId && o.depositStatus === DEPOSIT_DONE ? Math.min(Number(o.duesCoveredAmount) || 0, totalPriceFor(o)) : 0), 0);
     return {
       tickets: visibleOrders.reduce((sum, o) => sum + (Number(o.ticketCount) || 0), 0),
       enteredTotal: visibleOrders.reduce((sum, o) => sum + (Number(o.enteredCount) || 0), 0),
@@ -965,6 +968,7 @@ export default function ReservationManagementPage() {
       extraDonation: extraDonationSum,
       duesCoveredSum,
       duesCoveredCount,
+      ticketCash: paidRevenue - duesCoveredPaidSum,
       ticketPrice,
     };
   }, [visibleOrders, orders, concertId, currentShow, extraDonationSum, totalPriceFor, afterPartyPerformerIds, effectiveAfterPartyCount]);
@@ -2889,21 +2893,44 @@ export default function ReservationManagementPage() {
         </div>
 
 
+        {/* ── 공연 정산표: 쓸 수 있는 돈(티켓·부원 회비·후원금)과 든 돈(지출)을 한 표로 본다 ── */}
+        {currentShow && (
+          <ShowSettlementCard
+            show={currentShow}
+            isAdmin={isAdmin}
+            onPatchShow={patchCurrentShow}
+            ticketCash={totals.ticketCash}
+            duesCoveredSum={totals.duesCoveredSum}
+            duesCoveredCount={totals.duesCoveredCount}
+            donationSum={totals.extraDonation}
+            donationCount={donationList.length}
+            participantIds={currentShowParticipantIds}
+            members={members}
+            bandMembers={bandMembers}
+          />
+        )}
+
         {/* ── [섹션 2] 후원금 관리 섹션 (개별 내역 아코디언/토글 UI) ── */}
         <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
               <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, marginBottom: 4, letterSpacing: '0.08em', textTransform: 'uppercase' }}>후원금 관리</div>
               <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px', lineHeight: 1.2 }}>
-                총 모금액 {totals.totalFund.toLocaleString()}원
+                {currentShow ? `후원금 ${totals.extraDonation.toLocaleString()}원` : `총 모금액 ${totals.totalFund.toLocaleString()}원`}
               </div>
+              {currentShow ? (
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, lineHeight: 1.5 }}>
+                  따로 받은 후원을 기록합니다. 위 공연 정산표의 '후원금'에 더해집니다.
+                </div>
+              ) : (
               <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, lineHeight: 1.5 }}>
                 {isTiered
                   ? `입금완료 ${totals.paidTickets}매 (가격 구간별 단가 적용)`
                   : `입금완료 ${totals.paidTickets}매 × ${totals.ticketPrice.toLocaleString()}원`}
                 {totals.extraDonation > 0 && <span style={{ color: '#10b981' }}> + 후원금 총 {totals.extraDonation.toLocaleString()}원 ({donationList.length}건)</span>}
               </div>
-              {totals.duesCoveredSum > 0 && (
+              )}
+              {!currentShow && totals.duesCoveredSum > 0 && (
                 <div style={{ fontSize: 12, color: '#60a5fa', marginTop: 2, lineHeight: 1.5 }}>
                   (이 중 회비로 충당된 금액 {totals.duesCoveredSum.toLocaleString()}원, {totals.duesCoveredCount}건 — 정산 시 참고용, 회원 개인 회비 납부 내역에는 반영되지 않음)
                 </div>
