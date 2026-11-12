@@ -166,11 +166,16 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <label style={{ fontSize: 12, color: '#64748b' }}>초대자 이름 (테이블 배치를 위해 필요합니다)</label>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>누구를 보러 오시나요? (공연자 이름)</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   <input type="checkbox" checked={fixed.noInviter} onChange={e => { fixed.setNoInviter(e.target.checked); if (e.target.checked) fixed.setInviterName(''); }} style={{ width: 16, height: 16 }} />
-                  없음
+                  아는 공연자 없음
                 </label>
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6, marginBottom: 8 }}>
+                나를 초대한 <b>공연자(무대에 서는 사람)</b>의 이름을 적어 주세요. 같은 공연자의 지인끼리 한 테이블에 앉도록 배치하는 데 씁니다.
+                <br />
+                <span style={{ color: '#b45309', fontWeight: 600 }}>※ 본인 이름이나 함께 오는 분의 이름이 아닙니다.</span>
               </div>
               {!fixed.noInviter && (() => {
                 const names = fixed.inviterName ? fixed.inviterName.split(',') : [''];
@@ -188,7 +193,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
                             updateNames(next);
                           }}
                           style={{ ...FIELD_STYLE, flex: 1 }}
-                          placeholder={`초대자 이름 ${idx + 1}`}
+                          placeholder={idx === 0 ? '공연자 이름' : `공연자 이름 ${idx + 1}`}
                         />
                         <button
                           type="button"
@@ -218,7 +223,7 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
                         border: '1.5px dashed #cbd5e1', background: 'transparent',
                         color: '#94a3b8', cursor: 'pointer', fontSize: 13, fontWeight: 600,
                       }}
-                    >+ 초대자 추가</button>
+                    >+ 보러 오는 공연자가 더 있어요</button>
                   </div>
                 );
               })()}
