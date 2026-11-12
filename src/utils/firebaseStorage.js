@@ -169,6 +169,30 @@ export const firebaseStorage = {
       return null;
     }
   },
+  // 예매 폼의 "초대해 준 공연자" 검색용: 이 공연에 등록된 참가자의 id·이름만 돌려준다.
+  // 반환: [{ id, name }] (등록된 참가자가 없으면 []) | null(읽기 실패)
+  loadShowPerformers: async (show) => {
+    try {
+      const data = await readMainDoc();
+      const participants = data?.performanceParticipants && typeof data.performanceParticipants === 'object' ? data.performanceParticipants : {};
+      const members = Array.isArray(data?.members) ? data.members : [];
+      const bandMembers = data?.bandMembers && typeof data.bandMembers === 'object' ? data.bandMembers : {};
+      const seen = new Set();
+      const list = [];
+      getRelatedShowIds(show).forEach(showId => {
+        (Array.isArray(participants[showId]) ? participants[showId] : []).forEach(id => {
+          const name = String(members.find(m => m.id === id)?.name || bandMembers[id]?.name || '').trim();
+          if (!name || seen.has(name)) return;
+          seen.add(name);
+          list.push({ id, name });
+        });
+      });
+      return list.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (e) {
+      console.error("Firebase Load Show Performers Error:", e);
+      return null;
+    }
+  },
   // 공연 1건 추가/수정. 화면의 목록이 아니라 서버 최신 목록에 병합한다.
   upsertShow: (show) => readModifyWriteList('shows', list => (
     list.some(s => sameId(s.id, show.id)) ? list.map(s => (sameId(s.id, show.id) ? show : s)) : [...list, show]

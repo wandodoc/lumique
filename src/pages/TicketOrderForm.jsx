@@ -42,6 +42,56 @@ const formatPhone = (val) => {
 
 // TextSections is removed as we will render everything inline.
 
+// 초대해 준 공연자를 직접 타이핑하는 대신, 이 공연에 등록된 공연자 중에서 검색해 고르게 한다.
+// 값은 기존과 같은 쉼표 구분 이름 문자열이라 관리 화면의 자동 연결이 그대로 동작한다.
+function PerformerSearchPicker({ performers, value, onChange }) {
+  const [query, setQuery] = useState('');
+  const selected = String(value || '').split(',').map(n => n.trim()).filter(Boolean);
+  const norm = (text) => String(text || '').replace(/\s+/g, '').toLowerCase();
+  const q = norm(query);
+  const matches = q ? performers.filter(p => norm(p.name).includes(q) && !selected.includes(p.name)).slice(0, 8) : [];
+  const alreadyPicked = q && selected.some(n => norm(n).includes(q));
+  const add = (name) => { onChange([...selected, name].join(',')); setQuery(''); };
+  const remove = (name) => onChange(selected.filter(n => n !== name).join(','));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {selected.map(n => (
+            <span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 16, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontSize: 13, fontWeight: 700 }}>
+              {n}
+              <button type="button" aria-label={`${n} 선택 취소`} onClick={() => remove(n)} style={{ border: 'none', background: 'none', color: '#047857', fontWeight: 800, cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        type="search" value={query} autoComplete="off" aria-label="초대해 준 공연자 검색"
+        onChange={e => setQuery(e.target.value)}
+        onKeyDown={e => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault(); // 검색 칸에서 Enter로 예매가 접수되지 않게 한다
+          if (matches.length === 1) add(matches[0].name);
+        }}
+        style={FIELD_STYLE} placeholder="이름 입력 → 목록에서 선택"
+      />
+      {matches.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+          {matches.map(p => (
+            <button key={p.id} type="button" onClick={() => add(p.name)}
+              style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 14, fontWeight: 700, color: '#111827', cursor: 'pointer' }}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {q && matches.length === 0 && !alreadyPicked && (
+        <div style={{ fontSize: 12, color: '#b45309', lineHeight: 1.6 }}>검색 결과가 없어요. 아는 공연자가 없다면 '없음'을 체크해 주세요.</div>
+      )}
+    </div>
+  );
+}
+
 function RenderSections({ sections = [], values, setValues, fixed }) {
   const set = (id, v) => setValues(p => ({ ...p, [id]: v }));
   return sections.filter(s => s.active !== false).map(s => {
@@ -175,7 +225,11 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
               <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6, marginBottom: 8 }}>
                 본인 이름 ✕ · 동행자 이름 ✕ · 공연하는 지인의 이름 ○
               </div>
-              {!fixed.noInviter && (() => {
+              {!fixed.noInviter && Array.isArray(fixed.performers) && fixed.performers.length > 0 && (
+                <PerformerSearchPicker performers={fixed.performers} value={fixed.inviterName} onChange={fixed.setInviterName} />
+              )}
+              {/* 공연 참가자가 아직 등록되지 않은 공연은 예전처럼 직접 입력받는다 */}
+              {!fixed.noInviter && !(Array.isArray(fixed.performers) && fixed.performers.length > 0) && (() => {
                 const names = fixed.inviterName ? fixed.inviterName.split(',') : [''];
                 const updateNames = (arr) => fixed.setInviterName(arr.join(','));
                 return (
@@ -347,7 +401,7 @@ function AccountCard({ account }) {
 function BottomSheet({ isOpen, onClose, show, price, total, qty, setQty, tiers, tierQty, setTierQty, priceItems, soldOut, availabilityLoading, inventoryLoadFailed,
   name, setName, phone, setPhone,
   isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount,
-  inviterName, setInviterName, noInviter, setNoInviter,
+  inviterName, setInviterName, noInviter, setNoInviter, performers,
   comment, setComment, customResponses, setCustomResponses,
   submitting, onSubmit }) {
 
@@ -421,7 +475,7 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, setQty, tiers, 
               sections={(show?.customSections || []).filter(s => s.placement !== 'inline')}
               values={customResponses}
               setValues={setCustomResponses}
-              fixed={{ name, setName, phone, setPhone, qty, setQty, tiers, tierQty, setTierQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, price, comment, setComment, availabilityLoading, inventoryLoadFailed }}
+              fixed={{ name, setName, phone, setPhone, qty, setQty, tiers, tierQty, setTierQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, performers, price, comment, setComment, availabilityLoading, inventoryLoadFailed }}
             />
 
             {/* 결제 요약 */}
@@ -487,6 +541,7 @@ export default function TicketOrderForm({ showId }) {
   const [afterPartyCount, setAfterPartyCount] = useState(1);
   const [inviterName, setInviterName] = useState('');
   const [noInviter, setNoInviter] = useState(false);
+  const [performers, setPerformers] = useState([]); // 이 공연에 등록된 공연자 [{ id, name }] — 초대해 준 공연자 검색용
   const [comment, setComment] = useState('');
   const [customResponses, setCustomResponses] = useState({});
 
@@ -522,6 +577,10 @@ export default function TicketOrderForm({ showId }) {
         }
         setShow({ ...found, customSections: (found.customSections || []).map(section) });
         setShowLoadState('ready');
+        // 초대해 준 공연자 검색 목록. 실패하거나 등록된 참가자가 없으면 직접 입력 칸으로 남는다.
+        firebaseStorage.loadShowPerformers(found)
+          .then(list => setPerformers(Array.isArray(list) ? list : []))
+          .catch(() => setPerformers([]));
       } catch (error) {
         console.error('공연 정보 조회 오류:', error);
         setShowLoadState('error');
@@ -627,6 +686,10 @@ export default function TicketOrderForm({ showId }) {
         if (s.type === 'input_checkbox' && (!v || v.length === 0)) return toast(`${s.title}을(를) 선택해주세요.`);
         if (!v || String(v).trim() === '') return toast(`${s.title}을(를) 입력해주세요.`);
       }
+    }
+
+    if (isAfterParty && !noInviter && performers.length > 0 && !inviterName.trim()) {
+      return toast("초대해 준 공연자를 검색해서 선택하거나, 아는 공연자가 없으면 '없음'을 체크해 주세요.");
     }
 
     submitOrderAsync();
@@ -957,6 +1020,7 @@ export default function TicketOrderForm({ showId }) {
         isAfterParty={isAfterParty} setIsAfterParty={setIsAfterParty}
         afterPartyCount={afterPartyCount} setAfterPartyCount={setAfterPartyCount}
         inviterName={inviterName} setInviterName={setInviterName}
+        performers={performers}
         noInviter={noInviter} setNoInviter={setNoInviter}
         comment={comment} setComment={setComment}
         customResponses={customResponses} setCustomResponses={setCustomResponses}
