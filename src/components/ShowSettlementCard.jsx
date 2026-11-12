@@ -21,13 +21,6 @@ const toMonths = (v, fallback) => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? Math.min(n, 60) : fallback;
 };
-// 받침 유무에 따라 주격 조사를 고른다 ("강맥이" / "인기훈이" / "강가연이", "조에스더가").
-const withSubject = (name) => {
-  const last = String(name || '').trim().slice(-1);
-  const code = last.charCodeAt(0);
-  const hasBatchim = code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0;
-  return `${name}${hasBatchim ? '이' : '가'}`;
-};
 const newId = () => `exp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const sectionTitle = { fontSize: 13, fontWeight: 800, color: '#0f172a', margin: 0 };
@@ -144,16 +137,20 @@ export default function ShowSettlementCard({
   const personNames = [...officials.map(m => m.name), ...guests.map(g => g.name)];
 
   return (
-    <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0', background: '#fff', display: 'grid', gap: 18, width: '100%', maxWidth: 720, boxSizing: 'border-box' }}>
+    <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0', background: '#fff', display: 'grid', gap: 18 }}>
+      <style>{`
+        .settlement-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 40px; align-items: start; }
+        @media (max-width: 860px) { .settlement-cols { grid-template-columns: 1fr; gap: 20px; } }
+      `}</style>
       <div>
-        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: '0.08em' }}>공연 정산</div>
-        <h2 style={{ margin: '4px 0 0', fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>이 공연의 돈 정리</h2>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>공연에 쓸 수 있는 돈과 공연에 든 돈을 비교합니다. 입출금 장부에는 영향을 주지 않습니다.</p>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>공연 정산</h2>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>수입과 지출을 비교합니다. 입출금 장부에는 영향을 주지 않습니다.</p>
       </div>
 
-      {/* ── 공연에 쓸 수 있는 돈 ── */}
-      <section>
-        <h3 style={sectionTitle}>공연에 쓸 수 있는 돈</h3>
+      <div className="settlement-cols">
+      {/* ── 수입 ── */}
+      <section style={{ minWidth: 0 }}>
+        <h3 style={sectionTitle}>수입</h3>
         <div style={{ marginTop: 6 }}>
           <div style={rowStyle}>
             <div><div style={nameStyle}>티켓 판매</div><div style={descStyle}>관객이 계좌로 입금한 금액</div></div>
@@ -225,16 +222,16 @@ export default function ShowSettlementCard({
           <div style={{ ...rowStyle, borderTop: '2px solid #0f172a', paddingTop: 12 }}>
             <div>
               <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
-              {fromDues > 0 && <div style={descStyle}>이 중 {won(fromDues)}은 이미 걷힌 회비에서 가져옵니다</div>}
+              {fromDues > 0 && <div style={descStyle}>회비 충당 {won(fromDues)}</div>}
             </div>
             <div style={{ ...amountStyle, fontSize: 17 }}>{won(fundTotal)}</div>
           </div>
         </div>
       </section>
 
-      {/* ── 공연에 든 돈 ── */}
-      <section>
-        <h3 style={sectionTitle}>공연에 든 돈</h3>
+      {/* ── 지출 ── */}
+      <section style={{ minWidth: 0 }}>
+        <h3 style={sectionTitle}>지출</h3>
         <div style={{ marginTop: 6 }}>
           {settlement.expenses.length === 0 && (
             <div style={{ ...rowStyle, color: '#94a3b8', fontSize: 13 }}>아직 기록된 지출이 없습니다. 대관료, 연습실, 팜플렛 등 공연에 쓴 돈을 적어 주세요.</div>
@@ -244,7 +241,7 @@ export default function ShowSettlementCard({
               <div key={e.id} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
                 <input type="text" value={editingExpense.label} onChange={ev => setEditingExpense(prev => ({ ...prev, label: ev.target.value }))} placeholder="항목" aria-label="지출 항목 수정" style={{ ...inputStyle, flex: '2 1 150px' }} />
                 <input type="text" inputMode="numeric" value={editingExpense.amount} onChange={ev => setEditingExpense(prev => ({ ...prev, amount: formatAmountInput(ev.target.value) }))} placeholder="금액" aria-label="지출 금액 수정" style={{ ...inputStyle, flex: '1 1 90px' }} />
-                <input type="text" value={editingExpense.paidBy} onChange={ev => setEditingExpense(prev => ({ ...prev, paidBy: ev.target.value }))} placeholder="먼저 결제한 사람" aria-label="먼저 결제한 사람 수정" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 110px' }} />
+                <input type="text" value={editingExpense.paidBy} onChange={ev => setEditingExpense(prev => ({ ...prev, paidBy: ev.target.value }))} placeholder="선결제자" aria-label="선결제자 수정" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 110px' }} />
                 <span style={{ display: 'inline-flex', gap: 6, flexShrink: 0 }}>
                   <button type="button" disabled={saving} onClick={saveEditedExpense} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none' }}>{saving ? '저장 중…' : '저장'}</button>
                   <button type="button" disabled={saving} onClick={() => setEditingExpense(null)} style={smallButton}>취소</button>
@@ -254,12 +251,12 @@ export default function ShowSettlementCard({
             <div key={e.id} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 0, flex: '1 1 180px' }}>
                 <div style={nameStyle}>{e.label}</div>
-                <div style={descStyle}>{String(e.paidBy || '').trim() ? `${withSubject(String(e.paidBy).trim())} 먼저 결제` : '먼저 결제한 사람 미기재'}</div>
+                <div style={descStyle}>{String(e.paidBy || '').trim() ? `선결제: ${String(e.paidBy).trim()}` : '선결제자 미기재'}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                 <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: e.reimbursed ? '#047857' : '#64748b', cursor: isAdmin ? 'pointer' : 'default' }}>
                   <input type="checkbox" checked={Boolean(e.reimbursed)} disabled={!isAdmin || saving} onChange={() => toggleReimbursed(e.id)} />
-                  돌려줌
+                  정산 완료
                 </label>
                 <div style={amountStyle}>{won(e.amount)}</div>
                 {isAdmin && <button type="button" aria-label={`${e.label} 지출 수정`} disabled={saving} onClick={() => setEditingExpense({ id: e.id, label: e.label, amount: formatAmountInput(e.amount), paidBy: e.paidBy || '' })} style={{ ...smallButton, padding: '4px 8px' }}>수정</button>}
@@ -273,7 +270,7 @@ export default function ShowSettlementCard({
             <div style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <input type="text" value={expenseLabel} onChange={e => setExpenseLabel(e.target.value)} placeholder="항목 (예: 공연장 대관)" aria-label="지출 항목" style={{ ...inputStyle, flex: '2 1 160px' }} />
               <input type="text" inputMode="numeric" value={expenseAmount} onChange={e => setExpenseAmount(formatAmountInput(e.target.value))} placeholder="금액" aria-label="지출 금액" style={{ ...inputStyle, flex: '1 1 100px' }} />
-              <input type="text" value={expensePaidBy} onChange={e => setExpensePaidBy(e.target.value)} placeholder="먼저 결제한 사람" aria-label="먼저 결제한 사람" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 120px' }} />
+              <input type="text" value={expensePaidBy} onChange={e => setExpensePaidBy(e.target.value)} placeholder="선결제자" aria-label="선결제자" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 120px' }} />
               <datalist id="settlement-person-names">{personNames.map(n => <option key={n} value={n} />)}</datalist>
               <button type="button" onClick={addExpense} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>{saving ? '저장 중…' : '+ 지출 추가'}</button>
             </div>
@@ -284,24 +281,25 @@ export default function ShowSettlementCard({
               <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
               {owedTotal > 0 && (
                 <div style={descStyle}>
-                  {Object.entries(owedByPerson).map(([person, amount]) => `${person}에게 돌려줄 돈 ${won(amount)}`).join(' · ')}
+                  {Object.entries(owedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
                 </div>
               )}
-              {expenseTotal > 0 && owedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>먼저 결제한 돈을 모두 돌려줬습니다</div>}
+              {expenseTotal > 0 && owedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
             </div>
             <div style={{ ...amountStyle, fontSize: 17 }}>{won(expenseTotal)}</div>
           </div>
         </div>
       </section>
+      </div>
 
       {/* ── 정산 결과 ── */}
       <section style={{ padding: '14px 16px', borderRadius: 14, background: balance >= 0 ? '#ecfdf5' : '#fef2f2', border: `1px solid ${balance >= 0 ? '#a7f3d0' : '#fecaca'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ ...sectionTitle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>정산 결과</h3>
-          <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>쓸 수 있는 돈 {won(fundTotal)} − 든 돈 {won(expenseTotal)}</div>
+          <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>수입 {won(fundTotal)} − 지출 {won(expenseTotal)}</div>
         </div>
         <div style={{ fontSize: 20, fontWeight: 900, color: balance >= 0 ? '#047857' : '#b91c1c', whiteSpace: 'nowrap' }}>
-          {balance >= 0 ? `${won(balance)} 남음` : `${won(-balance)} 모자람`}
+          {balance >= 0 ? `잔액 ${won(balance)}` : `부족 ${won(-balance)}`}
         </div>
       </section>
     </div>
