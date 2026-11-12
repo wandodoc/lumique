@@ -11,6 +11,11 @@ const toAmount = (v) => {
   const n = Math.floor(Number(String(v ?? '').replace(/[^0-9.]/g, '')));
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
+// 금액 입력 칸: 숫자만 남기고 입력 중에도 1,000 단위 구분 기호를 보여 준다.
+const formatAmountInput = (v) => {
+  const digits = String(v ?? '').replace(/[^0-9]/g, '');
+  return digits ? Number(digits).toLocaleString() : '';
+};
 const toMonths = (v, fallback) => {
   if (v === '' || v === null || v === undefined) return fallback;
   const n = Number(v);
@@ -178,9 +183,10 @@ export default function ShowSettlementCard({
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
                   한 달 회비 (원)
-                  <input type="number" min="0" step="1000" disabled={!isAdmin || saving} style={{ ...inputStyle, width: 130 }}
-                    key={`dues:${settlement.monthlyDues}`} defaultValue={settlement.monthlyDues}
-                    onBlur={e => { const v = Math.max(0, Math.floor(Number(e.target.value) || 0)); if (v !== settlement.monthlyDues) save({ monthlyDues: v }); }} />
+                  <input type="text" inputMode="numeric" disabled={!isAdmin || saving} style={{ ...inputStyle, width: 130 }}
+                    key={`dues:${settlement.monthlyDues}`} defaultValue={settlement.monthlyDues.toLocaleString()}
+                    onChange={e => { e.target.value = formatAmountInput(e.target.value); }}
+                    onBlur={e => { const v = toAmount(e.target.value); if (v !== settlement.monthlyDues) save({ monthlyDues: v }); }} />
                 </label>
                 <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
                   준비 기간 (개월)
@@ -237,7 +243,7 @@ export default function ShowSettlementCard({
             editingExpense?.id === e.id ? (
               <div key={e.id} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap', gap: 8, background: '#f8fafc', borderRadius: 10, padding: '10px 12px' }}>
                 <input type="text" value={editingExpense.label} onChange={ev => setEditingExpense(prev => ({ ...prev, label: ev.target.value }))} placeholder="항목" aria-label="지출 항목 수정" style={{ ...inputStyle, flex: '2 1 150px' }} />
-                <input type="number" min="0" value={editingExpense.amount} onChange={ev => setEditingExpense(prev => ({ ...prev, amount: ev.target.value }))} placeholder="금액" aria-label="지출 금액 수정" style={{ ...inputStyle, flex: '1 1 90px' }} />
+                <input type="text" inputMode="numeric" value={editingExpense.amount} onChange={ev => setEditingExpense(prev => ({ ...prev, amount: formatAmountInput(ev.target.value) }))} placeholder="금액" aria-label="지출 금액 수정" style={{ ...inputStyle, flex: '1 1 90px' }} />
                 <input type="text" value={editingExpense.paidBy} onChange={ev => setEditingExpense(prev => ({ ...prev, paidBy: ev.target.value }))} placeholder="먼저 결제한 사람" aria-label="먼저 결제한 사람 수정" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 110px' }} />
                 <span style={{ display: 'inline-flex', gap: 6, flexShrink: 0 }}>
                   <button type="button" disabled={saving} onClick={saveEditedExpense} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none' }}>{saving ? '저장 중…' : '저장'}</button>
@@ -256,7 +262,7 @@ export default function ShowSettlementCard({
                   돌려줌
                 </label>
                 <div style={amountStyle}>{won(e.amount)}</div>
-                {isAdmin && <button type="button" aria-label={`${e.label} 지출 수정`} disabled={saving} onClick={() => setEditingExpense({ id: e.id, label: e.label, amount: String(e.amount), paidBy: e.paidBy || '' })} style={{ ...smallButton, padding: '4px 8px' }}>수정</button>}
+                {isAdmin && <button type="button" aria-label={`${e.label} 지출 수정`} disabled={saving} onClick={() => setEditingExpense({ id: e.id, label: e.label, amount: formatAmountInput(e.amount), paidBy: e.paidBy || '' })} style={{ ...smallButton, padding: '4px 8px' }}>수정</button>}
                 {isAdmin && <button type="button" aria-label={`${e.label} 지출 삭제`} disabled={saving} onClick={() => removeExpense(e)} style={{ ...smallButton, border: '1px solid #fca5a5', color: '#dc2626', padding: '4px 8px' }}>삭제</button>}
               </div>
             </div>
@@ -266,7 +272,7 @@ export default function ShowSettlementCard({
           {isAdmin && (
             <div style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <input type="text" value={expenseLabel} onChange={e => setExpenseLabel(e.target.value)} placeholder="항목 (예: 공연장 대관)" aria-label="지출 항목" style={{ ...inputStyle, flex: '2 1 160px' }} />
-              <input type="number" min="0" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} placeholder="금액" aria-label="지출 금액" style={{ ...inputStyle, flex: '1 1 100px' }} />
+              <input type="text" inputMode="numeric" value={expenseAmount} onChange={e => setExpenseAmount(formatAmountInput(e.target.value))} placeholder="금액" aria-label="지출 금액" style={{ ...inputStyle, flex: '1 1 100px' }} />
               <input type="text" value={expensePaidBy} onChange={e => setExpensePaidBy(e.target.value)} placeholder="먼저 결제한 사람" aria-label="먼저 결제한 사람" list="settlement-person-names" style={{ ...inputStyle, flex: '1 1 120px' }} />
               <datalist id="settlement-person-names">{personNames.map(n => <option key={n} value={n} />)}</datalist>
               <button type="button" onClick={addExpense} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>{saving ? '저장 중…' : '+ 지출 추가'}</button>
