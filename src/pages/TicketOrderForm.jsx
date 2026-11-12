@@ -166,16 +166,14 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>누구를 보러 오시나요? (공연자 이름)</label>
+                <label style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>초대해 준 공연자 이름 (테이블 배치에 사용)</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   <input type="checkbox" checked={fixed.noInviter} onChange={e => { fixed.setNoInviter(e.target.checked); if (e.target.checked) fixed.setInviterName(''); }} style={{ width: 16, height: 16 }} />
-                  아는 공연자 없음
+                  없음
                 </label>
               </div>
               <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6, marginBottom: 8 }}>
-                나를 초대한 <b>공연자(무대에 서는 사람)</b>의 이름을 적어 주세요. 같은 공연자의 지인끼리 한 테이블에 앉도록 배치하는 데 씁니다.
-                <br />
-                <span style={{ color: '#b45309', fontWeight: 600 }}>※ 본인 이름이나 함께 오는 분의 이름이 아닙니다.</span>
+                본인 이름 ✕ · 동행자 이름 ✕ · 공연하는 지인의 이름 ○
               </div>
               {!fixed.noInviter && (() => {
                 const names = fixed.inviterName ? fixed.inviterName.split(',') : [''];
