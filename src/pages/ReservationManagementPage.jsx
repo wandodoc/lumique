@@ -2902,15 +2902,15 @@ export default function ReservationManagementPage() {
             ticketCash={totals.ticketCash}
             duesCoveredSum={totals.duesCoveredSum}
             duesCoveredCount={totals.duesCoveredCount}
-            donationSum={totals.extraDonation}
-            donationCount={donationList.length}
+            donations={donationList}
             participantIds={currentShowParticipantIds}
             members={members}
             bandMembers={bandMembers}
           />
         )}
 
-        {/* ── [섹션 2] 후원금 관리 섹션 (개별 내역 아코디언/토글 UI) ── */}
+        {/* ── [섹션 2] 후원금 관리 — 공연을 선택하면 정산표가 후원금을 관리하므로 전체 보기에서만 표시 ── */}
+        {!currentShow && (
         <div style={{ background: '#111827', borderRadius: 20, padding: '20px 24px', color: '#fff', display: 'grid', gap: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <div>
@@ -3023,6 +3023,7 @@ export default function ReservationManagementPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* ── [섹션 3] 뒤풀이 관리 — "참여자 관리"(공연자 매핑/텍스트 그룹/미기재)와
              "테이블 배치"(참여자 관리와 완전히 독립된 데이터)를 탭으로 전환하며 관리한다.
