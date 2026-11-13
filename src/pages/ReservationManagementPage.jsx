@@ -698,6 +698,8 @@ export default function ReservationManagementPage() {
   const [addPerformerSelectValue, setAddPerformerSelectValue] = useState('');
   const [selectedSeatingIds, setSelectedSeatingIds] = useState([]); // 테이블 배치: 미배치 참여자 다중 선택
   const [selectedTableId, setSelectedTableId] = useState(null); // 배치도: 편집 중인 테이블(위치/정원/모양 등)
+  const [seatingView, setSeatingView] = useState('sheet'); // 좌석 배치 보기: 'sheet'(표) | 'map'(배치도)
+  const [sheetAddTableId, setSheetAddTableId] = useState(null); // 표 보기: "+ 추가" 목록이 열린 테이블
   // 배치도: 드래그 중인 테이블의 "확정 전" 임시 위치(포인터를 떼는 순간에만 실제로 저장한다).
   const [dragInfo, setDragInfo] = useState(null); // { tableId, startClientX, startClientY, startX, startY, x, y }
   const [seatDragInfo, setSeatDragInfo] = useState(null);
@@ -1263,7 +1265,7 @@ export default function ReservationManagementPage() {
     const seatedPerformerIds = new Set();
     Object.entries(performerSeatAssignments).forEach(([seatId, memberId]) => {
       const tableId = seatTableById.get(seatId);
-      const member = members.find(item => item.id === memberId);
+      const member = findPerformer(memberId); // 외부 공연자(bandMembers)도 테이블 인원으로 보이게 한다
       if (tableId && member && canonicalPerformerSeatByMember[memberId] === seatId && !seatedPerformerIds.has(memberId)) {
         seatedPerformerIds.add(memberId);
         byTable[tableId].performers.push(member);
@@ -1300,7 +1302,7 @@ export default function ReservationManagementPage() {
       tables: afterPartyTables.map(t => byTable[t.id]), unassigned, totalAll, totalPlaced,
       totalUnassigned: totalAll - totalPlaced, tableCount: afterPartyTables.length, overCapacityCount, performerCountPlaced, attendeeTableByKey,
     };
-  }, [afterPartyTables, seatAssignments, participantSeatAssignments, performerSeatAssignments, canonicalPerformerSeatByMember, afterPartyParticipants, members]);
+  }, [afterPartyTables, seatAssignments, participantSeatAssignments, performerSeatAssignments, canonicalPerformerSeatByMember, afterPartyParticipants, members, findPerformer]);
 
   // 콘서트 레코드에 테이블/배치 패치를 저장한다. 서버 최신 목록을 읽어 해당 공연 1건에만 병합하므로
   // 오래 열어 둔 탭의 옛 목록이 다른 기기의 저장을 덮어쓰지 않는다. 실패 시 화면에도 반영하지 않고 오류를 알린다.
@@ -1577,6 +1579,29 @@ export default function ReservationManagementPage() {
       });
     }
     saveSeatingPatch({ seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual, participantSeatAssignments: nextParticipantSeats });
+  };
+
+  // ── 표 보기 전용: 테이블 단위로 사람을 넣고 뺀다 (좌석 번호는 자동 선택) ──
+  const assignPerformerToTable = (memberId, tableId) => {
+    const table = afterPartyTables.find(t => t.id === tableId);
+    if (!table) return;
+    const nextParticipants = materializeLegacySeatAssignments();
+    const nextPerformers = { ...performerSeatAssignments };
+    Object.keys(nextPerformers).forEach(seatId => { if (nextPerformers[seatId] === memberId) delete nextPerformers[seatId]; });
+    const used = new Set([...Object.keys(nextParticipants), ...Object.keys(nextPerformers)]);
+    const freeSeat = table.seats.find(seat => !used.has(seat.id));
+    if (!freeSeat) { window.alert('빈 좌석이 없습니다. 정원을 늘리거나 다른 테이블을 선택해 주세요.'); return; }
+    nextPerformers[freeSeat.id] = memberId;
+    saveSeatingPatch({ participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformers });
+  };
+  const unassignPerformerFromTables = (memberId) => {
+    const next = { ...performerSeatAssignments };
+    Object.keys(next).forEach(seatId => { if (next[seatId] === memberId) delete next[seatId]; });
+    saveSeatingPatch({ performerSeatAssignments: next });
+  };
+  // 테이블 대표(추후 테이블별 정산용). 테이블 레코드의 repName 필드에 이름을 저장한다.
+  const setTableRep = (tableId, repName) => {
+    saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, repName } : t)) });
   };
 
   // 1순위 공연자 매핑만 자동 배치한다. 이전 자동 배정만 재계산하고 수동 배정은 유지한다.
@@ -3587,6 +3612,11 @@ export default function ReservationManagementPage() {
                     </div>
                     <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>전체 {seatingOverview.totalAll}명 · 공연자 좌석 {seatingOverview.performerCountPlaced}명 포함 · 예매 인원과 별도로 정원에 반영됩니다.</div>
 
+                    <div className="after-party-view-toggle" role="group" aria-label="좌석 배치 보기 방식" style={{ justifySelf: 'start' }}>
+                      <button type="button" className={seatingView === 'sheet' ? 'is-active' : ''} aria-pressed={seatingView === 'sheet'} onClick={() => setSeatingView('sheet')}>표 보기</button>
+                      <button type="button" className={seatingView === 'map' ? 'is-active' : ''} aria-pressed={seatingView === 'map'} onClick={() => setSeatingView('map')}>배치도 보기</button>
+                    </div>
+
                     {isAdmin && (
                       <div className="after-party-seating-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button type="button" onClick={addTable}
@@ -3625,6 +3655,121 @@ export default function ReservationManagementPage() {
                       </div>
                     )}
 
+                    {/* ── 표 보기: 구글 시트처럼 테이블 단위로 인원을 넣고 뺀다. 배치도와 같은 데이터를 본다. ── */}
+                    {seatingView === 'sheet' && (() => {
+                      const chipBase = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 16, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, fontWeight: 700, color: '#1e293b' };
+                      const perfChip = { ...chipBase, border: '1px solid #a7f3d0', background: '#ecfdf5', color: '#047857' };
+                      const chipX = { border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 };
+                      const cellInput = { padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 0 };
+                      const placedPerformerIds = new Set(seatingOverview.tables.flatMap(entry => entry.performers.map(m => m.id)));
+                      const unplacedPerformers = afterPartyPerformerIds.filter(id => !placedPerformerIds.has(id)).map(id => findPerformer(id) || { id, name: id, part: '' });
+                      const poolOrders = seatingOverview.unassigned;
+                      const poolTotal = poolOrders.reduce((s, p) => s + p.count, 0) + unplacedPerformers.length;
+                      const placedTotal = seatingOverview.tables.reduce((s, entry) => s + entry.count, 0);
+                      return (
+                        <div style={{ display: 'grid', gap: 12, minWidth: 0 }}>
+                          <div style={{ padding: '12px 14px', border: '1.5px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc' }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: poolTotal ? '#b45309' : '#047857', marginBottom: poolTotal ? 8 : 0 }}>
+                              {poolTotal ? `미배치 ${poolTotal}명 — 각 테이블의 "+ 추가"를 눌러 배치하세요` : '✅ 모두 배치됐어요'}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {unplacedPerformers.map(m => <span key={m.id} style={perfChip}>🎤 {m.name}</span>)}
+                              {poolOrders.map(p => <span key={p.orderId} style={chipBase}>{p.name}{p.count > 1 ? ` (${p.count}명)` : ''}</span>)}
+                            </div>
+                          </div>
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="after-party-participant-table" style={{ minWidth: 660 }}>
+                              <thead><tr><th>테이블</th><th>대표 <span style={{ fontWeight: 500 }}>(정산용)</span></th><th>정원</th><th>배치 인원</th><th style={{ textAlign: 'right' }}>인원</th><th></th></tr></thead>
+                              <tbody>
+                                {seatingOverview.tables.length === 0 && (
+                                  <tr><td colSpan={6} className="after-party-empty-row">아직 테이블이 없습니다. '+ 테이블 추가'를 눌러 시작하세요.</td></tr>
+                                )}
+                                {seatingOverview.tables.map(entry => {
+                                  const table = entry.table;
+                                  const memberNames = [...entry.performers.map(m => m.name), ...entry.participants.map(p => p.name)];
+                                  const over = entry.count > table.capacity;
+                                  return (
+                                    <tr key={table.id} style={{ cursor: 'default' }}>
+                                      <td>
+                                        <input type="text" disabled={!isAdmin} aria-label="테이블 이름" key={`nm:${table.id}:${table.name}`} defaultValue={table.name}
+                                          onBlur={e => { const v = e.target.value.trim(); if (v && v !== table.name) renameTable(table.id, v); }}
+                                          style={{ ...cellInput, width: 110, fontWeight: 800 }} />
+                                      </td>
+                                      <td>
+                                        <select disabled={!isAdmin} aria-label="테이블 대표" value={table.repName || ''} onChange={e => setTableRep(table.id, e.target.value)} style={{ ...cellInput, maxWidth: 120 }}>
+                                          <option value="">대표 선택</option>
+                                          {memberNames.map(n => <option key={n} value={n}>{n}</option>)}
+                                          {table.repName && !memberNames.includes(table.repName) && <option value={table.repName}>{table.repName}</option>}
+                                        </select>
+                                      </td>
+                                      <td>
+                                        <input type="number" min="0" disabled={!isAdmin} aria-label="정원" key={`cap:${table.id}:${table.capacity}`} defaultValue={table.capacity}
+                                          onBlur={e => setTableCapacity(table.id, e.target.value)}
+                                          style={{ ...cellInput, width: 56, textAlign: 'right' }} />
+                                      </td>
+                                      <td>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', minWidth: 220 }}>
+                                          {entry.performers.map(m => (
+                                            <span key={m.id} style={perfChip}>🎤 {m.name}
+                                              {isAdmin && <button type="button" aria-label={`${m.name} 빼기`} style={chipX} onClick={() => unassignPerformerFromTables(m.id)}>✕</button>}
+                                            </span>
+                                          ))}
+                                          {entry.participants.map(p => (
+                                            <span key={p.orderId} style={chipBase}>{p.name}{p.count > 1 ? ` (${p.count}명)` : ''}
+                                              {isAdmin && <button type="button" aria-label={`${p.name} 빼기`} style={chipX} onClick={() => assignToTable([p.orderId], null)}>✕</button>}
+                                            </span>
+                                          ))}
+                                          {isAdmin && (
+                                            <span style={{ position: 'relative', display: 'inline-block' }}>
+                                              <button type="button" onClick={() => setSheetAddTableId(prev => (prev === table.id ? null : table.id))}
+                                                style={{ padding: '5px 10px', borderRadius: 16, border: '1.5px dashed #cbd5e1', background: 'transparent', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ 추가</button>
+                                              {sheetAddTableId === table.id && (
+                                                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 40, width: 220, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.16)', padding: 6 }}>
+                                                  {unplacedPerformers.map(m => (
+                                                    <button key={m.id} type="button" onClick={() => { assignPerformerToTable(m.id, table.id); setSheetAddTableId(null); }}
+                                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 9px', border: 'none', background: 'none', fontSize: 12, fontWeight: 700, color: '#047857', cursor: 'pointer', borderRadius: 7 }}>🎤 {m.name}</button>
+                                                  ))}
+                                                  {poolOrders.map(p => (
+                                                    <button key={p.orderId} type="button" onClick={() => { assignToTable([p.orderId], table.id); setSheetAddTableId(null); }}
+                                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 9px', border: 'none', background: 'none', fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer', borderRadius: 7 }}>{p.name}{p.count > 1 ? ` (${p.count}명)` : ''}</button>
+                                                  ))}
+                                                  {poolTotal === 0 && <div style={{ fontSize: 12, color: '#94a3b8', padding: '7px 9px' }}>미배치 인원이 없습니다</div>}
+                                                </div>
+                                              )}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td style={{ textAlign: 'right' }}>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: over ? '#dc2626' : entry.count === table.capacity ? '#047857' : '#111827', whiteSpace: 'nowrap' }}>{entry.count}/{table.capacity}</span>
+                                        {over && <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>정원 초과</div>}
+                                      </td>
+                                      <td>
+                                        {isAdmin && <button type="button" onClick={() => removeTable(table.id)} style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>삭제</button>}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              {seatingOverview.tables.length > 0 && (
+                                <tfoot>
+                                  <tr>
+                                    <td style={{ fontWeight: 800 }}>합계 {seatingOverview.tableCount}개</td>
+                                    <td></td>
+                                    <td style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>정원 {afterPartyTables.reduce((s, t) => s + (Number(t.capacity) || 0), 0)}명</td>
+                                    <td></td>
+                                    <td style={{ textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap' }}>{placedTotal}명 배치</td>
+                                    <td></td>
+                                  </tr>
+                                </tfoot>
+                              )}
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {seatingView === 'map' && (<>
                     {isAdmin && (
                       <div className="after-party-seat-picker" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid #c7d2fe', background: '#f5f6ff' }}>
                         <label htmlFor="seat-attendee-picker" style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>좌석에 배정할 대상</label>
@@ -4060,6 +4205,7 @@ export default function ReservationManagementPage() {
                     </div>
                       </aside>
                     </div>
+                    </>)}
                   </>
                 )}
               </div>
