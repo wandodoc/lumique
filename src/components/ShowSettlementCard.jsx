@@ -114,15 +114,18 @@ export default function ShowSettlementCard({
 
   const showExpenseTotal = expenseGroups.filter(g => !g.isDues).reduce((sum, g) => sum + g.total, 0);
   const duesExpenseTotal = expenseGroups.filter(g => g.isDues).reduce((sum, g) => sum + g.total, 0);
-  const duesCategoryNames = expenseGroups.filter(g => g.isDues && g.entries.length > 0).map(g => g.name);
-  const expenseTotal = showExpenseTotal + duesExpenseTotal;
-  const owedByPerson = settlement.expenses.reduce((map, e) => {
-    if (e.reimbursed) return map;
-    const key = String(e.paidBy || '').trim() || '선결제자 미기재';
-    map[key] = (map[key] || 0) + (Number(e.amount) || 0);
+  const owedFor = (groups) => groups.reduce((map, g) => {
+    g.entries.forEach(e => {
+      if (e.reimbursed) return;
+      const key = String(e.paidBy || '').trim() || '선결제자 미기재';
+      map[key] = (map[key] || 0) + (Number(e.amount) || 0);
+    });
     return map;
   }, {});
-  const owedTotal = Object.values(owedByPerson).reduce((sum, v) => sum + v, 0);
+  const showOwedByPerson = owedFor(expenseGroups.filter(g => !g.isDues));
+  const duesOwedByPerson = owedFor(expenseGroups.filter(g => g.isDues));
+  const showOwedTotal = Object.values(showOwedByPerson).reduce((sum, v) => sum + v, 0);
+  const duesOwedTotal = Object.values(duesOwedByPerson).reduce((sum, v) => sum + v, 0);
   const balance = fundTotal - showExpenseTotal;
 
   const save = async (patch) => {
@@ -275,6 +278,63 @@ export default function ShowSettlementCard({
     </div>
   );
 
+  const renderExpenseGroup = (g) => {
+            if (g.entries.length === 1) {
+              const e = g.entries[0];
+              if (editingExpense?.id === e.id) return <div key={g.name}>{renderExpenseEditor()}</div>;
+              const descParts = [e.date, memoOf(e), g.payers.length ? `선결제: ${g.payers.join(', ')}` : '선결제자 미기재'].filter(Boolean);
+              return (
+                <div key={g.name} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+                    <div style={nameStyle}>{g.name}</div>
+                    <div style={descStyle}>{descParts.join(' · ')}</div>
+                  </div>
+                  {renderEntryActions(e, g.name)}
+                </div>
+              );
+            }
+            const key = `cat:${g.name}`;
+            const open = Boolean(openGroups[key]);
+            return (
+              <div key={g.name}>
+                <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={ev => { if (!isInteractive(ev)) toggleGroup(key); }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ ...nameStyle, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {g.name}
+                      <button type="button" style={countBadge} aria-expanded={open} onClick={() => toggleGroup(key)}>{g.entries.length}건 {open ? '▴' : '▾'}</button>
+                      
+                      {g.unpaid > 0 && <span style={warnBadge}>미정산 {won(g.unpaid)}</span>}
+                    </div>
+                    <div style={descStyle}>{g.payers.length ? `선결제: ${g.payers.join(', ')}` : '선결제자 미기재'} · 눌러서 날짜별 보기</div>
+                  </div>
+                  <div style={amountStyle}>{won(g.total)}</div>
+                </div>
+                {open && (
+                  <div style={subListStyle}>
+                    {g.entries.map(e => (
+                      editingExpense?.id === e.id ? (
+                        <div key={e.id}>{renderExpenseEditor()}</div>
+                      ) : (
+                        <div key={e.id} style={subRowStyle}>
+                          <div style={{ minWidth: 0 }}>
+                            <span style={subDateStyle}>{e.date || '-'}</span>
+                            {memoOf(e) && <span style={subMemoStyle}>{memoOf(e)}</span>}
+                          </div>
+                          {renderEntryActions(e, g.name)}
+                        </div>
+                      )
+                    ))}
+                    {isAdmin && g.entries.some(e => !e.reimbursed) && (
+                      <div style={{ padding: '6px 0 2px' }}>
+                        <button type="button" disabled={saving} onClick={() => markGroupReimbursed(g)} style={{ ...miniButton, fontWeight: 800 }}>모두 정산 완료로 표시</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+  };
+
   return (
     <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0', background: '#fff', display: 'grid', gap: 18 }}>
       <style>{`
@@ -289,7 +349,7 @@ export default function ShowSettlementCard({
       <div className="settlement-cols">
       {/* ── 수입 ── */}
       <section style={{ minWidth: 0 }}>
-        <h3 style={sectionTitle}>수입</h3>
+        <h3 style={sectionTitle}>공연 수입</h3>
         <div style={{ marginTop: 6 }}>
           <div style={rowStyle}>
             <div><div style={nameStyle}>티켓 판매</div><div style={descStyle}>관객이 계좌로 입금한 금액</div></div>
@@ -362,7 +422,7 @@ export default function ShowSettlementCard({
       {/* ── 지출 ── */}
       <section style={{ minWidth: 0 }}>
         <h3 style={sectionTitle}>
-          지출
+          공연 지출
           {isAdmin && <button type="button" style={smallButton} aria-expanded={showCatPanel} onClick={() => setShowCatPanel(v => !v)}>{showCatPanel ? '항목 관리 닫기' : '항목 관리'}</button>}
         </h3>
 
@@ -395,62 +455,7 @@ export default function ShowSettlementCard({
           {settlement.expenses.length === 0 && (
             <div style={{ ...rowStyle, color: '#94a3b8', fontSize: 13 }}>아직 기록된 지출이 없습니다. 대관료, 연습실, 팜플렛 등 공연에 쓴 돈을 적어 주세요.</div>
           )}
-          {expenseGroups.filter(g => g.entries.length > 0).map(g => {
-            if (g.entries.length === 1) {
-              const e = g.entries[0];
-              if (editingExpense?.id === e.id) return <div key={g.name}>{renderExpenseEditor()}</div>;
-              const descParts = [e.date, memoOf(e), g.payers.length ? `선결제: ${g.payers.join(', ')}` : '선결제자 미기재'].filter(Boolean);
-              return (
-                <div key={g.name} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: 0, flex: '1 1 160px' }}>
-                    <div style={nameStyle}>{g.name}{g.isDues && <span style={{ ...warnBadge, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8' }}>회비 부담</span>}</div>
-                    <div style={descStyle}>{descParts.join(' · ')}</div>
-                  </div>
-                  {renderEntryActions(e, g.name)}
-                </div>
-              );
-            }
-            const key = `cat:${g.name}`;
-            const open = Boolean(openGroups[key]);
-            return (
-              <div key={g.name}>
-                <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={ev => { if (!isInteractive(ev)) toggleGroup(key); }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ ...nameStyle, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {g.name}
-                      <button type="button" style={countBadge} aria-expanded={open} onClick={() => toggleGroup(key)}>{g.entries.length}건 {open ? '▴' : '▾'}</button>
-                      {g.isDues && <span style={{ ...warnBadge, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8' }}>회비 부담</span>}
-                      {g.unpaid > 0 && <span style={warnBadge}>미정산 {won(g.unpaid)}</span>}
-                    </div>
-                    <div style={descStyle}>{g.payers.length ? `선결제: ${g.payers.join(', ')}` : '선결제자 미기재'} · 눌러서 날짜별 보기</div>
-                  </div>
-                  <div style={amountStyle}>{won(g.total)}</div>
-                </div>
-                {open && (
-                  <div style={subListStyle}>
-                    {g.entries.map(e => (
-                      editingExpense?.id === e.id ? (
-                        <div key={e.id}>{renderExpenseEditor()}</div>
-                      ) : (
-                        <div key={e.id} style={subRowStyle}>
-                          <div style={{ minWidth: 0 }}>
-                            <span style={subDateStyle}>{e.date || '-'}</span>
-                            {memoOf(e) && <span style={subMemoStyle}>{memoOf(e)}</span>}
-                          </div>
-                          {renderEntryActions(e, g.name)}
-                        </div>
-                      )
-                    ))}
-                    {isAdmin && g.entries.some(e => !e.reimbursed) && (
-                      <div style={{ padding: '6px 0 2px' }}>
-                        <button type="button" disabled={saving} onClick={() => markGroupReimbursed(g)} style={{ ...miniButton, fontWeight: 800 }}>모두 정산 완료로 표시</button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {expenseGroups.filter(g => g.entries.length > 0 && !g.isDues).map(renderExpenseGroup)}
 
           {isAdmin && (
             <div style={addLineStyle}>
@@ -469,14 +474,13 @@ export default function ShowSettlementCard({
 
           <div style={{ ...rowStyle, borderTop: '2px solid #0f172a', paddingTop: 12 }}>
             <div>
-              <div style={{ ...nameStyle, fontSize: 15 }}>합계 (공연 비용)</div>
-              {duesExpenseTotal > 0 && <div style={descStyle}>회비에서 부담 {won(duesExpenseTotal)} 별도 ({duesCategoryNames.join(', ')})</div>}
-              {owedTotal > 0 && (
+              <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
+              {showOwedTotal > 0 && (
                 <div style={descStyle}>
-                  {Object.entries(owedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
+                  {Object.entries(showOwedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
                 </div>
               )}
-              {expenseTotal > 0 && owedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
+              {showExpenseTotal > 0 && showOwedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
             </div>
             <div style={{ ...amountStyle, fontSize: 17 }}>{won(showExpenseTotal)}</div>
           </div>
@@ -484,12 +488,34 @@ export default function ShowSettlementCard({
       </section>
       </div>
 
+      {/* ── 회비 부담: 연습실 등 회비(통장)에서 내는 공연 준비 비용 — 공연 손익과 별도 ── */}
+      {duesExpenseTotal > 0 && (
+        <section style={{ minWidth: 0, borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
+          <h3 style={sectionTitle}>회비 부담 <span style={{ fontWeight: 600, fontSize: 11, color: '#64748b' }}>회비(통장)에서 내는 비용 · '항목 관리'에서 지정</span></h3>
+          <div style={{ marginTop: 6 }}>
+            {expenseGroups.filter(g => g.entries.length > 0 && g.isDues).map(renderExpenseGroup)}
+            <div style={{ ...rowStyle, borderTop: '2px solid #0f172a', paddingTop: 12 }}>
+              <div>
+                <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
+                {duesOwedTotal > 0 && (
+                  <div style={descStyle}>
+                    {Object.entries(duesOwedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
+                  </div>
+                )}
+                {duesOwedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
+                {balance < 0 && <div style={descStyle}>공연 부족분 {won(-balance)}까지 더하면 회비(통장)에서 총 {won(duesExpenseTotal - balance)} 나갑니다</div>}
+              </div>
+              <div style={{ ...amountStyle, fontSize: 17 }}>{won(duesExpenseTotal)}</div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── 정산 결과 ── */}
       <section style={{ padding: '14px 16px', borderRadius: 14, background: balance >= 0 ? '#ecfdf5' : '#fef2f2', border: `1px solid ${balance >= 0 ? '#a7f3d0' : '#fecaca'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h3 style={{ ...sectionTitle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>정산 결과</h3>
-          <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>수입 {won(fundTotal)} − 공연 비용 {won(showExpenseTotal)}</div>
-          {duesExpenseTotal > 0 && <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>회비에서 부담 {won(duesExpenseTotal)}은 별도입니다</div>}
+          <h3 style={{ ...sectionTitle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>공연 정산 결과</h3>
+          <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>공연 수입 {won(fundTotal)} − 공연 지출 {won(showExpenseTotal)}</div>
         </div>
         <div style={{ fontSize: 20, fontWeight: 900, color: balance >= 0 ? '#047857' : '#b91c1c', whiteSpace: 'nowrap' }}>
           {balance >= 0 ? `잔액 ${won(balance)}` : `부족 ${won(-balance)}`}
