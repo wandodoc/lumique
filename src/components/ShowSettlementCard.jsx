@@ -272,9 +272,9 @@ export default function ShowSettlementCard({
         <input type="checkbox" checked={Boolean(e.reimbursed)} disabled={!isAdmin || saving} onChange={() => toggleReimbursed(e.id)} />
         정산 완료
       </label>
-      <span style={{ ...amountStyle, fontSize: 13 }}>{won(e.amount)}</span>
       {isAdmin && <button type="button" aria-label="지출 수정" disabled={saving} onClick={() => startEditExpense(e)} style={miniButton}>수정</button>}
       {isAdmin && <button type="button" aria-label="지출 삭제" disabled={saving} onClick={() => removeExpense(e, groupName)} style={dangerMini}>삭제</button>}
+      <span style={{ ...amountStyle, fontSize: 13, minWidth: 84, textAlign: 'right' }}>{won(e.amount)}</span>
     </div>
   );
 
