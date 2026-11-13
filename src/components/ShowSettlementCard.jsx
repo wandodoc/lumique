@@ -51,6 +51,7 @@ export default function ShowSettlementCard({
   const [showCatPanel, setShowCatPanel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
+  const [showAddExpense, setShowAddExpense] = useState(false); // 지출 추가 입력 줄은 버튼을 눌러야 열린다
   const [expenseCategory, setExpenseCategory] = useState('');
   const [expenseDate, setExpenseDate] = useState(today);
   const [expenseAmount, setExpenseAmount] = useState('');
@@ -458,7 +459,13 @@ export default function ShowSettlementCard({
           )}
           {expenseGroups.filter(g => g.entries.length > 0 && !g.isDues).map(renderExpenseGroup)}
 
-          {isAdmin && (
+          {isAdmin && !showAddExpense && (
+            <div style={{ padding: '10px 0', borderTop: '1px solid #f1f5f9' }}>
+              <button type="button" onClick={() => setShowAddExpense(true)}
+                style={{ width: '100%', padding: '8px 0', borderRadius: 10, border: '1.5px dashed #cbd5e1', background: 'transparent', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ 지출 추가</button>
+            </div>
+          )}
+          {isAdmin && showAddExpense && (
             <div style={addLineStyle}>
               <select value={categoryNames.includes(expenseCategory) ? expenseCategory : ''} onChange={e => pickCategory(e.target.value)} aria-label="지출 항목 선택" style={{ ...inputStyle, flex: '1.3 1 120px' }}>
                 <option value="" disabled>항목 선택</option>
@@ -469,7 +476,8 @@ export default function ShowSettlementCard({
               <input type="text" inputMode="numeric" value={expenseAmount} onChange={e => setExpenseAmount(formatAmountInput(e.target.value))} placeholder="금액" aria-label="지출 금액" style={{ ...inputStyle, flex: '.9 1 80px' }} />
               <input type="text" value={expensePaidBy} onChange={e => setExpensePaidBy(e.target.value)} placeholder="선결제자" aria-label="선결제자" list="settlement-person-names" style={{ ...inputStyle, flex: '.9 1 90px' }} />
               <datalist id="settlement-person-names">{personNames.map(n => <option key={n} value={n} />)}</datalist>
-              <button type="button" onClick={addExpense} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>{saving ? '저장 중…' : '+ 지출 추가'}</button>
+              <button type="button" onClick={addExpense} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>{saving ? '저장 중…' : '추가'}</button>
+              <button type="button" onClick={() => setShowAddExpense(false)} disabled={saving} style={{ ...smallButton, padding: '9px 12px' }}>닫기</button>
             </div>
           )}
 
