@@ -1660,10 +1660,27 @@ export default function ReservationManagementPage() {
     autoEligible.forEach(person => peopleByPerformer.get(person.performerId)?.people.push(person));
     peopleByPerformer.forEach(({ name, people }, performerId) => {
       let performerTables = tables.filter(table => table.performerId === performerId).sort((a, b) => (a.performerTableIndex || 1) - (b.performerTableIndex || 1));
+      // 그룹 전체(공연자 1명 + 그 공연자 초대 예매 인원)가 한 테이블에 다 들어가도록 정원을 잡는다.
+      // 가게 테이블 사정은 배치 후 표/배치도에서 정원을 줄이는 식으로 조정한다.
+      const groupSize = 1 + people.reduce((sum, person) => sum + person.count, 0);
       if (!performerTables.length) {
-        const table = newPerformerTable(performerId, name, 1, 6);
+        const table = newPerformerTable(performerId, name, 1, Math.max(6, groupSize));
         tables.push(table);
         performerTables = [table];
+      } else {
+        // 이미 있는 1번 테이블이 그룹보다 작으면 정원·크기를 키우고 좌석을 다시 깐다 (좌석 id 유지).
+        const primary = performerTables[0];
+        if ((Number(primary.capacity) || 0) < groupSize) {
+          const grownSize = sizeForCapacity(primary, groupSize);
+          const geometry = { width: grownSize.width, height: grownSize.height, baseWidth: grownSize.width, baseHeight: grownSize.height, ...clampTablePosition(primary.x, primary.y, grownSize.width, grownSize.height) };
+          const slots = computeSeatSlots({ ...primary, ...geometry }, groupSize);
+          const seats = slots.map((point, idx) => ({
+            id: primary.seats?.[idx]?.id || createSeatId(),
+            x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)),
+            y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)),
+          }));
+          performerTables = [{ ...primary, ...geometry, capacity: groupSize, seats }, ...performerTables.slice(1)];
+        }
       }
       performerTables = performerTables.map(table => {
         const updated = { ...table, name: (table.performerTableIndex || 1) === 1 ? name : `${name} ${table.performerTableIndex}` };
@@ -3227,10 +3244,10 @@ export default function ReservationManagementPage() {
 
                     <div className="after-party-table-wrap">
                       <table className="after-party-participant-table after-party-attendee-table">
-                        <thead><tr><th>참석자</th><th>인원</th><th>소속 그룹</th><th>비고</th></tr></thead>
+                        <thead><tr><th>참석자</th><th>인원</th><th>소속 그룹</th></tr></thead>
                         <tbody>
                           {listRows.length === 0 ? (
-                            <tr><td colSpan={4} className="after-party-empty-row">검색/필터 조건에 맞는 참석자가 없습니다.</td></tr>
+                            <tr><td colSpan={3} className="after-party-empty-row">검색/필터 조건에 맞는 참석자가 없습니다.</td></tr>
                           ) : visibleListRows.map(row => {
                             const isOpen = expandedAttendeeKey === row.key;
                             const badge = AFTER_PARTY_TYPE_BADGE[row.type];
@@ -3282,12 +3299,12 @@ export default function ReservationManagementPage() {
                                       )}
                                     </select>
                                     <span className={`after-party-status after-party-status-${row.type}`}><i />{badge.text}</span>
+                                    {noteText && <div style={{ fontSize: 11, color: '#a16207', marginTop: 3 }}>{noteText}</div>}
                                   </td>
-                                  <td className="after-party-attendee-note">{noteText}</td>
                                 </tr>
                                 {isOpen && (
                                   <tr className="after-party-attendee-detail">
-                                    <td colSpan={4} onClick={event => event.stopPropagation()}>
+                                    <td colSpan={3} onClick={event => event.stopPropagation()}>
                                       {row.kind === 'performer' ? renderPerformerDetail(row) : renderOrderDetail(row)}
                                     </td>
                                   </tr>
