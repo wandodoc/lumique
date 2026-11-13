@@ -123,6 +123,21 @@ const createSeatId = () => `seat-${Date.now()}-${Math.random().toString(36).slic
 // 변 길이 len에 (코너 쪽 여유를 감안해) 넣을 수 있는 최대 좌석 수.
 const seatCapacityForSide = (len) => Math.max(1, Math.floor((len * 0.85) / (SEAT_DOT_SIZE + SEAT_MIN_GAP)));
 
+// 정원 n명이 겹치지 않고 앉을 수 있도록 테이블 크기를 계산한다 (현재 크기보다 줄이지는 않는다).
+// 정원을 6 → 10명처럼 늘렸을 때 테이블이 그대로면 좌석이 뭉개지는 문제를 막는다.
+const sizeForCapacity = (table, n) => {
+  const unit = SEAT_DOT_SIZE + SEAT_MIN_GAP;
+  if (table.shape === 'circle') {
+    const needDiameter = Math.ceil((unit * n) / Math.PI) - SEAT_EDGE_OFFSET * 2;
+    const d = Math.max(TABLE_DEFAULT_SIZE.circle.width, needDiameter);
+    return { width: Math.max(table.width, d), height: Math.max(table.height, d) };
+  }
+  const perSide = Math.ceil(n / 2);
+  const needLen = Math.ceil((unit * perSide) / 0.85) + 2;
+  if (table.width >= table.height) return { width: Math.max(table.width, needLen), height: table.height };
+  return { width: table.width, height: Math.max(table.height, needLen) };
+};
+
 // 길이 [start, end] 구간에 n개의 좌석을 균등 간격으로 배치한 좌표(1차원)를 돌려준다.
 const evenPositionsAlong = (n, start, end) => {
   if (n <= 0) return [];
@@ -1488,7 +1503,11 @@ export default function ReservationManagementPage() {
     const n = Math.max(0, Math.floor(Number(capacity) || 0));
     const table = afterPartyTables.find(item => item.id === tableId);
     if (!table) return;
-    if (n === table.seats.length) return;
+    if (n === table.seats.length) {
+      // 정원이 같아도 테이블이 너무 작아 좌석이 겹쳐 있으면(예전 버그로 깨진 배치) 크기를 키워 다시 배치한다.
+      const grown = sizeForCapacity(table, n);
+      if (grown.width <= table.width && grown.height <= table.height) return;
+    }
     let seats = [...table.seats];
     const nextParticipants = materializeLegacySeatAssignments();
     const nextPerformerSeats = { ...performerSeatAssignments };
@@ -1509,11 +1528,21 @@ export default function ReservationManagementPage() {
         nextManual[orderId] = true;
       });
       seats = seats.slice(0, n);
-    } else {
-      const slots = computeSeatSlots({ ...table, capacity: n }, n).slice(seats.length);
-      seats = [...seats, ...slots.map(point => ({ id: createSeatId(), x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)), y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)) }))];
     }
-    const tables = afterPartyTables.map(item => item.id === tableId ? { ...item, seats, capacity: seats.length } : item);
+    let nextGeometry = null;
+    if (n >= table.seats.length) {
+      // 정원이 늘면 테이블 크기를 함께 키우고 좌석 전체를 새 크기에 맞춰 다시 배치한다.
+      // 기존 좌석 id는 순서대로 유지해 이미 배정된 사람이 풀리지 않게 한다.
+      const grown = sizeForCapacity(table, n);
+      nextGeometry = { width: grown.width, height: grown.height, baseWidth: grown.width, baseHeight: grown.height, ...clampTablePosition(table.x, table.y, grown.width, grown.height) };
+      const slots = computeSeatSlots({ ...table, ...nextGeometry }, n);
+      seats = slots.map((point, idx) => ({
+        id: seats[idx]?.id || createSeatId(),
+        x: Math.max(0.012, Math.min(0.988, point.x / TABLE_CANVAS_WIDTH)),
+        y: Math.max(0.02, Math.min(0.98, point.y / TABLE_CANVAS_HEIGHT)),
+      }));
+    }
+    const tables = afterPartyTables.map(item => item.id === tableId ? { ...item, ...(nextGeometry || {}), seats, capacity: seats.length } : item);
     saveSeatingPatch({ tables, participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformerSeats, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: nextManual });
   };
 
@@ -1680,6 +1709,14 @@ export default function ReservationManagementPage() {
   const resetAllSeating = () => {
     if (!window.confirm('모든 예매자와 공연자의 좌석 배정을 해제합니다. 테이블 이름·위치·정원은 그대로 유지됩니다. 계속하시겠습니까?')) return;
     saveSeatingPatch({ seatAssignments: {}, autoSeatAssignments: {}, manualSeatAssignments: {}, participantSeatAssignments: {}, performerSeatAssignments: {} });
+  };
+
+  // 테이블을 전부 삭제하고 좌석 배정도 모두 비운다. 배치를 처음부터 다시 그릴 때 사용.
+  const removeAllTables = () => {
+    if (afterPartyTables.length === 0) return;
+    if (!window.confirm(`테이블 ${afterPartyTables.length}개를 모두 삭제하고 좌석 배정도 전부 비웁니다. 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+    setSelectedTableId(null);
+    saveSeatingPatch({ tables: [], seatAssignments: {}, autoSeatAssignments: {}, manualSeatAssignments: {}, participantSeatAssignments: {}, performerSeatAssignments: {} });
   };
 
   // ── 테이블 배치도: 위치/크기/모양/방향 편집 — afterPartyTables는 이미 기본값이 채워져 있으므로
@@ -3576,6 +3613,15 @@ export default function ReservationManagementPage() {
                             opacity: Object.keys(seatAssignments).length === 0 && Object.keys(participantSeatAssignments).length === 0 && Object.keys(performerSeatAssignments).length === 0 ? 0.5 : 1
                           }}
                         >배치 초기화</button>
+                        <button type="button" onClick={removeAllTables}
+                          disabled={afterPartyTables.length === 0}
+                          title="테이블과 좌석 배정을 전부 지우고 처음부터 다시 그립니다"
+                          style={{
+                            padding: '8px 14px', borderRadius: 10, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 700,
+                            cursor: afterPartyTables.length === 0 ? 'not-allowed' : 'pointer',
+                            opacity: afterPartyTables.length === 0 ? 0.5 : 1
+                          }}
+                        >테이블 전체 삭제</button>
                       </div>
                     )}
 
