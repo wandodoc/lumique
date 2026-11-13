@@ -1158,29 +1158,6 @@ export default function ReservationManagementPage() {
     }
   };
 
-  // ── 복수 공연자(2순위 이하) 관리 — 한 건(order) 단위로만 동작한다 ──
-  // inviterExtraMemberIds: 2순위부터의 참고용 공연자 id 배열(수동 전용, 실적 집계에는 영향 없음).
-  const getExtraPerformerIds = (o) => (Array.isArray(o?.inviterExtraMemberIds) ? o.inviterExtraMemberIds : []);
-
-  // 2순위 이하 공연자를 추가한다. 이미 1순위이거나 이미 목록에 있으면(중복 등록 방지) 무시한다.
-  const addExtraPerformer = (orderId, memberId) => {
-    const o = orders.find(x => x.id === orderId);
-    if (!o || !memberId) return;
-    const primary = resolveInviterMember(o);
-    if (primary && primary.id === memberId) return;
-    const extras = getExtraPerformerIds(o);
-    if (extras.includes(memberId)) return;
-    applyAfterPartyPatch([orderId], { inviterExtraMemberIds: [...extras, memberId] }, '공연자 추가 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
-  };
-
-  // 2순위 이하 목록에서 공연자를 제거한다.
-  const removeExtraPerformer = (orderId, memberId) => {
-    const o = orders.find(x => x.id === orderId);
-    if (!o) return;
-    const extras = getExtraPerformerIds(o).filter(id => id !== memberId);
-    applyAfterPartyPatch([orderId], { inviterExtraMemberIds: extras }, '공연자 삭제 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
-  };
-
   // 테이블 배치: 미배치 참여자 다중 선택 토글
   const toggleSeatingSelection = (orderId) => {
     setSelectedSeatingIds(prev => (prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]));
@@ -2039,27 +2016,12 @@ export default function ReservationManagementPage() {
 
   const renderOrderDetail = (row) => {
     const o = row.order;
-    const primary = resolveInviterMember(o);
-    const extras = getExtraPerformerIds(o);
-    const extraMembers = extras.map(id => members.find(m => m.id === id) || bandMembers[id] || { id, name: id, part: '' });
     return (
       <div className="after-party-detail-grid">
         <div><span>연락처</span><strong>{o.phone || '-'}</strong></div>
         <div><span>입금</span><strong>{o.depositStatus || '-'}</strong></div>
         <div><span>신청 시간</span><strong>{o.createdAt && Number.isFinite(Date.parse(o.createdAt)) ? new Date(o.createdAt).toLocaleString('ko-KR') : '-'}</strong></div>
         <div><span>원본 초대자 입력</span><strong>{row.originalInviterName ? `"${row.originalInviterName}"` : '없음'}</strong></div>
-        <div className="after-party-detail-wide">
-          <span>함께한 공연자 (참고용 · 집계에 영향 없음)</span>
-          <div className="after-party-detail-chips">
-            {extraMembers.map(m => (
-              <span key={m.id} className="after-party-chip">{m.name}{m.part ? ` (${m.part})` : ''}
-                {isAdmin && <button type="button" aria-label={`${m.name} 빼기`} onClick={() => removeExtraPerformer(o.id, m.id)}>✕</button>}
-              </span>
-            ))}
-            {extraMembers.length === 0 && <span className="after-party-detail-empty">없음</span>}
-            {isAdmin && <AddPerformerPicker members={performerOptions} excludeIds={[primary?.id, ...extras].filter(Boolean)} onAdd={(memberId) => addExtraPerformer(o.id, memberId)} triggerText="+ 추가" />}
-          </div>
-        </div>
       </div>
     );
   };
@@ -3202,7 +3164,6 @@ export default function ReservationManagementPage() {
                         {[
                           { value: 'all', label: '전체', count: afterPartyAttendeeRows.length },
                           { value: 'unmapped', label: '확인 필요', count: afterPartyAttendeeRows.filter(r => r.type === 'unmapped').length },
-                          { value: 'performer', label: '공연자 본인', count: afterPartyAttendeeRows.filter(r => r.kind === 'performer').length },
                         ].map(f => (
                           <button key={f.value} type="button" aria-pressed={mgmtFilter === f.value}
                             className={mgmtFilter === f.value ? 'after-party-filter is-active' : 'after-party-filter'}
