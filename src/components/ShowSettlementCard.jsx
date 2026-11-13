@@ -3,9 +3,6 @@ import { useMemo, useState } from 'react';
 // 공연 정산표: 수입(티켓 판매·부원 관람분·공연 부원 회비·후원금)과 지출(항목별 묶음)을 한 표로 본다.
 // 설정·지출·항목 목록은 공연 레코드의 settlement 필드, 후원금은 기존 extraDonationList에 저장한다.
 // 입출금 장부는 건드리지 않는다.
-const DEFAULT_MONTHLY_DUES = 10000;
-const DEFAULT_PREP_MONTHS = 3;
-
 const won = (n) => `${Math.round(Number(n) || 0).toLocaleString()}원`;
 const toAmount = (v) => {
   const n = Math.floor(Number(String(v ?? '').replace(/[^0-9.]/g, '')));
@@ -15,11 +12,6 @@ const toAmount = (v) => {
 const formatAmountInput = (v) => {
   const digits = String(v ?? '').replace(/[^0-9]/g, '');
   return digits ? Number(digits).toLocaleString() : '';
-};
-const toMonths = (v, fallback) => {
-  if (v === '' || v === null || v === undefined) return fallback;
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? Math.min(n, 60) : fallback;
 };
 const newId = () => `exp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -56,7 +48,6 @@ export default function ShowSettlementCard({
   ticketCash, duesCoveredSum, duesCoveredCount, donations = [],
   participantIds, members, bandMembers,
 }) {
-  const [showDuesSettings, setShowDuesSettings] = useState(false);
   const [showCatPanel, setShowCatPanel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
@@ -73,14 +64,15 @@ export default function ShowSettlementCard({
 
   const settlement = useMemo(() => {
     const raw = show?.settlement && typeof show.settlement === 'object' ? show.settlement : {};
-    const monthly = Number(raw.monthlyDues);
-    const months = Number(raw.prepMonths);
     return {
-      monthlyDues: raw.monthlyDues !== undefined && raw.monthlyDues !== null && Number.isFinite(monthly) && monthly >= 0 ? monthly : DEFAULT_MONTHLY_DUES,
-      prepMonths: raw.prepMonths !== undefined && raw.prepMonths !== null && Number.isFinite(months) && months >= 0 ? months : DEFAULT_PREP_MONTHS,
-      memberMonths: raw.memberMonths && typeof raw.memberMonths === 'object' ? raw.memberMonths : {},
+      // 회비 공식(×개월) 기능은 제거했지만, 과거 저장값은 보존을 위해 그대로 갖고 있는다.
+      ...(raw.monthlyDues !== undefined ? { monthlyDues: raw.monthlyDues } : {}),
+      ...(raw.prepMonths !== undefined ? { prepMonths: raw.prepMonths } : {}),
+      ...(raw.memberMonths !== undefined ? { memberMonths: raw.memberMonths } : {}),
       expenses: Array.isArray(raw.expenses) ? raw.expenses : [],
       expenseCategories: Array.isArray(raw.expenseCategories) ? raw.expenseCategories.map(n => String(n).trim()).filter(Boolean) : [],
+      // '회비 부담'으로 표시한 지출 항목 — 공연 정산 합계에서 빼고 별도로 집계한다 (연습실 대여 등).
+      duesCategories: Array.isArray(raw.duesCategories) ? raw.duesCategories.map(n => String(n).trim()).filter(Boolean) : [],
     };
   }, [show]);
 
@@ -96,19 +88,9 @@ export default function ShowSettlementCard({
     return { officials: officialList, guests: guestList };
   }, [participantIds, members, bandMembers]);
 
-  const duesRows = officials.map(m => ({ id: m.id, name: m.name, part: m.part || '', months: toMonths(settlement.memberMonths[m.id], settlement.prepMonths) }));
-  const totalMonths = duesRows.reduce((sum, r) => sum + r.months, 0);
-  const memberDuesSum = totalMonths * settlement.monthlyDues;
-  const allSameMonths = duesRows.every(r => r.months === settlement.prepMonths);
-  const duesFormula = duesRows.length === 0
-    ? '공연 관리에 등록된 부원 참가자가 없습니다'
-    : allSameMonths
-      ? `${duesRows.length}명 × ${won(settlement.monthlyDues)} × ${settlement.prepMonths}개월`
-      : `${duesRows.length}명 · 부원별 기간 합계 ${totalMonths}개월 × ${won(settlement.monthlyDues)}`;
-
   const donationSum = donations.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-  const fundTotal = (Number(ticketCash) || 0) + (Number(duesCoveredSum) || 0) + memberDuesSum + donationSum;
-  const fromDues = (Number(duesCoveredSum) || 0) + memberDuesSum;
+  const fundTotal = (Number(ticketCash) || 0) + (Number(duesCoveredSum) || 0) + donationSum;
+  const fromDues = Number(duesCoveredSum) || 0;
 
   // 같은 항목의 지출을 한 묶음으로. 등록만 하고 아직 지출이 없는 항목(0건)도 항목 관리에 나온다.
   const expenseGroups = useMemo(() => {
@@ -121,6 +103,7 @@ export default function ShowSettlementCard({
     });
     return [...map.entries()].map(([name, entries]) => ({
       name,
+      isDues: settlement.duesCategories.includes(name),
       entries: [...entries].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.createdAt || '').localeCompare(String(b.createdAt || ''))),
       total: entries.reduce((s, e) => s + (Number(e.amount) || 0), 0),
       unpaid: entries.filter(e => !e.reimbursed).reduce((s, e) => s + (Number(e.amount) || 0), 0),
@@ -129,7 +112,10 @@ export default function ShowSettlementCard({
   }, [settlement]);
   const categoryNames = expenseGroups.map(g => g.name);
 
-  const expenseTotal = settlement.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const showExpenseTotal = expenseGroups.filter(g => !g.isDues).reduce((sum, g) => sum + g.total, 0);
+  const duesExpenseTotal = expenseGroups.filter(g => g.isDues).reduce((sum, g) => sum + g.total, 0);
+  const duesCategoryNames = expenseGroups.filter(g => g.isDues && g.entries.length > 0).map(g => g.name);
+  const expenseTotal = showExpenseTotal + duesExpenseTotal;
   const owedByPerson = settlement.expenses.reduce((map, e) => {
     if (e.reimbursed) return map;
     const key = String(e.paidBy || '').trim() || '선결제자 미기재';
@@ -137,7 +123,7 @@ export default function ShowSettlementCard({
     return map;
   }, {});
   const owedTotal = Object.values(owedByPerson).reduce((sum, v) => sum + v, 0);
-  const balance = fundTotal - expenseTotal;
+  const balance = fundTotal - showExpenseTotal;
 
   const save = async (patch) => {
     if (!isAdmin || saving) return false;
@@ -212,6 +198,10 @@ export default function ShowSettlementCard({
       expenses: settlement.expenses.map(e => (categoryOf(e) === group.name ? { ...e, category: target, memo: memoOf(e) } : e)),
     });
     if (expenseCategory === group.name) setExpenseCategory(target);
+  };
+  const toggleDuesCategory = (name) => {
+    const has = settlement.duesCategories.includes(name);
+    save({ duesCategories: has ? settlement.duesCategories.filter(n => n !== name) : [...settlement.duesCategories, name] });
   };
   const pickCategory = async (value) => {
     if (value !== '__new') { setExpenseCategory(value); return; }
@@ -312,64 +302,6 @@ export default function ShowSettlementCard({
             </div>
             <div style={amountStyle}>{won(duesCoveredSum)}</div>
           </div>
-          <div style={rowStyle}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ ...nameStyle, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                공연 부원 회비
-                <button type="button" style={smallButton} aria-expanded={showDuesSettings} onClick={() => setShowDuesSettings(v => !v)}>{showDuesSettings ? '설정 닫기' : '설정'}</button>
-              </div>
-              <div style={descStyle}>공연을 준비한 부원이 준비 기간 동안 낸 회비 ({duesFormula})</div>
-              {guests.length > 0 && <div style={{ ...descStyle, color: '#94a3b8' }}>객원 {guests.length}명은 포함되지 않습니다 ({guests.map(g => g.name).join(', ')})</div>}
-            </div>
-            <div style={amountStyle}>{won(memberDuesSum)}</div>
-          </div>
-
-          {showDuesSettings && (
-            <div style={{ margin: '0 0 10px', padding: 14, borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'grid', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
-                  한 달 회비 (원)
-                  <input type="text" inputMode="numeric" disabled={!isAdmin || saving} style={{ ...inputStyle, width: 130 }}
-                    key={`dues:${settlement.monthlyDues}`} defaultValue={settlement.monthlyDues.toLocaleString()}
-                    onChange={e => { e.target.value = formatAmountInput(e.target.value); }}
-                    onBlur={e => { const v = toAmount(e.target.value); if (v !== settlement.monthlyDues) save({ monthlyDues: v }); }} />
-                </label>
-                <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 700, color: '#334155' }}>
-                  준비 기간 (개월)
-                  <input type="number" min="0" step="1" disabled={!isAdmin || saving} style={{ ...inputStyle, width: 110 }}
-                    key={`months:${settlement.prepMonths}`} defaultValue={settlement.prepMonths}
-                    onBlur={e => { const v = toMonths(e.target.value, settlement.prepMonths); if (v !== settlement.prepMonths) save({ prepMonths: v }); }} />
-                </label>
-                <span style={{ fontSize: 12, color: '#64748b', paddingBottom: 8 }}>칸을 벗어나면 저장됩니다.</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>부원별 준비 기간 — 중간에 합류했거나 일부만 참여한 부원은 개월 수를 고쳐 주세요</div>
-                {duesRows.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>공연 관리에서 이 공연의 참가자를 먼저 등록해 주세요.</div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6 }}>
-                    {duesRows.map(r => (
-                      <label key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 8, background: '#fff', border: `1px solid ${r.months === settlement.prepMonths ? '#e2e8f0' : '#fcd34d'}`, fontSize: 13 }}>
-                        <span style={{ fontWeight: 700, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{r.part ? <span style={{ fontWeight: 500, color: '#94a3b8' }}> {r.part}</span> : null}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                          <input type="number" min="0" step="1" disabled={!isAdmin || saving} aria-label={`${r.name} 준비 기간(개월)`} style={{ ...inputStyle, width: 60, padding: '5px 6px', textAlign: 'right' }}
-                            key={`${r.id}:${r.months}`} defaultValue={r.months}
-                            onBlur={e => {
-                              const months = toMonths(e.target.value, settlement.prepMonths);
-                              const next = { ...settlement.memberMonths };
-                              if (months === settlement.prepMonths) delete next[r.id]; else next[r.id] = months;
-                              if (JSON.stringify(next) !== JSON.stringify(settlement.memberMonths)) save({ memberMonths: next });
-                            }} />
-                          <span style={{ color: '#64748b', fontSize: 12 }}>개월</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* 후원금: 묶음 줄 + 펼치면 건별 기록/추가 */}
           <div style={{ ...rowStyle, cursor: 'pointer' }} onClick={e => { if (!isInteractive(e)) toggleGroup('don'); }}>
             <div>
@@ -442,6 +374,10 @@ export default function ShowSettlementCard({
               <div key={g.name} style={{ ...subRowStyle, borderTop: '1px dashed #e2e8f0' }}>
                 <div><b>{g.name}</b><span style={{ ...subMemoStyle, marginLeft: 6 }}>{g.entries.length}건</span></div>
                 <div style={subRightStyle}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: g.isDues ? '#1d4ed8' : '#64748b', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <input type="checkbox" checked={g.isDues} disabled={!isAdmin || saving} onChange={() => toggleDuesCategory(g.name)} />
+                    회비 부담
+                  </label>
                   <button type="button" disabled={saving} onClick={() => renameCategory(g.name)} style={miniButton}>이름 바꾸기</button>
                   <button type="button" disabled={saving} onClick={() => deleteCategory(g)} style={dangerMini}>삭제</button>
                 </div>
@@ -451,7 +387,7 @@ export default function ShowSettlementCard({
               <input type="text" value={catDraft} onChange={e => setCatDraft(e.target.value)} placeholder="새 항목 이름 (예: 물품 구매)" aria-label="새 지출 항목 이름" style={{ ...inputStyle, flex: '1 1 150px' }} />
               <button type="button" onClick={addCategory} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>+ 항목 추가</button>
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>· 이름을 바꾸면 그 항목의 지출 전체에 적용됩니다<br />· 지출이 남아 있는 항목을 삭제하면 어느 항목으로 옮길지 물어봅니다</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>· 이름을 바꾸면 그 항목의 지출 전체에 적용됩니다<br />· 지출이 남아 있는 항목을 삭제하면 어느 항목으로 옮길지 물어봅니다<br />· '회비 부담'으로 표시한 항목(연습실 대여 등)은 공연 정산 합계에서 빠지고 아래에 별도로 집계됩니다</div>
           </div>
         )}
 
@@ -467,7 +403,7 @@ export default function ShowSettlementCard({
               return (
                 <div key={g.name} style={{ ...rowStyle, alignItems: 'center', flexWrap: 'wrap' }}>
                   <div style={{ minWidth: 0, flex: '1 1 160px' }}>
-                    <div style={nameStyle}>{g.name}</div>
+                    <div style={nameStyle}>{g.name}{g.isDues && <span style={{ ...warnBadge, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8' }}>회비 부담</span>}</div>
                     <div style={descStyle}>{descParts.join(' · ')}</div>
                   </div>
                   {renderEntryActions(e, g.name)}
@@ -483,6 +419,7 @@ export default function ShowSettlementCard({
                     <div style={{ ...nameStyle, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                       {g.name}
                       <button type="button" style={countBadge} aria-expanded={open} onClick={() => toggleGroup(key)}>{g.entries.length}건 {open ? '▴' : '▾'}</button>
+                      {g.isDues && <span style={{ ...warnBadge, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8' }}>회비 부담</span>}
                       {g.unpaid > 0 && <span style={warnBadge}>미정산 {won(g.unpaid)}</span>}
                     </div>
                     <div style={descStyle}>{g.payers.length ? `선결제: ${g.payers.join(', ')}` : '선결제자 미기재'} · 눌러서 날짜별 보기</div>
@@ -532,7 +469,8 @@ export default function ShowSettlementCard({
 
           <div style={{ ...rowStyle, borderTop: '2px solid #0f172a', paddingTop: 12 }}>
             <div>
-              <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
+              <div style={{ ...nameStyle, fontSize: 15 }}>합계 (공연 비용)</div>
+              {duesExpenseTotal > 0 && <div style={descStyle}>회비에서 부담 {won(duesExpenseTotal)} 별도 ({duesCategoryNames.join(', ')})</div>}
               {owedTotal > 0 && (
                 <div style={descStyle}>
                   {Object.entries(owedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
@@ -540,7 +478,7 @@ export default function ShowSettlementCard({
               )}
               {expenseTotal > 0 && owedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
             </div>
-            <div style={{ ...amountStyle, fontSize: 17 }}>{won(expenseTotal)}</div>
+            <div style={{ ...amountStyle, fontSize: 17 }}>{won(showExpenseTotal)}</div>
           </div>
         </div>
       </section>
@@ -550,7 +488,8 @@ export default function ShowSettlementCard({
       <section style={{ padding: '14px 16px', borderRadius: 14, background: balance >= 0 ? '#ecfdf5' : '#fef2f2', border: `1px solid ${balance >= 0 ? '#a7f3d0' : '#fecaca'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ ...sectionTitle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>정산 결과</h3>
-          <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>수입 {won(fundTotal)} − 지출 {won(expenseTotal)}</div>
+          <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>수입 {won(fundTotal)} − 공연 비용 {won(showExpenseTotal)}</div>
+          {duesExpenseTotal > 0 && <div style={{ ...descStyle, color: balance >= 0 ? '#047857' : '#b91c1c' }}>회비에서 부담 {won(duesExpenseTotal)}은 별도입니다</div>}
         </div>
         <div style={{ fontSize: 20, fontWeight: 900, color: balance >= 0 ? '#047857' : '#b91c1c', whiteSpace: 'nowrap' }}>
           {balance >= 0 ? `잔액 ${won(balance)}` : `부족 ${won(-balance)}`}
