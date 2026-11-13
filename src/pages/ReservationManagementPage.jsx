@@ -1907,7 +1907,8 @@ export default function ReservationManagementPage() {
   // ── 참석자별 보기: 예매 건과 직접 참석 공연자를 한 행씩 평평하게 나열한다 ──
   const groupOptionLabels = useMemo(() => {
     const set = new Set(existingGroupLabels);
-    Object.values(performerGroupMapping).forEach(label => { if (label) set.add(label); });
+    // 'member:<id>' 값은 "다른 공연자 그룹에 합류" 표시라 직접 만든 그룹 이름이 아니다.
+    Object.values(performerGroupMapping).forEach(label => { if (label && !String(label).startsWith('member:')) set.add(label); });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [existingGroupLabels, performerGroupMapping]);
 
@@ -1932,13 +1933,17 @@ export default function ReservationManagementPage() {
     }
     afterPartyPerformerIds.forEach(id => {
       const m = members.find(x => x.id === id) || bandMembers[id] || { id, name: id, part: '' };
-      const label = performerGroupMapping[id] || '';
+      // 매핑 값: 직접 만든 그룹 이름 | 'member:<호스트 id>'(다른 공연자 그룹에 합류) | 없음(본인 그룹)
+      const mapping = String(performerGroupMapping[id] || '');
+      const hostId = mapping.startsWith('member:') ? mapping.slice('member:'.length) : '';
+      const host = hostId ? findPerformer(hostId) : null;
+      const label = hostId ? '' : mapping;
       rows.push({
         key: `performer:${id}`, kind: 'performer', memberId: id, member: m,
         name: m.name, phone: m.phone || '', count: 1,
         type: label ? 'group' : 'performer',
-        groupLabel: label || '공연자 본인',
-        selectValue: label ? `group:${label}` : 'self',
+        groupLabel: label || (host ? host.name : '공연자 본인'),
+        selectValue: label ? `group:${label}` : host ? `member:${hostId}` : 'self',
         originalInviterName: '', createdAt: '',
       });
     });
@@ -2017,12 +2022,18 @@ export default function ReservationManagementPage() {
       if (!nextLabel) return;
     } else if (value.startsWith('group:')) {
       nextLabel = value.slice('group:'.length);
+    } else if (value.startsWith('member:')) {
+      // 다른 공연자의 그룹에 합류. 자기 자신을 고르면 '본인 그룹'으로 되돌린다.
+      nextLabel = value === `member:${row.memberId}` ? null : value;
     } else if (value !== 'self') {
       return;
     }
     const result = await setPerformerGroup(row.memberId, nextLabel);
     if (result === 'firebase') {
-      showAfterPartyToast(`${row.name} → ${nextLabel || '공연자 본인 (그룹 없음)'}`, () => setPerformerGroup(row.memberId, previousLabel));
+      const targetText = !nextLabel ? '공연자 본인 (그룹 없음)'
+        : nextLabel.startsWith('member:') ? `${findPerformer(nextLabel.slice('member:'.length))?.name || '공연자'} 그룹`
+          : nextLabel;
+      showAfterPartyToast(`${row.name} → ${targetText}`, () => setPerformerGroup(row.memberId, previousLabel));
     }
   };
 
@@ -2199,8 +2210,9 @@ export default function ReservationManagementPage() {
       card.totalCount += g.count;
     });
     afterPartyPerformerIds.forEach(memberId => {
-      const label = performerGroupMapping[memberId];
-      const card = label ? groupCard(label) : perfCard(memberId);
+      const mapping = String(performerGroupMapping[memberId] || '');
+      const card = mapping.startsWith('member:') ? perfCard(mapping.slice('member:'.length))
+        : mapping ? groupCard(mapping) : perfCard(memberId);
       card.performers.push(findPerformer(memberId) || { id: memberId, name: memberId, part: '' });
       card.directCount += 1;
       card.totalCount += 1;
@@ -3262,8 +3274,8 @@ export default function ReservationManagementPage() {
                         if (row.type === 'unmapped') return { key: '__unmapped', icon: '⚠️', label: '확인 필요', rank: 0 };
                         if (row.type === 'unassigned') return { key: '__unassigned', icon: '⊘', label: '초대자 없음', rank: 2 };
                         if (row.type === 'group') return { key: `group:${row.groupLabel}`, icon: '🏷', label: row.groupLabel, rank: 1 };
-                        // 공연자 본인은 자기 이름의 그룹 섹션에 들어간다 (그 공연자 초대 예매와 같은 묶음)
-                        if (row.kind === 'performer') return { key: `member:${row.memberId}`, icon: '🎤', label: row.name, rank: 1 };
+                        // 공연자 본인은 자기 이름의 그룹 섹션에 들어가고, 다른 공연자 그룹에 합류했으면 그쪽 섹션으로 간다
+                        if (row.kind === 'performer' && row.selectValue === 'self') return { key: `member:${row.memberId}`, icon: '🎤', label: row.name, rank: 1 };
                         return { key: row.selectValue, icon: '🎤', label: row.groupLabel, rank: 1 };
                       };
                       listRows.forEach(row => {
@@ -3281,6 +3293,7 @@ export default function ReservationManagementPage() {
                         const options = [];
                         if (row.kind === 'performer') {
                           options.push({ value: 'self', text: '🎤 공연자 본인 (그룹 없음)' });
+                          performerOptions.forEach(m => { if (m.id !== row.memberId && match(m.name)) options.push({ value: `member:${m.id}`, text: `🎤 ${m.name}${performerSuffix(m)} 그룹으로` }); });
                           groupOptionLabels.forEach(label => { if (match(label)) options.push({ value: `group:${label}`, text: `🏷 ${label}` }); });
                           options.push({ value: '__new', text: '➕ 새 그룹 만들기…' });
                         } else {
