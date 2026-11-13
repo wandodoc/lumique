@@ -1932,7 +1932,8 @@ export default function ReservationManagementPage() {
     const q = mgmtQuery.trim().toLowerCase();
     const priority = { unmapped: 0, unassigned: 1, performer: 2, group: 2 };
     return afterPartyAttendeeRows
-      .filter(r => mgmtFilter === 'all' || r.type === mgmtFilter)
+      // 마지막 '확인 필요' 건이 정리되면 걸려 있던 필터를 자동으로 전체 보기로 되돌린다.
+      .filter(r => mgmtFilter === 'all' || !afterPartyAttendeeRows.some(x => x.type === mgmtFilter) || r.type === mgmtFilter)
       .filter(r => !q || r.name.toLowerCase().includes(q) || stripHyphens(r.phone).includes(stripHyphens(q)) || r.groupLabel.toLowerCase().includes(q) || r.originalInviterName.toLowerCase().includes(q))
       .sort((a, b) => {
         if (priority[a.type] !== priority[b.type]) return priority[a.type] - priority[b.type];
@@ -3161,15 +3162,20 @@ export default function ReservationManagementPage() {
                         style={{ flex: 1, minWidth: 200 }}
                       />
                       <div className="after-party-filter-row" style={{ padding: 0, overflowX: 'visible', margin: 0 }}>
-                        {[
-                          { value: 'all', label: '전체', count: afterPartyAttendeeRows.length },
-                          { value: 'unmapped', label: '확인 필요', count: afterPartyAttendeeRows.filter(r => r.type === 'unmapped').length },
-                        ].map(f => (
-                          <button key={f.value} type="button" aria-pressed={mgmtFilter === f.value}
-                            className={mgmtFilter === f.value ? 'after-party-filter is-active' : 'after-party-filter'}
-                            onClick={() => { setMgmtFilter(f.value); setAfterPartyPage(0); }}
-                          >{f.label} <span>{f.count}</span></button>
-                        ))}
+                        {(() => {
+                          // 확인할 건이 없으면 거를 것도 없으므로 필터 칩을 아예 숨긴다.
+                          const needsReview = afterPartyAttendeeRows.filter(r => r.type === 'unmapped').length;
+                          if (needsReview === 0) return null;
+                          return [
+                            { value: 'all', label: '전체', count: afterPartyAttendeeRows.length },
+                            { value: 'unmapped', label: '확인 필요', count: needsReview },
+                          ].map(f => (
+                            <button key={f.value} type="button" aria-pressed={mgmtFilter === f.value}
+                              className={mgmtFilter === f.value ? 'after-party-filter is-active' : 'after-party-filter'}
+                              onClick={() => { setMgmtFilter(f.value); setAfterPartyPage(0); }}
+                            >{f.label} <span>{f.count}</span></button>
+                          ));
+                        })()}
                       </div>
                       {isAdmin && (
                         <button
