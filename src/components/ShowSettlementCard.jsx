@@ -426,6 +426,12 @@ export default function ShowSettlementCard({
         <h3 style={sectionTitle}>
           공연 지출
           {isAdmin && <button type="button" style={smallButton} aria-expanded={showCatPanel} onClick={() => setShowCatPanel(v => !v)}>{showCatPanel ? '항목 관리 닫기' : '항목 관리'}</button>}
+          {isAdmin && (
+            <button type="button" aria-expanded={showAddExpense} onClick={() => setShowAddExpense(v => !v)}
+              style={{ ...smallButton, marginLeft: 'auto', background: showAddExpense ? '#fff' : '#111827', color: showAddExpense ? '#334155' : '#fff', border: showAddExpense ? '1px solid #cbd5e1' : 'none' }}>
+              {showAddExpense ? '입력 닫기' : '+ 지출 추가'}
+            </button>
+          )}
         </h3>
 
         {showCatPanel && (
@@ -459,12 +465,6 @@ export default function ShowSettlementCard({
           )}
           {expenseGroups.filter(g => g.entries.length > 0 && !g.isDues).map(renderExpenseGroup)}
 
-          {isAdmin && !showAddExpense && (
-            <div style={{ padding: '10px 0', borderTop: '1px solid #f1f5f9' }}>
-              <button type="button" onClick={() => setShowAddExpense(true)}
-                style={{ width: '100%', padding: '8px 0', borderRadius: 10, border: '1.5px dashed #cbd5e1', background: 'transparent', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ 지출 추가</button>
-            </div>
-          )}
           {isAdmin && showAddExpense && (
             <div style={addLineStyle}>
               <select value={categoryNames.includes(expenseCategory) ? expenseCategory : ''} onChange={e => pickCategory(e.target.value)} aria-label="지출 항목 선택" style={{ ...inputStyle, flex: '1.3 1 120px' }}>
@@ -477,7 +477,6 @@ export default function ShowSettlementCard({
               <input type="text" value={expensePaidBy} onChange={e => setExpensePaidBy(e.target.value)} placeholder="선결제자" aria-label="선결제자" list="settlement-person-names" style={{ ...inputStyle, flex: '.9 1 90px' }} />
               <datalist id="settlement-person-names">{personNames.map(n => <option key={n} value={n} />)}</datalist>
               <button type="button" onClick={addExpense} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>{saving ? '저장 중…' : '추가'}</button>
-              <button type="button" onClick={() => setShowAddExpense(false)} disabled={saving} style={{ ...smallButton, padding: '9px 12px' }}>닫기</button>
             </div>
           )}
 
