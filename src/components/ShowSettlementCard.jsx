@@ -347,6 +347,7 @@ export default function ShowSettlementCard({
       </div>
 
       <div className="settlement-cols">
+      <div style={{ minWidth: 0, display: 'grid', gap: 18, alignContent: 'start' }}>
       {/* ── 수입 ── */}
       <section style={{ minWidth: 0 }}>
         <h3 style={sectionTitle}>공연 수입</h3>
@@ -419,6 +420,30 @@ export default function ShowSettlementCard({
         </div>
       </section>
 
+      {/* ── 회비 부담: 연습실 등 회비(통장)에서 내는 공연 준비 비용 — 공연 손익과 별도 (수입 열 아래) ── */}
+      {duesExpenseTotal > 0 && (
+        <section style={{ minWidth: 0, borderTop: '1px solid #e2e8f0', paddingTop: 10 }}>
+          <h3 style={sectionTitle}>회비 부담 <span style={{ fontWeight: 600, fontSize: 11, color: '#64748b' }}>회비(통장)에서 내는 비용 · '항목 관리'에서 지정</span></h3>
+          <div style={{ marginTop: 6 }}>
+            {expenseGroups.filter(g => g.entries.length > 0 && g.isDues).map(renderExpenseGroup)}
+            <div style={{ ...rowStyle, borderTop: '2px solid #0f172a', paddingTop: 12 }}>
+              <div>
+                <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
+                {duesOwedTotal > 0 && (
+                  <div style={descStyle}>
+                    {Object.entries(duesOwedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
+                  </div>
+                )}
+                {duesOwedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
+                {balance < 0 && <div style={descStyle}>공연 부족분 {won(-balance)}까지 더하면 회비(통장)에서 총 {won(duesExpenseTotal - balance)} 나갑니다</div>}
+              </div>
+              <div style={{ ...amountStyle, fontSize: 17 }}>{won(duesExpenseTotal)}</div>
+            </div>
+          </div>
+        </section>
+      )}
+      </div>
+
       {/* ── 지출 ── */}
       <section style={{ minWidth: 0 }}>
         <h3 style={sectionTitle}>
@@ -487,29 +512,6 @@ export default function ShowSettlementCard({
         </div>
       </section>
       </div>
-
-      {/* ── 회비 부담: 연습실 등 회비(통장)에서 내는 공연 준비 비용 — 공연 손익과 별도 ── */}
-      {duesExpenseTotal > 0 && (
-        <section style={{ minWidth: 0, borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
-          <h3 style={sectionTitle}>회비 부담 <span style={{ fontWeight: 600, fontSize: 11, color: '#64748b' }}>회비(통장)에서 내는 비용 · '항목 관리'에서 지정</span></h3>
-          <div style={{ marginTop: 6 }}>
-            {expenseGroups.filter(g => g.entries.length > 0 && g.isDues).map(renderExpenseGroup)}
-            <div style={{ ...rowStyle, borderTop: '2px solid #0f172a', paddingTop: 12 }}>
-              <div>
-                <div style={{ ...nameStyle, fontSize: 15 }}>합계</div>
-                {duesOwedTotal > 0 && (
-                  <div style={descStyle}>
-                    {Object.entries(duesOwedByPerson).map(([person, amount]) => `미정산: ${person} ${won(amount)}`).join(' · ')}
-                  </div>
-                )}
-                {duesOwedTotal === 0 && <div style={{ ...descStyle, color: '#047857' }}>모두 정산 완료</div>}
-                {balance < 0 && <div style={descStyle}>공연 부족분 {won(-balance)}까지 더하면 회비(통장)에서 총 {won(duesExpenseTotal - balance)} 나갑니다</div>}
-              </div>
-              <div style={{ ...amountStyle, fontSize: 17 }}>{won(duesExpenseTotal)}</div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* ── 정산 결과 ── */}
       <section style={{ padding: '14px 16px', borderRadius: 14, background: balance >= 0 ? '#ecfdf5' : '#fef2f2', border: `1px solid ${balance >= 0 ? '#a7f3d0' : '#fecaca'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
