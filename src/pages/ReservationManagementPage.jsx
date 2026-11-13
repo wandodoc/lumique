@@ -683,10 +683,12 @@ export default function ReservationManagementPage() {
   // 뒤풀이 관리 섹션 — 검색/필터/탭/정리함/토스트 상태
   const [mgmtQuery, setMgmtQuery] = useState('');
   const [mgmtFilter, setMgmtFilter] = useState('all');
-  const [afterPartyPage, setAfterPartyPage] = useState(0);
+  const [, setAfterPartyPage] = useState(0); // 그룹별 묶음 보기로 바뀌며 페이지 번호는 쓰지 않는다 (검색/필터 핸들러 호환용)
   const [mappingErrorMsg, setMappingErrorMsg] = useState('');
   const [afterPartyTab, setAfterPartyTab] = useState('participants'); // 'participants' | 'groups' | 'tables'
   const [expandedAttendeeKey, setExpandedAttendeeKey] = useState(null);
+  const [rosterMenuKey, setRosterMenuKey] = useState(null); // 참석 명단: 그룹 지정 메뉴가 열린 행
+  const [rosterMenuQuery, setRosterMenuQuery] = useState('');
   const [afterPartyToast, setAfterPartyToast] = useState(null);
   const afterPartyToastTimer = useRef(null);
   const [isPerformerPanelOpen, setIsPerformerPanelOpen] = useState(false);
@@ -2291,10 +2293,6 @@ export default function ReservationManagementPage() {
   };
 
   const listRows = afterPartyAttendeeList;
-  const listPageSize = 20;
-  const afterPartyPageCount = Math.max(1, Math.ceil(listRows.length / listPageSize));
-  const effectiveAfterPartyPage = Math.min(afterPartyPage, afterPartyPageCount - 1);
-  const visibleListRows = listRows.slice(effectiveAfterPartyPage * listPageSize, (effectiveAfterPartyPage + 1) * listPageSize);
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
@@ -3257,88 +3255,103 @@ export default function ReservationManagementPage() {
                       </div>
                     )}
 
-                    <div className="after-party-table-wrap">
-                      <table className="after-party-participant-table after-party-attendee-table">
-                        <thead><tr><th>참석자</th><th>인원</th><th>소속 그룹</th></tr></thead>
-                        <tbody>
-                          {listRows.length === 0 ? (
-                            <tr><td colSpan={3} className="after-party-empty-row">검색/필터 조건에 맞는 참석자가 없습니다.</td></tr>
-                          ) : visibleListRows.map(row => {
-                            const isOpen = expandedAttendeeKey === row.key;
-                            const badge = AFTER_PARTY_TYPE_BADGE[row.type];
-                            const groupOptions = groupOptionLabels.map(label => <option key={label} value={`group:${label}`}>🏷 {label}</option>);
-                            const currentMemberMissing = row.selectValue.startsWith('member:') && !performerOptions.some(m => `member:${m.id}` === row.selectValue);
-                            const subText = row.kind === 'performer' ? '공연자 본인 참석'
-                              : row.originalInviterName ? `초대자 입력: "${row.originalInviterName}"` : '초대자 미기재';
-                            const noteText = row.kind === 'performer'
-                              ? (afterPartyPerformerOrderIds[row.memberId] ? '본인 예매와 연결됨' : '')
-                              : row.type === 'unmapped' ? '회원 이름과 일치하지 않아요' : '';
-                            return (
-                              <Fragment key={row.key}>
-                                <tr className={isOpen ? 'is-selected' : ''} aria-expanded={isOpen} onClick={() => setExpandedAttendeeKey(isOpen ? null : row.key)}>
-                                  <td>
-                                    <div className="after-party-row-title">
-                                      <span><strong>{row.name}{row.kind === 'performer' ? ' 🎤' : ''}</strong><small>{subText}</small></span>
-                                    </div>
-                                  </td>
-                                  <td><strong>{row.count}명</strong></td>
-                                  <td onClick={event => event.stopPropagation()}>
-                                    <select
-                                      className="after-party-group-select"
-                                      value={row.selectValue}
-                                      disabled={!isAdmin}
-                                      aria-label={`${row.name} 소속 그룹`}
-                                      onChange={event => (row.kind === 'performer' ? changePerformerGroup(row, event.target.value) : changeOrderGroup(row.order, event.target.value))}
-                                    >
-                                      {row.kind === 'performer' ? (
-                                        <>
-                                          <option value="self">🎤 공연자 본인 (그룹 없음)</option>
-                                          <optgroup label="직접 만든 그룹">
-                                            {groupOptions}
-                                            <option value="__new">➕ 새 그룹 만들기…</option>
-                                          </optgroup>
-                                        </>
-                                      ) : (
-                                        <>
-                                          {row.selectValue === 'unmapped' && <option value="unmapped" disabled>⚠️ 확인 필요 — 그룹을 골라 주세요</option>}
-                                          {currentMemberMissing && <option value={row.selectValue}>🎤 {row.groupLabel}</option>}
-                                          <optgroup label="공연자 초대">
-                                            {performerOptions.map(m => <option key={m.id} value={`member:${m.id}`}>🎤 {m.name}{performerSuffix(m)}</option>)}
-                                          </optgroup>
-                                          <optgroup label="직접 만든 그룹">
-                                            {groupOptions}
-                                            <option value="__new">➕ 새 그룹 만들기…</option>
-                                          </optgroup>
-                                          <option value="unassigned">⊘ 초대자 없음</option>
-                                        </>
+                    {(() => {
+                      // ── 그룹별 묶음 보기: 같은 그룹 참석자를 한 묶음으로, 확인 필요를 맨 위에 ──
+                      const sections = new Map();
+                      const sectionFor = (row) => {
+                        if (row.type === 'unmapped') return { key: '__unmapped', icon: '⚠️', label: '확인 필요', rank: 0 };
+                        if (row.type === 'unassigned') return { key: '__unassigned', icon: '⊘', label: '초대자 없음', rank: 2 };
+                        if (row.type === 'group') return { key: `group:${row.groupLabel}`, icon: '🏷', label: row.groupLabel, rank: 1 };
+                        // 공연자 본인은 자기 이름의 그룹 섹션에 들어간다 (그 공연자 초대 예매와 같은 묶음)
+                        if (row.kind === 'performer') return { key: `member:${row.memberId}`, icon: '🎤', label: row.name, rank: 1 };
+                        return { key: row.selectValue, icon: '🎤', label: row.groupLabel, rank: 1 };
+                      };
+                      listRows.forEach(row => {
+                        const meta = sectionFor(row);
+                        if (!sections.has(meta.key)) sections.set(meta.key, { ...meta, rows: [], people: 0, orders: 0 });
+                        const sec = sections.get(meta.key);
+                        sec.rows.push(row);
+                        sec.people += row.count;
+                        if (row.kind === 'order') sec.orders += 1;
+                      });
+                      const ordered = [...sections.values()].sort((a, b) => a.rank - b.rank || b.people - a.people || a.label.localeCompare(b.label));
+                      const menuOptions = (row) => {
+                        const q = rosterMenuQuery.trim().toLowerCase();
+                        const match = (text) => !q || text.toLowerCase().includes(q);
+                        const options = [];
+                        if (row.kind === 'performer') {
+                          options.push({ value: 'self', text: '🎤 공연자 본인 (그룹 없음)' });
+                          groupOptionLabels.forEach(label => { if (match(label)) options.push({ value: `group:${label}`, text: `🏷 ${label}` }); });
+                          options.push({ value: '__new', text: '➕ 새 그룹 만들기…' });
+                        } else {
+                          performerOptions.forEach(m => { if (match(m.name)) options.push({ value: `member:${m.id}`, text: `🎤 ${m.name}${performerSuffix(m)}` }); });
+                          groupOptionLabels.forEach(label => { if (match(label)) options.push({ value: `group:${label}`, text: `🏷 ${label}` }); });
+                          options.push({ value: '__new', text: '➕ 새 그룹 만들기…' });
+                          options.push({ value: 'unassigned', text: '⊘ 초대자 없음' });
+                        }
+                        return options;
+                      };
+                      const pickGroup = (row, value) => {
+                        setRosterMenuKey(null);
+                        setRosterMenuQuery('');
+                        if (row.kind === 'performer') changePerformerGroup(row, value);
+                        else changeOrderGroup(row.order, value);
+                      };
+                      if (listRows.length === 0) {
+                        return <div style={{ padding: '30px 12px', textAlign: 'center', color: '#71717a', fontSize: 13 }}>검색/필터 조건에 맞는 참석자가 없습니다.</div>;
+                      }
+                      return (
+                        <div style={{ display: 'grid', gap: 12, padding: '0 16px 16px' }}>
+                          {ordered.map(sec => (
+                            <div key={sec.key}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', background: sec.key === '__unmapped' ? '#fffbeb' : '#f8fafc', border: `1px solid ${sec.key === '__unmapped' ? '#fde68a' : '#e4e4e7'}`, borderRadius: 10 }}>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: sec.key === '__unmapped' ? '#b45309' : '#18181b' }}>{sec.icon} {sec.label}</span>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#71717a', whiteSpace: 'nowrap' }}>{sec.orders > 0 ? `예매 ${sec.orders}건 · ` : ''}{sec.people}명</span>
+                              </div>
+                              <div style={{ padding: '2px 6px' }}>
+                                {sec.rows.map(row => {
+                                  const isOpen = expandedAttendeeKey === row.key;
+                                  const subText = row.kind === 'performer' ? '공연자 본인' : row.originalInviterName ? `초대자 입력: "${row.originalInviterName}"` : '';
+                                  return (
+                                    <Fragment key={row.key}>
+                                      <div onClick={() => setExpandedAttendeeKey(isOpen ? null : row.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 6px', borderTop: '1px dashed #f1f5f9', cursor: 'pointer' }}>
+                                        <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                          <span style={{ fontSize: 13, fontWeight: 700, color: '#18181b' }}>{row.name}{row.kind === 'performer' ? ' 🎤' : ''}{row.count > 1 ? ` (${row.count}명)` : ''}</span>
+                                          {subText && <span style={{ fontSize: 11, color: '#94a3b8' }}>{subText}</span>}
+                                        </span>
+                                        {isAdmin && (
+                                          <span style={{ position: 'relative', flexShrink: 0 }} onClick={event => event.stopPropagation()}>
+                                            <button type="button" onClick={() => { setRosterMenuKey(prev => (prev === row.key ? null : row.key)); setRosterMenuQuery(''); }}
+                                              style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 11, fontWeight: 700, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                              {row.type === 'unmapped' || row.type === 'unassigned' ? '그룹 지정' : '이동'}
+                                            </button>
+                                            {rosterMenuKey === row.key && (
+                                              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 40, width: 230, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.16)', padding: 6 }}>
+                                                <input type="search" value={rosterMenuQuery} onChange={event => setRosterMenuQuery(event.target.value)} placeholder="이름 입력으로 검색" aria-label="그룹 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, marginBottom: 6 }} />
+                                                {menuOptions(row).map(option => (
+                                                  <button key={option.value} type="button" onClick={() => pickGroup(row, option.value)}
+                                                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', border: 'none', background: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>{option.text}</button>
+                                                ))}
+                                                {menuOptions(row).length === 0 && <div style={{ fontSize: 12, color: '#94a3b8', padding: '6px 8px' }}>검색 결과가 없습니다.</div>}
+                                              </div>
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {isOpen && (
+                                        <div onClick={event => event.stopPropagation()} style={{ margin: '2px 0 8px', padding: '10px 12px', borderRadius: 10, background: '#fafafa', border: '1px solid #f1f1f2' }}>
+                                          {row.kind === 'performer' ? renderPerformerDetail(row) : renderOrderDetail(row)}
+                                        </div>
                                       )}
-                                    </select>
-                                    <span className={`after-party-status after-party-status-${row.type}`}><i />{badge.text}</span>
-                                    {noteText && <div style={{ fontSize: 11, color: '#a16207', marginTop: 3 }}>{noteText}</div>}
-                                  </td>
-                                </tr>
-                                {isOpen && (
-                                  <tr className="after-party-attendee-detail">
-                                    <td colSpan={3} onClick={event => event.stopPropagation()}>
-                                      {row.kind === 'performer' ? renderPerformerDetail(row) : renderOrderDetail(row)}
-                                    </td>
-                                  </tr>
-                                )}
-                              </Fragment>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="after-party-list-pagination">
-                      <span>{listRows.length === 0 ? '0개' : `${effectiveAfterPartyPage * listPageSize + 1}–${Math.min((effectiveAfterPartyPage + 1) * listPageSize, listRows.length)}개`} / {listRows.length}개</span>
-                      <div>
-                        <button type="button" disabled={effectiveAfterPartyPage === 0} onClick={() => setAfterPartyPage(Math.max(0, effectiveAfterPartyPage - 1))}>이전</button>
-                        <span>{effectiveAfterPartyPage + 1} / {afterPartyPageCount}</span>
-                        <button type="button" disabled={effectiveAfterPartyPage + 1 >= afterPartyPageCount} onClick={() => setAfterPartyPage(Math.min(afterPartyPageCount - 1, effectiveAfterPartyPage + 1))}>다음</button>
-                      </div>
-                    </div>
+                                    </Fragment>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </section>
                 </div>
               </div>
