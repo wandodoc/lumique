@@ -1310,7 +1310,16 @@ export default function ReservationManagementPage() {
     if (!isAdmin || dataLoadFailed || !currentShow || !concertId) return false;
     setMappingErrorMsg('');
     try {
-      const list = await firebaseStorage.patchShow(currentShow.id, patch);
+      // Firestore가 오프라인 상태로 판단하면 쓰기가 완료도 실패도 없이 무한정 걸린다.
+      // 이 저장은 순차 대기열이라 하나가 걸리면 이후 저장까지 전부 막히므로 15초 제한을 둔다.
+      const list = await Promise.race([
+        firebaseStorage.patchShow(currentShow.id, patch),
+        new Promise(resolve => setTimeout(() => resolve('timeout'), 15000)),
+      ]);
+      if (list === 'timeout') {
+        setMappingErrorMsg('저장 응답이 없어 중단했습니다. 네트워크를 확인하고 새로고침한 뒤 배치가 저장됐는지 확인해 주세요.');
+        return false;
+      }
       if (list === 'missing') {
         setMappingErrorMsg('서버에 이 공연이 없어 저장할 수 없습니다. 공연 목록을 새로고침한 뒤 다시 시도해 주세요.');
         return false;
@@ -1738,13 +1747,19 @@ export default function ReservationManagementPage() {
     });
     setIsAutoAssigning(true);
     setSeatingActionStatus('자동 배치 결과를 저장하고 있습니다…');
-    const saveResult = await saveSeatingPatch({ tables, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments, participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformerSeats });
-    if (saveResult === 'firebase') {
-      setSeatingActionStatus(`배치 완료: 공연자 ${performerCount}명, 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명, 테이블 ${tables.length}개. 서버에 저장했습니다.`);
-    } else {
-      setSeatingActionStatus('저장에 실패했습니다. 오류 안내를 확인한 뒤 다시 시도하세요.');
+    try {
+      const saveResult = await saveSeatingPatch({ tables, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments, participantSeatAssignments: nextParticipants, performerSeatAssignments: nextPerformerSeats });
+      if (saveResult === 'firebase') {
+        setSeatingActionStatus(`배치 완료: 공연자 ${performerCount}명, 예매자 ${autoEligible.reduce((sum, person) => sum + person.count, 0)}명, 테이블 ${tables.length}개. 서버에 저장했습니다.`);
+      } else {
+        setSeatingActionStatus('저장에 실패했습니다. 오류 안내를 확인한 뒤 다시 시도하세요.');
+      }
+    } catch (error) {
+      console.error('자동 배치 저장 오류:', error);
+      setSeatingActionStatus('저장 중 오류가 발생했습니다. 새로고침한 뒤 배치 상태를 확인해 주세요.');
+    } finally {
+      setIsAutoAssigning(false);
     }
-    setIsAutoAssigning(false);
   };
 
   // 모든 테이블의 참여자 배치만 해제한다(테이블 자체·이름·위치·정원은 유지). 확인 절차 포함.
