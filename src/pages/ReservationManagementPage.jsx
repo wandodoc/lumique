@@ -3133,9 +3133,26 @@ export default function ReservationManagementPage() {
             {/* 상단 요약 바 */}
             <div className="after-party-summary-bar" style={{ marginBottom: 14 }}>
               <div className="stats">
-                뒤풀이 참석 총 <strong>{afterPartySummary.total}명</strong>{Number(currentShow?.afterPartyLimit) > 0 && (
+                뒤풀이 참석 총 <strong>{afterPartySummary.total}명</strong>
+                {isAdmin && currentShow ? (
+                  <span style={{ fontWeight: 700, color: Number(currentShow.afterPartyLimit) > 0 && afterPartySummary.total >= Number(currentShow.afterPartyLimit) ? '#dc2626' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+                    / 정원
+                    <input type="number" min="1" aria-label="뒤풀이 정원" title="비우면 제한 없음 · 칸을 벗어나면 저장됩니다"
+                      key={`aplimit:${Number(currentShow.afterPartyLimit) || 0}`}
+                      defaultValue={Number(currentShow.afterPartyLimit) > 0 ? Number(currentShow.afterPartyLimit) : ''}
+                      placeholder="없음"
+                      onBlur={e => {
+                        const v = Math.floor(Number(e.target.value) || 0);
+                        const next = v > 0 ? v : null;
+                        const current = Number(currentShow.afterPartyLimit) > 0 ? Number(currentShow.afterPartyLimit) : null;
+                        if (next !== current) patchCurrentShow({ afterPartyLimit: next });
+                      }}
+                      style={{ width: 64, padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: 7, background: '#fff', fontSize: 13, fontWeight: 700, textAlign: 'right' }} />
+                    명
+                  </span>
+                ) : (Number(currentShow?.afterPartyLimit) > 0 && (
                   <span style={{ fontWeight: 700, color: afterPartySummary.total >= Number(currentShow.afterPartyLimit) ? '#dc2626' : '#64748b' }}> / 정원 {Number(currentShow.afterPartyLimit)}명</span>
-                )}
+                ))}
                 <span>예매 {bookingAttendeeCount}명 · 공연자 본인 {afterPartyPerformerIds.length}명</span>
               </div>
               {afterPartySummary.unmapped > 0 ? (
