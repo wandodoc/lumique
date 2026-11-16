@@ -295,6 +295,21 @@ export const firebaseStorage = {
           return { status: 'invalid-show', orders };
         }
 
+        // ── 뒤풀이 정원 검증 ─────────────────────────────────────────────
+        // 공연에 뒤풀이 정원이 설정돼 있으면, 기존 뒤풀이 신청 인원 + 공연자 직접 참석을
+        // 합쳐 정원을 넘는 접수를 서버에서 차단한다 (동시 신청 경쟁도 트랜잭션으로 안전).
+        const afterPartyLimit = Math.floor(Number(show.afterPartyLimit) || 0);
+        if (afterPartyLimit > 0 && order.isAfterParty && Number(order.afterPartyCount) > 0) {
+          const afterPartyShowIds = new Set([...getRelatedShowIds(show), order.concertId].filter(Boolean).map(String));
+          const used = orders.reduce((sum, existing) => (
+            afterPartyShowIds.has(String(existing.concertId)) && existing.isAfterParty
+              ? sum + (Number(existing.afterPartyCount) || 0) : sum
+          ), 0) + (Array.isArray(show.afterPartyPerformerIds) ? show.afterPartyPerformerIds.length : 0);
+          if (used + Number(order.afterPartyCount) > afterPartyLimit) {
+            return { status: 'afterparty-full', orders, remaining: Math.max(0, afterPartyLimit - used) };
+          }
+        }
+
         // ── 입력 검증 ──────────────────────────────────────────────────
         const tiers = Array.isArray(show.priceTiers) ? show.priceTiers : [];
         const tierIdSet = new Set(tiers.map(t => t.id));

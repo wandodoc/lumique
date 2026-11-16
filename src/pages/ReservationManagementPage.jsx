@@ -3133,7 +3133,9 @@ export default function ReservationManagementPage() {
             {/* 상단 요약 바 */}
             <div className="after-party-summary-bar" style={{ marginBottom: 14 }}>
               <div className="stats">
-                뒤풀이 참석 총 <strong>{afterPartySummary.total}명</strong>
+                뒤풀이 참석 총 <strong>{afterPartySummary.total}명</strong>{Number(currentShow?.afterPartyLimit) > 0 && (
+                  <span style={{ fontWeight: 700, color: afterPartySummary.total >= Number(currentShow.afterPartyLimit) ? '#dc2626' : '#64748b' }}> / 정원 {Number(currentShow.afterPartyLimit)}명</span>
+                )}
                 <span>예매 {bookingAttendeeCount}명 · 공연자 본인 {afterPartyPerformerIds.length}명</span>
               </div>
               {afterPartySummary.unmapped > 0 ? (

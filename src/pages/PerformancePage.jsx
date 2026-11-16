@@ -64,6 +64,7 @@ const blankShow = {
   priceTiers: [],
   description: '',
   status: OPEN,
+  afterPartyLimit: null,
   imageUrls: [],
   customSections: [],
   supportAccount: SUPPORT_ACCOUNT
@@ -134,6 +135,8 @@ const cleanShow = (s) => {
     priceTiers: Array.isArray(s.priceTiers) ? s.priceTiers.map(cleanPriceTier) : [],
     description: String(s.description || '').trim(),
     status: s.status === CLOSED ? CLOSED : OPEN,
+    // 뒤풀이 정원 (명). 비어 있으면 제한 없음.
+    afterPartyLimit: Number(s.afterPartyLimit) > 0 ? Math.floor(Number(s.afterPartyLimit)) : null,
     imageUrls,
     imageUrl: imageUrls[0] || '',
     supportAccount: String(s.supportAccount || SUPPORT_ACCOUNT).trim() || SUPPORT_ACCOUNT,
@@ -346,7 +349,8 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
       status: show.status === CLOSED ? CLOSED : OPEN,
       imageUrls: Array.isArray(show.imageUrls) && show.imageUrls.length > 0 ? show.imageUrls : (show.imageUrl ? [show.imageUrl] : []),
       customSections: ensureFixedFields(loadedSections),
-      supportAccount: show.supportAccount || SUPPORT_ACCOUNT
+      supportAccount: show.supportAccount || SUPPORT_ACCOUNT,
+      afterPartyLimit: Number(show.afterPartyLimit) > 0 ? show.afterPartyLimit : ''
     });
   }, [show]);
 
@@ -473,6 +477,10 @@ function ShowFormModal({ show, orders = [], onClose, onSave }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={labelStyle}>티켓 금액 (원)</label>
                 <input type="number" value={form.price} onChange={e => update('price', e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={labelStyle}>뒤풀이 정원 (명)</label>
+                <input type="number" min="1" value={form.afterPartyLimit ?? ''} onChange={e => update('afterPartyLimit', e.target.value)} style={inputStyle} placeholder="비우면 제한 없음" />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <label style={labelStyle}>예매 상태</label>

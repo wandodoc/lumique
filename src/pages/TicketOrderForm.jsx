@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './PageStyles.css';
 
 const SUPPORT_ACCOUNT = '토스뱅크 1001-7629-3105 강맥';
@@ -189,20 +189,34 @@ function RenderSections({ sections = [], values, setValues, fixed }) {
         <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
           공연 종료 후 참여자들과 함께하는 뒤풀이 자리가 마련될 예정입니다.{'\n'}참여를 원하시는 분은 예매 신청 시 뒤풀이 참여 여부를 선택해 주세요.
         </p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <input type="checkbox" checked={fixed.isAfterParty} onChange={e => fixed.setIsAfterParty(e.target.checked)} style={{ width: 18, height: 18 }} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: fixed.afterPartyRemaining === 0 ? 'not-allowed' : 'pointer', opacity: fixed.afterPartyRemaining === 0 ? 0.6 : 1 }}>
+          <input type="checkbox" checked={fixed.isAfterParty} disabled={fixed.afterPartyRemaining === 0}
+            onChange={e => fixed.setIsAfterParty(e.target.checked)} style={{ width: 18, height: 18 }} />
           <span style={{ fontSize: 14, fontWeight: 700 }}>{s.title}</span>
         </label>
+        {fixed.afterPartyRemaining === 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#ef4444', fontWeight: 700 }}>뒤풀이 정원이 모두 찼습니다. 예매는 뒤풀이 없이 신청할 수 있어요.</div>
+        )}
+        {fixed.afterPartyRemaining > 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#2563eb', fontWeight: 700 }}>뒤풀이 잔여 {fixed.afterPartyRemaining}명</div>
+        )}
         {fixed.isAfterParty && (
           <div style={{ marginTop: 16, borderTop: '1px dotted #e2e8f0', paddingTop: 16 }}>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 8 }}>
                 뒤풀이 참여 인원 (본인 포함) &nbsp;
-                <span style={{ color: '#94a3b8' }}>{Number(fixed.qty) > 0 ? `티켓 ${fixed.qty}매 기준 최대 ${fixed.qty}명` : '티켓 매수를 먼저 선택해 주세요'}</span>
+                <span style={{ color: '#94a3b8' }}>{(() => {
+                  const q = Number(fixed.qty) || 0;
+                  if (q <= 0) return '티켓 매수를 먼저 선택해 주세요';
+                  const hasLimit = fixed.afterPartyRemaining !== null && fixed.afterPartyRemaining !== undefined;
+                  const cap = hasLimit ? Math.min(q, fixed.afterPartyRemaining) : q;
+                  return cap < q ? `뒤풀이 잔여 기준 최대 ${cap}명` : `티켓 ${q}매 기준 최대 ${q}명`;
+                })()}</span>
               </label>
               {(() => {
                 // 티켓 매수를 줄이면 뒤풀이 인원도 그 안으로 맞춰 보여 준다 (접수 시에도 같은 기준으로 저장).
-                const maxCount = Math.max(1, Number(fixed.qty) || 1);
+                const remain = fixed.afterPartyRemaining !== null && fixed.afterPartyRemaining !== undefined ? fixed.afterPartyRemaining : Infinity;
+                const maxCount = Math.max(1, Math.min(Number(fixed.qty) || 1, remain));
                 const count = Math.min(Math.max(1, Number(fixed.afterPartyCount) || 1), maxCount);
                 const stepStyle = (disabled) => ({ width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: disabled ? '#f1f5f9' : '#fff', color: disabled ? '#cbd5e1' : '#111827', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 18 });
                 return (
@@ -401,7 +415,7 @@ function AccountCard({ account }) {
 function BottomSheet({ isOpen, onClose, show, price, total, qty, setQty, tiers, tierQty, setTierQty, priceItems, soldOut, availabilityLoading, inventoryLoadFailed,
   name, setName, phone, setPhone,
   isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount,
-  inviterName, setInviterName, noInviter, setNoInviter, performers,
+  inviterName, setInviterName, noInviter, setNoInviter, performers, afterPartyRemaining,
   comment, setComment, customResponses, setCustomResponses,
   submitting, onSubmit }) {
 
@@ -475,7 +489,7 @@ function BottomSheet({ isOpen, onClose, show, price, total, qty, setQty, tiers, 
               sections={(show?.customSections || []).filter(s => s.placement !== 'inline')}
               values={customResponses}
               setValues={setCustomResponses}
-              fixed={{ name, setName, phone, setPhone, qty, setQty, tiers, tierQty, setTierQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, performers, price, comment, setComment, availabilityLoading, inventoryLoadFailed }}
+              fixed={{ name, setName, phone, setPhone, qty, setQty, tiers, tierQty, setTierQty, isAfterParty, setIsAfterParty, afterPartyCount, setAfterPartyCount, inviterName, setInviterName, noInviter, setNoInviter, performers, afterPartyRemaining, price, comment, setComment, availabilityLoading, inventoryLoadFailed }}
             />
 
             {/* 결제 요약 */}
@@ -595,13 +609,16 @@ export default function TicketOrderForm({ showId }) {
   const hasQuantityLimitedTier = show?.pricingMode === 'tiered'
     && (show.priceTiers || []).some(t => Number(t.quantityLimit) > 0);
   const canonicalShowId = show?.id || showId;
+  // 뒤풀이 정원: 공연에 설정돼 있으면 잔여 인원을 계산해 초과 신청을 막는다 (공연자 직접 참석 포함).
+  const afterPartyLimit = Math.floor(Number(show?.afterPartyLimit) || 0);
+  const afterPartyLimited = afterPartyLimit > 0;
   const inventoryReady = !hasQuantityLimitedTier || inventoryShowId === String(canonicalShowId);
   const availabilityLoading = hasQuantityLimitedTier && !inventoryReady && !inventoryLoadFailed;
 
   // 한정 수량 구간이 있으면 잔여 수량을 파악하기 위해 주문 목록을 불러오고,
   // 다른 사람의 구매로 잔여량이 바뀔 수 있으므로 주기적으로 갱신한다.
   useEffect(() => {
-    if (!hasQuantityLimitedTier) return;
+    if (!hasQuantityLimitedTier && !afterPartyLimited) return;
     let active = true;
     const watchedShowId = String(canonicalShowId);
     setInventoryShowId(null);
@@ -626,7 +643,15 @@ export default function TicketOrderForm({ showId }) {
       setInventoryLoadFailed(false);
     });
     return () => { active = false; unsubscribe(); };
-  }, [hasQuantityLimitedTier, canonicalShowId]);
+  }, [hasQuantityLimitedTier, afterPartyLimited, canonicalShowId]);
+
+  // 뒤풀이 잔여 인원 (null = 제한 없음). 기존 신청 인원 + 공연자 직접 참석을 정원에서 뺀다.
+  const afterPartyRemaining = useMemo(() => {
+    if (!afterPartyLimited) return null;
+    const used = filterOrdersForShow(orders, canonicalShowId).reduce((sum, o) => sum + (o.isAfterParty ? (Number(o.afterPartyCount) || 0) : 0), 0)
+      + (Array.isArray(show?.afterPartyPerformerIds) ? show.afterPartyPerformerIds.length : 0);
+    return Math.max(0, afterPartyLimit - used);
+  }, [afterPartyLimited, afterPartyLimit, orders, canonicalShowId, show]);
 
   // 기간별(얼리버드 등) 가격이 설정된 공연이면 1초마다 현재 적용 가격/카운트다운을 갱신한다.
   useEffect(() => {
@@ -727,6 +752,13 @@ export default function TicketOrderForm({ showId }) {
       if (orderResult?.status === 'sold-out') {
         if (Array.isArray(orderResult.orders)) setOrders(orderResult.orders);
         toast('방금 남은 수량이 모두 신청되었습니다. 잔여 수량을 새로 확인해 주세요.');
+        return;
+      }
+      if (orderResult?.status === 'afterparty-full') {
+        if (Array.isArray(orderResult.orders)) setOrders(orderResult.orders);
+        toast(orderResult.remaining > 0
+          ? `뒤풀이 잔여 인원이 ${orderResult.remaining}명뿐입니다. 뒤풀이 인원을 줄여 주세요.`
+          : '뒤풀이 정원이 모두 찼습니다. 뒤풀이 신청 없이 예매해 주세요.');
         return;
       }
       if (orderResult?.status === 'invalid-orders') {
@@ -1021,6 +1053,7 @@ export default function TicketOrderForm({ showId }) {
         afterPartyCount={afterPartyCount} setAfterPartyCount={setAfterPartyCount}
         inviterName={inviterName} setInviterName={setInviterName}
         performers={performers}
+        afterPartyRemaining={afterPartyRemaining}
         noInviter={noInviter} setNoInviter={setNoInviter}
         comment={comment} setComment={setComment}
         customResponses={customResponses} setCustomResponses={setCustomResponses}
