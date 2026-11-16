@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { firebaseStorage } from '../utils/firebaseStorage';
 
 // 공연 정산표: 수입(티켓 판매·부원 관람분·공연 부원 회비·후원금)과 지출(항목별 묶음)을 한 표로 본다.
 // 설정·지출·항목 목록은 공연 레코드의 settlement 필드, 후원금은 기존 extraDonationList에 저장한다.
@@ -15,6 +16,39 @@ const formatAmountInput = (v) => {
 };
 const newId = () => `exp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const today = () => new Date().toISOString().slice(0, 10);
+
+// 증빙(영수증) 사진 압축: Firestore 문서 1개(1MiB)에 넉넉히 들어가면서 글자가 읽히는 수준을 유지한다.
+const RECEIPT_BUDGET = 220 * 1024; // base64 문자 수 기준
+const RECEIPT_STAGES = [[1600, 0.72], [1400, 0.6], [1200, 0.55], [1000, 0.5], [800, 0.45]];
+const compressReceiptImage = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const render = (maxDim, quality) => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+          else { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        return canvas.toDataURL('image/jpeg', quality);
+      };
+      let result = render(RECEIPT_STAGES[0][0], RECEIPT_STAGES[0][1]);
+      for (let i = 1; i < RECEIPT_STAGES.length && result.length > RECEIPT_BUDGET; i += 1) {
+        result = render(RECEIPT_STAGES[i][0], RECEIPT_STAGES[i][1]);
+      }
+      resolve(result);
+    };
+    img.onerror = () => reject(new Error('이미지를 불러올 수 없습니다.'));
+    img.src = e.target.result;
+  };
+  reader.onerror = () => reject(new Error('파일을 읽을 수 없습니다.'));
+  reader.readAsDataURL(file);
+});
 
 // 지출 항목/메모: 새 데이터는 category·memo 필드를 쓰고, 항목 개념이 없던 기존 데이터는
 // label의 '_' 앞부분을 항목으로("연습실 대여_합주(1)_260904" → "연습실 대여"), 나머지를 메모로 본다.
@@ -62,6 +96,9 @@ export default function ShowSettlementCard({
   const [donAmount, setDonAmount] = useState('');
   const [donDate, setDonDate] = useState(today);
   const [editingDonation, setEditingDonation] = useState(null); // { id, donorName, amount, date }
+  const receiptInputRef = useRef(null);
+  const [receiptTargetId, setReceiptTargetId] = useState(null); // 증빙을 첨부할 지출 id
+  const [receiptView, setReceiptView] = useState(null); // { id, label, loading, image, name }
 
   const settlement = useMemo(() => {
     const raw = show?.settlement && typeof show.settlement === 'object' ? show.settlement : {};
@@ -243,8 +280,48 @@ export default function ShowSettlementCard({
     if (ok) setEditingExpense(null);
   };
   const removeExpense = (e, groupName) => {
-    if (!window.confirm(`'${groupName}'${e.date ? ` ${e.date}` : ''} ${won(e.amount)} 지출 기록을 삭제할까요?`)) return;
+    if (!window.confirm(`'${groupName}'${e.date ? ` ${e.date}` : ''} ${won(e.amount)} 지출 기록을 삭제할까요?${e.receipt ? '\n첨부된 증빙도 함께 삭제됩니다.' : ''}`)) return;
+    if (e.receipt) firebaseStorage.deleteReceipt(e.id).catch(() => {});
     save({ expenses: settlement.expenses.filter(x => x.id !== e.id) });
+  };
+
+  // ── 증빙(영수증) 첨부/보기/삭제 ──
+  const attachReceipt = (e) => {
+    setReceiptTargetId(e.id);
+    receiptInputRef.current?.click();
+  };
+  const onReceiptFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    const targetId = receiptTargetId;
+    setReceiptTargetId(null);
+    if (!file || !targetId) return;
+    let image;
+    setSaving(true);
+    try {
+      image = await compressReceiptImage(file);
+      const ok = await firebaseStorage.saveReceipt(targetId, { image, name: file.name || '', showId: show?.id || null });
+      if (!ok) { window.alert('증빙 저장에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
+    } catch {
+      window.alert('이미지를 읽을 수 없습니다. 사진 파일(JPG/PNG)인지 확인해 주세요.');
+      return;
+    } finally {
+      setSaving(false);
+    }
+    await save({ expenses: settlement.expenses.map(x => (x.id === targetId ? { ...x, receipt: true } : x)) });
+  };
+  const openReceipt = async (e, label) => {
+    setReceiptView({ id: e.id, label, loading: true, image: null, name: '' });
+    const data = await firebaseStorage.loadReceipt(e.id);
+    setReceiptView(prev => (prev && prev.id === e.id ? { ...prev, loading: false, image: data?.image || null, name: data?.name || '' } : prev));
+  };
+  const removeReceipt = async () => {
+    if (!receiptView?.id) return;
+    if (!window.confirm('첨부된 증빙을 삭제할까요?')) return;
+    setSaving(true);
+    try { await firebaseStorage.deleteReceipt(receiptView.id); } finally { setSaving(false); }
+    await save({ expenses: settlement.expenses.map(x => (x.id === receiptView.id ? { ...x, receipt: false } : x)) });
+    setReceiptView(null);
   };
   const startEditExpense = (e) => setEditingExpense({ id: e.id, category: categoryOf(e), date: e.date || '', memo: memoOf(e), amount: formatAmountInput(e.amount), paidBy: e.paidBy || '' });
 
@@ -273,6 +350,11 @@ export default function ShowSettlementCard({
         <input type="checkbox" checked={Boolean(e.reimbursed)} disabled={!isAdmin || saving} onChange={() => toggleReimbursed(e.id)} />
         정산 완료
       </label>
+      {e.receipt ? (
+        <button type="button" aria-label="증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe' }}>증빙</button>
+      ) : (isAdmin && (
+        <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={miniButton}>📎</button>
+      ))}
       {isAdmin && <button type="button" aria-label="지출 수정" disabled={saving} onClick={() => startEditExpense(e)} style={miniButton}>수정</button>}
       {isAdmin && <button type="button" aria-label="지출 삭제" disabled={saving} onClick={() => removeExpense(e, groupName)} style={dangerMini}>삭제</button>}
       <span style={{ ...amountStyle, fontSize: 13, minWidth: 84, textAlign: 'right' }}>{won(e.amount)}</span>
@@ -519,6 +601,30 @@ export default function ShowSettlementCard({
       )}
       </div>
       </div>
+
+      {/* 증빙 첨부용 숨은 파일 선택 + 보기 모달 */}
+      <input ref={receiptInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onReceiptFile} />
+      {receiptView && (
+        <div onClick={() => setReceiptView(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15, 23, 42, .55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={event => event.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 14, maxWidth: 'min(92vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <strong style={{ fontSize: 13 }}>증빙 · {receiptView.label}</strong>
+              <button type="button" aria-label="닫기" onClick={() => setReceiptView(null)} style={{ border: 'none', background: 'none', fontWeight: 800, color: '#64748b', cursor: 'pointer', fontSize: 14 }}>✕</button>
+            </div>
+            {receiptView.loading ? (
+              <div style={{ padding: 30, textAlign: 'center', color: '#64748b', fontSize: 13 }}>불러오는 중…</div>
+            ) : receiptView.image ? (
+              <img src={receiptView.image} alt="지출 증빙" style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} />
+            ) : (
+              <div style={{ padding: 30, textAlign: 'center', color: '#b91c1c', fontSize: 13 }}>증빙을 불러오지 못했습니다. 네트워크를 확인하고 다시 열어 주세요.</div>
+            )}
+            {!receiptView.loading && receiptView.name && <div style={{ fontSize: 11, color: '#94a3b8' }}>{receiptView.name}</div>}
+            {isAdmin && !receiptView.loading && receiptView.image && (
+              <button type="button" disabled={saving} onClick={removeReceipt} style={{ ...dangerMini, alignSelf: 'flex-end', padding: '6px 12px' }}>증빙 삭제</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── 정산 결과 ── */}
       <section style={{ padding: '14px 16px', borderRadius: 14, background: balance >= 0 ? '#ecfdf5' : '#fef2f2', border: `1px solid ${balance >= 0 ? '#a7f3d0' : '#fecaca'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

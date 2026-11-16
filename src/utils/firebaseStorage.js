@@ -1,4 +1,4 @@
-import { FieldPath, deleteField, doc, getDoc, getDocFromServer, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
+import { FieldPath, deleteDoc, deleteField, doc, getDoc, getDocFromServer, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { countSoldByTier } from './pricing';
 import { getRelatedShowIds } from './performances';
@@ -372,6 +372,37 @@ export const firebaseStorage = {
       return true;
     } catch (e) {
       console.error("Firebase Save Orders Error:", e);
+      return false;
+    }
+  },
+
+  // ── 지출 증빙(영수증) 이미지 ──────────────────────────────────────────────
+  // 메인 문서(1MiB 제한)에 넣지 않고 지출 1건당 별도 문서(receipt_<지출id>)에 저장한다.
+  // 장수 제한 없이 첨부할 수 있고, 메인 문서에는 "첨부됨" 표시(receipt: true)만 둔다.
+  saveReceipt: async (receiptId, payload) => {
+    try {
+      await setDoc(doc(db, 'club_ledger', `receipt_${receiptId}`), { ...clone(payload), updatedAt: new Date().toISOString() });
+      return true;
+    } catch (e) {
+      console.error('Firebase Save Receipt Error:', e);
+      return false;
+    }
+  },
+  loadReceipt: async (receiptId) => {
+    try {
+      const snap = await getDoc(doc(db, 'club_ledger', `receipt_${receiptId}`));
+      return snap.exists() ? snap.data() : null;
+    } catch (e) {
+      console.error('Firebase Load Receipt Error:', e);
+      return undefined;
+    }
+  },
+  deleteReceipt: async (receiptId) => {
+    try {
+      await deleteDoc(doc(db, 'club_ledger', `receipt_${receiptId}`));
+      return true;
+    } catch (e) {
+      console.error('Firebase Delete Receipt Error:', e);
       return false;
     }
   },
