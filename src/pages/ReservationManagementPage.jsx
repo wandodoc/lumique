@@ -689,6 +689,7 @@ export default function ReservationManagementPage() {
   const [expandedAttendeeKey, setExpandedAttendeeKey] = useState(null);
   const [rosterMenuKey, setRosterMenuKey] = useState(null); // 참석 명단: 그룹 지정 메뉴가 열린 행
   const [rosterMenuQuery, setRosterMenuQuery] = useState('');
+  const [rosterMenuUp, setRosterMenuUp] = useState(false); // 화면 아래쪽 행에서는 메뉴를 위로 펼친다
   const [afterPartyToast, setAfterPartyToast] = useState(null);
   const afterPartyToastTimer = useRef(null);
   const [isPerformerPanelOpen, setIsPerformerPanelOpen] = useState(false);
@@ -3364,12 +3365,12 @@ export default function ReservationManagementPage() {
                                         </span>
                                         {isAdmin && (
                                           <span style={{ position: 'relative', flexShrink: 0 }} onClick={event => event.stopPropagation()}>
-                                            <button type="button" onClick={() => { setRosterMenuKey(prev => (prev === row.key ? null : row.key)); setRosterMenuQuery(''); }}
+                                            <button type="button" onClick={event => { setRosterMenuUp(window.innerHeight - event.currentTarget.getBoundingClientRect().bottom < 300); setRosterMenuKey(prev => (prev === row.key ? null : row.key)); setRosterMenuQuery(''); }}
                                               style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 11, fontWeight: 700, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                               {row.type === 'unmapped' || row.type === 'unassigned' ? '그룹 지정' : '이동'}
                                             </button>
                                             {rosterMenuKey === row.key && (
-                                              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 40, width: 230, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.16)', padding: 6 }}>
+                                              <div style={{ position: 'absolute', right: 0, ...(rosterMenuUp ? { bottom: 'calc(100% + 4px)' } : { top: 'calc(100% + 4px)' }), zIndex: 40, width: 230, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.16)', padding: 6 }}>
                                                 <input type="search" value={rosterMenuQuery} onChange={event => setRosterMenuQuery(event.target.value)} placeholder="이름 입력으로 검색" aria-label="그룹 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, marginBottom: 6 }} />
                                                 {menuOptions(row).map(option => (
                                                   <button key={option.value} type="button" onClick={() => pickGroup(row, option.value)}

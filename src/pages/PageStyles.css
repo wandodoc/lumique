@@ -603,8 +603,9 @@
   border: 1px solid #e4e4e7;
   border-radius: 13px;
   background: #fff;
-  overflow: hidden;
 }
+/* 그룹 지정 팝업 메뉴가 패널 가장자리에서 잘리지 않도록 목록 패널은 넘침을 허용한다 */
+.after-party-editor-column { overflow: hidden; }
 .after-party-panel-heading, .after-party-editor-heading {
   display: flex;
   align-items: flex-start;
