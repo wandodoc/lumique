@@ -2015,6 +2015,30 @@ export default function ReservationManagementPage() {
     }
   };
 
+  // 예매 내역에서 뒤풀이 참여 여부/인원을 직접 바꾼다 (신청 후 "안 간다/가고 싶다" 변경 대응).
+  // 불참 처리하면 좌석·테이블 배정도 함께 해제한다. 정원이 넘게 되면 관리자에게 한 번 확인받는다.
+  const setOrderAfterParty = async (order, value) => {
+    const count = Math.max(0, Math.min(Math.floor(Number(value) || 0), Math.max(1, Number(order.ticketCount) || 1)));
+    const prevCount = order.isAfterParty ? (Number(order.afterPartyCount) || 1) : 0;
+    if (count === prevCount) return;
+    if (count > prevCount) {
+      const limit = Math.floor(Number(currentShow?.afterPartyLimit) || 0);
+      if (limit > 0) {
+        const nextTotal = afterPartySummary.total - prevCount + count;
+        if (nextTotal > limit && !window.confirm(`뒤풀이 정원 ${limit}명을 초과하게 됩니다 (변경 후 ${nextTotal}명). 그래도 변경할까요?`)) return;
+      }
+    }
+    const previous = { isAfterParty: order.isAfterParty === true, afterPartyCount: Number(order.afterPartyCount) || 0 };
+    const patch = count > 0 ? { isAfterParty: true, afterPartyCount: count } : { isAfterParty: false, afterPartyCount: 0 };
+    const result = await applyAfterPartyPatch([order.id], patch, '뒤풀이 참여 변경 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+    if (result !== 'firebase') return;
+    if (count === 0 && currentShow) assignToTable([order.id], null);
+    showAfterPartyToast(
+      `${order.audienceName || '(이름없음)'} 뒤풀이 ${count > 0 ? `${count}명 참여` : '불참'}로 변경됨`,
+      () => applyAfterPartyPatch([order.id], previous, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.')
+    );
+  };
+
   const renderOrderDetail = (row) => {
     const o = row.order;
     return (
@@ -2546,14 +2570,27 @@ export default function ReservationManagementPage() {
           </td>
         );
       }
-      case 'afterParty':
+      case 'afterParty': {
+        const maxAfterParty = Math.max(1, Number(o.ticketCount) || 1);
+        const currentAfterParty = o.isAfterParty ? (Number(o.afterPartyCount) || 1) : 0;
         return (
           <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: o.isAfterParty ? '#111827' : '#94a3b8' }}>
-              {o.isAfterParty ? (o.afterPartyCount || 1) : 0}
-            </div>
+            {isAdmin && !checkinMode ? (
+              <select value={currentAfterParty} aria-label="뒤풀이 참여 변경" title="뒤풀이 참여 여부/인원을 바로 바꿀 수 있어요"
+                onChange={e => setOrderAfterParty(o, e.target.value)}
+                style={{ padding: '5px 6px', borderRadius: 7, border: '1px solid #e2e8f0', background: currentAfterParty > 0 ? '#fff' : '#f8fafc', fontSize: 12, fontWeight: 700, color: currentAfterParty > 0 ? '#111827' : '#94a3b8', cursor: 'pointer' }}>
+                <option value={0}>불참</option>
+                {Array.from({ length: maxAfterParty }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}명</option>)}
+                {currentAfterParty > maxAfterParty && <option value={currentAfterParty}>{currentAfterParty}명</option>}
+              </select>
+            ) : (
+              <div style={{ fontWeight: 700, fontSize: 13, color: o.isAfterParty ? '#111827' : '#94a3b8' }}>
+                {o.isAfterParty ? (o.afterPartyCount || 1) : 0}
+              </div>
+            )}
           </td>
         );
+      }
       case 'comment':
         return (
           <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', color: 'var(--slate-500)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: cellWidth, boxSizing: 'border-box' }}>
