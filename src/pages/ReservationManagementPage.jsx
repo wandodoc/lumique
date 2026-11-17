@@ -2545,6 +2545,13 @@ export default function ReservationManagementPage() {
                           handleRemoveOrderFromGroup(unit.order);
                         }
                       };
+                      // 테이블 대표 지정/해제 — 팀(테이블) 레코드의 repIds에 셀 키를 저장한다 (여러 명 가능).
+                      const toggleRep = (card, unitKey) => {
+                        const t = afterPartyTables.find(tb => tb.groupKey === card.id);
+                        const cur = Array.isArray(t?.repIds) ? t.repIds : [];
+                        const next = cur.includes(unitKey) ? cur.filter(k => k !== unitKey) : [...cur, unitKey];
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { repIds: next } }]);
+                      };
                       const menuItemsFor = (card) => {
                         const items = [];
                         poolOrders.forEach(p => {
@@ -2573,7 +2580,7 @@ export default function ReservationManagementPage() {
                             <StatCard label="팀" value={`${cards.length}개`} color="#111827" />
                             <StatCard label="정원 초과 팀" value={`${overCount}개`} color="#dc2626" />
                           </div>
-                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다.</div>
+                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
 
                           {isAdmin && (
                             <div className="after-party-seating-actions" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2721,15 +2728,24 @@ export default function ReservationManagementPage() {
                                     )}
                                   </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                                    {units.map((u, i) => (
-                                      <div key={u.key} style={{ ...cellBase, background: u.kind === 'perf' ? '#ffedd5' : '#fff', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
-                                        <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: u.kind === 'perf' ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
+                                    {units.map((u, i) => {
+                                      const table = afterPartyTables.find(tb => tb.groupKey === card.id);
+                                      const repIds = Array.isArray(table?.repIds) ? table.repIds : [];
+                                      const isRep = repIds.includes(u.key);
+                                      return (
+                                      <div key={u.key} style={{ ...cellBase, background: isRep ? '#ffedd5' : '#fff', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
+                                        <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
+                                        {isAdmin && (
+                                          <button type="button" aria-label={`${u.name} 테이블 대표 ${isRep ? '해제' : '지정'}`} title="테이블 대표 지정/해제 (여러 명 가능)" onClick={() => toggleRep(card, u.key)}
+                                            style={{ border: 'none', background: 'none', color: isRep ? '#f59e0b' : '#d1d5db', cursor: 'pointer', padding: '0 2px', fontWeight: 800, fontSize: 13 }}>{isRep ? '★' : '☆'}</button>
+                                        )}
                                         {isAdmin && (
                                           <button type="button" aria-label={`${u.name} 빼기`} title={u.kind === 'att' && u.orderCount > 1 ? '동반 인원까지 예매 단위로 함께 빠집니다' : undefined} onClick={() => removeUnit(u)}
                                             style={{ border: 'none', background: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 8px', fontWeight: 800, fontSize: 12 }}>✕</button>
                                         )}
                                       </div>
-                                    ))}
+                                      );
+                                    })}
                                     {Array.from({ length: emptyCount }, (_, i) => (
                                       <div key={`empty-${i}`} style={{ ...cellBase, position: 'relative', borderRight: (units.length + i) % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
                                         {isEditing && i === 0 ? (
@@ -2741,7 +2757,7 @@ export default function ReservationManagementPage() {
                                             <div style={{ position: 'absolute', left: 4, top: 'calc(100% - 2px)', zIndex: 30, width: 230, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.18)', padding: 4 }}>
                                               {menuItems.map(it => (
                                                 <button key={it.key} type="button" onMouseDown={() => placeItem(it, card)}
-                                                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', color: it.kind === 'perf' ? '#9a3412' : '#1e293b' }}>
+                                                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', color: '#1e293b' }}>
                                                   {it.kind === 'perf' ? '🎤 ' : ''}{it.name}{it.kind === 'att' && it.count > 1 ? ` (${it.count}명)` : ''}
                                                   {it.from ? <small style={{ color: '#94a3b8', fontWeight: 700 }}> · {it.from}에서 이동</small> : null}
                                                   {it.hint ? <small style={{ color: '#b45309', fontWeight: 700 }}> · "{it.hint}"</small> : null}
