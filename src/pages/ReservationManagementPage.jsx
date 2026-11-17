@@ -2030,6 +2030,8 @@ export default function ReservationManagementPage() {
     }
     const previous = { isAfterParty: order.isAfterParty === true, afterPartyCount: Number(order.afterPartyCount) || 0 };
     const patch = count > 0 ? { isAfterParty: true, afterPartyCount: count } : { isAfterParty: false, afterPartyCount: 0 };
+    // 신청자가 예매할 때 입력한 값은 처음 바꾸는 순간에 한 번만 보존해, 수정 후에도 "원래 입력값"을 보여줄 수 있게 한다.
+    if (order.originalAfterPartyCount === undefined) patch.originalAfterPartyCount = prevCount;
     const result = await applyAfterPartyPatch([order.id], patch, '뒤풀이 참여 변경 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
     if (result !== 'firebase') return;
     if (count === 0 && currentShow) assignToTable([order.id], null);
@@ -2573,6 +2575,10 @@ export default function ReservationManagementPage() {
       case 'afterParty': {
         const maxAfterParty = Math.max(1, Number(o.ticketCount) || 1);
         const currentAfterParty = o.isAfterParty ? (Number(o.afterPartyCount) || 1) : 0;
+        const originalAfterParty = o.originalAfterPartyCount !== undefined ? Math.max(0, Number(o.originalAfterPartyCount) || 0) : null;
+        const originalNote = originalAfterParty !== null && originalAfterParty !== currentAfterParty
+          ? <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 3, whiteSpace: 'nowrap' }}>신청: {originalAfterParty > 0 ? `${originalAfterParty}명` : '불참'}</div>
+          : null;
         return (
           <td key={colId} style={{ padding: '14px 8px', textAlign: 'center', width: cellWidth, boxSizing: 'border-box' }}>
             {isAdmin && !checkinMode ? (
@@ -2588,6 +2594,7 @@ export default function ReservationManagementPage() {
                 {o.isAfterParty ? (o.afterPartyCount || 1) : 0}
               </div>
             )}
+            {originalNote}
           </td>
         );
       }
