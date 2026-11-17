@@ -2458,7 +2458,7 @@ export default function ReservationManagementPage() {
                         (card.orders || []).forEach(o => {
                           const count = effectiveAfterPartyCount(o);
                           const nm = o.audienceName || '(이름없음)';
-                          for (let i = 0; i < count; i += 1) units.push({ key: `a:${o.id}:${i}`, kind: 'att', order: o, name: i === 0 ? nm : `${nm} +${i}`, orderCount: count });
+                          for (let i = 0; i < count; i += 1) units.push({ key: `a:${o.id}:${i}`, kind: 'att', order: o, name: count > 1 ? `${nm} (${i + 1})` : nm, orderCount: count });
                         });
                         return units;
                       };
