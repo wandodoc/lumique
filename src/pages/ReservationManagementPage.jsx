@@ -497,6 +497,7 @@ export default function ReservationManagementPage() {
   const [addPerformerSelectValue, setAddPerformerSelectValue] = useState('');
   const [cellEdit, setCellEdit] = useState(null); // 셀 입력: { teamId, query }
   const [teamDragId, setTeamDragId] = useState(null); // 격자에서 드래그 중인 팀(그룹) id
+  const [menuHover, setMenuHover] = useState(null); // 셀 입력 메뉴: 마우스가 올라간 "다른 팀" 인원 (원래 자리 하이라이트용)
 
   const currentShow = useMemo(
     () => (concertId ? resolveShowByAnyId(shows, concertId) : null),
@@ -2518,6 +2519,8 @@ export default function ReservationManagementPage() {
                       };
                       const placeItem = async (item, card) => {
                         setCellEdit(null);
+                        setMenuHover(null);
+                        if (item.from && !window.confirm(`${item.name}은(는) 지금 "${item.from}" 팀에 있어요. "${card.name}" 팀으로 옮길까요?`)) return;
                         const size = (unitsByCard.get(card.id) || []).length;
                         const cap = capFor(card);
                         if (item.kind === 'perf') {
@@ -2732,8 +2735,9 @@ export default function ReservationManagementPage() {
                                       const table = afterPartyTables.find(tb => tb.groupKey === card.id);
                                       const repIds = Array.isArray(table?.repIds) ? table.repIds : [];
                                       const isRep = repIds.includes(u.key);
+                                      const isMoveTarget = !!menuHover && ((menuHover.kind === 'att' && u.kind === 'att' && u.order.id === menuHover.orderId) || (menuHover.kind === 'perf' && u.kind === 'perf' && u.memberId === menuHover.memberId));
                                       return (
-                                      <div key={u.key} style={{ ...cellBase, background: isRep ? '#ffedd5' : '#fff', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
+                                      <div key={u.key} style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
                                         <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
                                         {isAdmin && (
                                           <button type="button" aria-label={`${u.name} 테이블 대표 ${isRep ? '해제' : '지정'}`} title="테이블 대표 지정/해제 (여러 명 가능)" onClick={() => toggleRep(card, u.key)}
@@ -2752,11 +2756,13 @@ export default function ReservationManagementPage() {
                                           <>
                                             <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
                                               onChange={e => setCellEdit({ teamId: card.id, query: e.target.value })}
-                                              onBlur={() => setTimeout(() => setCellEdit(prev => (prev?.teamId === card.id ? null : prev)), 150)}
+                                              onBlur={() => { setMenuHover(null); setTimeout(() => setCellEdit(prev => (prev?.teamId === card.id ? null : prev)), 150); }}
                                               style={{ width: '100%', border: 'none', background: '#fffbeb', padding: '7px 10px', fontSize: 13, outline: 'none', fontWeight: 700 }} />
                                             <div style={{ position: 'absolute', left: 4, top: 'calc(100% - 2px)', zIndex: 30, width: 230, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.18)', padding: 4 }}>
                                               {menuItems.map(it => (
                                                 <button key={it.key} type="button" onMouseDown={() => placeItem(it, card)}
+                                                  onMouseEnter={() => setMenuHover(it.from ? { kind: it.kind, orderId: it.kind === 'att' ? it.order.id : null, memberId: it.kind === 'perf' ? it.memberId : null } : null)}
+                                                  onMouseLeave={() => setMenuHover(null)}
                                                   style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', color: '#1e293b' }}>
                                                   {it.kind === 'perf' ? '🎤 ' : ''}{it.name}{it.kind === 'att' && it.count > 1 ? ` (${it.count}명)` : ''}
                                                   {it.from ? <small style={{ color: '#94a3b8', fontWeight: 700 }}> · {it.from}에서 이동</small> : null}
