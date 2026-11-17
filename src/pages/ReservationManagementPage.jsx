@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import './PageStyles.css';
 
 const DEPOSIT_WAIT = '입금대기';
@@ -680,16 +680,9 @@ export default function ReservationManagementPage() {
   const [showColSettings, setShowColSettings] = useState(false);
 
 
-  // 뒤풀이 관리 섹션 — 검색/필터/탭/정리함/토스트 상태
-  const [mgmtQuery, setMgmtQuery] = useState('');
-  const [mgmtFilter, setMgmtFilter] = useState('all');
-  const [, setAfterPartyPage] = useState(0); // 그룹별 묶음 보기로 바뀌며 페이지 번호는 쓰지 않는다 (검색/필터 핸들러 호환용)
+  // 뒤풀이 관리 섹션 — 탭/정리함/토스트 상태
   const [mappingErrorMsg, setMappingErrorMsg] = useState('');
-  const [afterPartyTab, setAfterPartyTab] = useState('participants'); // 'participants' | 'groups' | 'tables'
-  const [expandedAttendeeKey, setExpandedAttendeeKey] = useState(null);
-  const [rosterMenuKey, setRosterMenuKey] = useState(null); // 참석 명단: 그룹 지정 메뉴가 열린 행
-  const [rosterMenuQuery, setRosterMenuQuery] = useState('');
-  const [rosterMenuUp, setRosterMenuUp] = useState(false); // 화면 아래쪽 행에서는 메뉴를 위로 펼친다
+  const [afterPartyTab, setAfterPartyTab] = useState('groups'); // 'groups' | 'tables'
   const [afterPartyToast, setAfterPartyToast] = useState(null);
   const afterPartyToastTimer = useRef(null);
   const [isPerformerPanelOpen, setIsPerformerPanelOpen] = useState(false);
@@ -701,8 +694,8 @@ export default function ReservationManagementPage() {
   const [addPerformerSelectValue, setAddPerformerSelectValue] = useState('');
   const [selectedSeatingIds, setSelectedSeatingIds] = useState([]); // 테이블 배치: 미배치 참여자 다중 선택
   const [selectedTableId, setSelectedTableId] = useState(null); // 배치도: 편집 중인 테이블(위치/정원/모양 등)
-  const [seatingView, setSeatingView] = useState('sheet'); // 좌석 배치 보기: 'sheet'(표) | 'map'(배치도)
-  const [sheetAddTableId, setSheetAddTableId] = useState(null); // 표 보기: "+ 추가" 목록이 열린 테이블
+  const [seatingView, setSeatingView] = useState('sheet');
+  const [cellEdit, setCellEdit] = useState(null); // 셀 입력: { tableId, query }
   // 배치도: 드래그 중인 테이블의 "확정 전" 임시 위치(포인터를 떼는 순간에만 실제로 저장한다).
   const [dragInfo, setDragInfo] = useState(null); // { tableId, startClientX, startClientY, startX, startY, x, y }
   const [seatDragInfo, setSeatDragInfo] = useState(null);
@@ -1588,11 +1581,33 @@ export default function ReservationManagementPage() {
     Object.keys(next).forEach(seatId => { if (next[seatId] === memberId) delete next[seatId]; });
     saveSeatingPatch({ performerSeatAssignments: next });
   };
-  // 테이블 대표(추후 테이블별 정산용). 테이블 레코드의 repName 필드에 이름을 저장한다.
-  const setTableRep = (tableId, repName) => {
-    saveSeatingPatch({ tables: afterPartyTables.map(t => (t.id === tableId ? { ...t, repName } : t)) });
+  // ── 셀 입력 보기: 참석자 1명(동반 포함 단위)을 특정 팀의 빈 좌석에 넣거나 뺀다 ──
+  const assignAttendeeToTable = (orderId, attendeeIndex, tableId) => {
+    const table = afterPartyTables.find(t => t.id === tableId);
+    if (!table) return;
+    const nextParticipants = materializeLegacySeatAssignments();
+    Object.keys(nextParticipants).forEach(seatId => {
+      const a = nextParticipants[seatId];
+      if (a?.orderId === orderId && a?.attendeeIndex === attendeeIndex) delete nextParticipants[seatId];
+    });
+    const used = new Set([...Object.keys(nextParticipants), ...Object.keys(performerSeatAssignments)]);
+    const freeSeat = table.seats.find(seat => !used.has(seat.id));
+    if (!freeSeat) { window.alert('빈 좌석이 없습니다. 팀 정원을 늘려 주세요.'); return; }
+    nextParticipants[freeSeat.id] = { orderId, attendeeIndex };
+    const nextAssignments = { ...seatAssignments }; delete nextAssignments[orderId];
+    const nextAuto = { ...autoSeatAssignments }; delete nextAuto[orderId];
+    saveSeatingPatch({ participantSeatAssignments: nextParticipants, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: { ...manualSeatAssignments, [orderId]: true } });
   };
-
+  const unassignAttendeeUnit = (orderId, attendeeIndex) => {
+    const nextParticipants = materializeLegacySeatAssignments();
+    Object.keys(nextParticipants).forEach(seatId => {
+      const a = nextParticipants[seatId];
+      if (a?.orderId === orderId && a?.attendeeIndex === attendeeIndex) delete nextParticipants[seatId];
+    });
+    const nextAssignments = { ...seatAssignments }; delete nextAssignments[orderId];
+    const nextAuto = { ...autoSeatAssignments }; delete nextAuto[orderId];
+    saveSeatingPatch({ participantSeatAssignments: nextParticipants, seatAssignments: nextAssignments, autoSeatAssignments: nextAuto, manualSeatAssignments: { ...manualSeatAssignments, [orderId]: true } });
+  };
   // 1순위 공연자 매핑만 자동 배치한다. 이전 자동 배정만 재계산하고 수동 배정은 유지한다.
   const autoAssignTables = async (tableOverride = null, participantSeatOverride = null, assignmentOverride = seatAssignments, performerSeatOverride = performerSeatAssignments) => {
     const startingTables = tableOverride || afterPartyTables;
@@ -1928,23 +1943,6 @@ export default function ReservationManagementPage() {
     return rows;
   }, [orders, concertId, effectiveAfterPartyCount, afterPartyPerformerIds, members, bandMembers, performerGroupMapping, performerOptions, findPerformer]);
 
-  // 확인이 필요한 건을 먼저, 그다음 최근 신청 순으로 보여준다.
-  const afterPartyAttendeeList = useMemo(() => {
-    const q = mgmtQuery.trim().toLowerCase();
-    const priority = { unmapped: 0, unassigned: 1, performer: 2, group: 2 };
-    return afterPartyAttendeeRows
-      // 마지막 '확인 필요' 건이 정리되면 걸려 있던 필터를 자동으로 전체 보기로 되돌린다.
-      .filter(r => mgmtFilter === 'all' || !afterPartyAttendeeRows.some(x => x.type === mgmtFilter) || r.type === mgmtFilter)
-      .filter(r => !q || r.name.toLowerCase().includes(q) || stripHyphens(r.phone).includes(stripHyphens(q)) || r.groupLabel.toLowerCase().includes(q) || r.originalInviterName.toLowerCase().includes(q))
-      .sort((a, b) => {
-        if (priority[a.type] !== priority[b.type]) return priority[a.type] - priority[b.type];
-        const timeA = Date.parse(a.createdAt || '') || 0;
-        const timeB = Date.parse(b.createdAt || '') || 0;
-        if (timeA !== timeB) return timeB - timeA;
-        return a.name.localeCompare(b.name);
-      });
-  }, [afterPartyAttendeeRows, mgmtQuery, mgmtFilter]);
-
   // 즉시 저장한 변경을 알려주고 몇 초 동안 되돌릴 수 있게 하는 토스트.
   const showAfterPartyToast = (message, undo) => {
     clearTimeout(afterPartyToastTimer.current);
@@ -1993,29 +1991,6 @@ export default function ReservationManagementPage() {
     }
   };
 
-  const changePerformerGroup = async (row, value) => {
-    const previousLabel = performerGroupMapping[row.memberId] || null;
-    let nextLabel = null;
-    if (value === '__new') {
-      nextLabel = String(window.prompt('새 그룹 이름을 입력하세요') || '').trim();
-      if (!nextLabel) return;
-    } else if (value.startsWith('group:')) {
-      nextLabel = value.slice('group:'.length);
-    } else if (value.startsWith('member:')) {
-      // 다른 공연자의 그룹에 합류. 자기 자신을 고르면 '본인 그룹'으로 되돌린다.
-      nextLabel = value === `member:${row.memberId}` ? null : value;
-    } else if (value !== 'self') {
-      return;
-    }
-    const result = await setPerformerGroup(row.memberId, nextLabel);
-    if (result === 'firebase') {
-      const targetText = !nextLabel ? '공연자 본인 (그룹 없음)'
-        : nextLabel.startsWith('member:') ? `${findPerformer(nextLabel.slice('member:'.length))?.name || '공연자'} 그룹`
-          : nextLabel;
-      showAfterPartyToast(`${row.name} → ${targetText}`, () => setPerformerGroup(row.memberId, previousLabel));
-    }
-  };
-
   // 예매 내역에서 뒤풀이 참여 여부/인원을 직접 바꾼다 (신청 후 "안 간다/가고 싶다" 변경 대응).
   // 불참 처리하면 좌석·테이블 배정도 함께 해제한다. 정원이 넘게 되면 관리자에게 한 번 확인받는다.
   const setOrderAfterParty = async (order, value) => {
@@ -2039,45 +2014,6 @@ export default function ReservationManagementPage() {
     showAfterPartyToast(
       `${order.audienceName || '(이름없음)'} 뒤풀이 ${count > 0 ? `${count}명 참여` : '불참'}로 변경됨`,
       () => applyAfterPartyPatch([order.id], previous, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.')
-    );
-  };
-
-  const renderOrderDetail = (row) => {
-    const o = row.order;
-    return (
-      <div className="after-party-detail-grid">
-        <div><span>연락처</span><strong>{o.phone || '-'}</strong></div>
-        <div><span>입금</span><strong>{o.depositStatus || '-'}</strong></div>
-        <div><span>신청 시간</span><strong>{o.createdAt && Number.isFinite(Date.parse(o.createdAt)) ? new Date(o.createdAt).toLocaleString('ko-KR') : '-'}</strong></div>
-        <div><span>원본 초대자 입력</span><strong>{row.originalInviterName ? `"${row.originalInviterName}"` : '없음'}</strong></div>
-      </div>
-    );
-  };
-
-  const renderPerformerDetail = (row) => {
-    const selectedOrderId = afterPartyPerformerOrderIds[row.memberId] || '';
-    const availableOrders = (concertId ? filterOrdersForShow(orders, concertId) : orders).filter(order => {
-      if (!order.isAfterParty) return false;
-      if (order.id === selectedOrderId) return true;
-      return (performerDuplicateCountByOrder[order.id] || 0) < (Number(order.afterPartyCount) || 1);
-    });
-    return (
-      <div className="after-party-detail-grid">
-        <div className="after-party-detail-wide">
-          <span>본인 명의 예매가 있나요?</span>
-          <select className="after-party-group-select" value={selectedOrderId} disabled={!isAdmin} aria-label={`${row.name} 본인 예매 연결`}
-            onChange={event => setPerformerDuplicateOrder(row.memberId, event.target.value)}>
-            <option value="">별도 참석 (중복 없음)</option>
-            {availableOrders.map(order => <option key={order.id} value={order.id}>{order.audienceName || '이름 없음'} · 뒤풀이 {Number(order.afterPartyCount) || 1}명</option>)}
-          </select>
-          <small>연결하면 그 예매 인원에서 1명을 빼서 인원·좌석이 겹치지 않게 해요.</small>
-        </div>
-        {isAdmin && (
-          <div className="after-party-detail-wide">
-            <button type="button" className="after-party-edit-button" style={{ border: '1px solid #fca5a5', color: '#dc2626', background: '#fff' }} onClick={() => removePerformerFromAfterParty(row.memberId)}>뒤풀이 참석 취소</button>
-          </div>
-        )}
-      </div>
     );
   };
 
@@ -2294,7 +2230,6 @@ export default function ReservationManagementPage() {
     }
   };
 
-  const listRows = afterPartyAttendeeList;
   const exportCsv = () => {
     const headers = ['예매자명', '연락처', '신청 매수', '가격 구간', '결제 금액', '결제 방식', '뒤풀이 참여자 수', '초대자', '남기신 말씀', '신청 시간', '입금 여부', '입장 여부'];
     const rows = [
@@ -3145,13 +3080,12 @@ export default function ReservationManagementPage() {
               <div>
                 <div className="after-party-eyebrow">공연 운영</div>
                 <h2>뒤풀이 관리</h2>
-                <p>참석 명단과 좌석 배치는 서로 독립적으로 관리됩니다.</p>
+                <p>그룹(누구 초대인지)과 좌석 배치(어느 팀에 앉는지)를 관리합니다.</p>
               </div>
               <div className="after-party-tabs" role="tablist" aria-label="뒤풀이 관리 작업">
                 {[
-                  { value: 'participants', step: '1', label: '참석 명단' },
-                  { value: 'groups', step: '2', label: '그룹' },
-                  { value: 'tables', step: '3', label: '좌석 배치' },
+                  { value: 'groups', step: '1', label: '그룹' },
+                  { value: 'tables', step: '2', label: '좌석 배치' },
                 ].map(t => (
                   <button key={t.value} type="button" role="tab" aria-selected={afterPartyTab === t.value}
                     className={afterPartyTab === t.value ? 'after-party-tab is-active' : 'after-party-tab'}
@@ -3211,195 +3145,6 @@ export default function ReservationManagementPage() {
                 </div>
               )}
             </div>
-
-            {afterPartyTab === 'participants' && (
-              <div className="after-party-participants-view">
-                <div className="after-party-participant-layout is-single">
-                  <section className="after-party-list-panel">
-                    <div className="after-party-list-toolbar" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '14px 16px 10px' }}>
-                      <input
-                        type="search"
-                        value={mgmtQuery}
-                        onChange={(e) => { setMgmtQuery(e.target.value); setAfterPartyPage(0); }}
-                        placeholder="이름 · 연락처 · 소속 그룹 검색"
-                        aria-label="뒤풀이 참석자 검색"
-                        style={{ flex: 1, minWidth: 200 }}
-                      />
-                      <div className="after-party-filter-row" style={{ padding: 0, overflowX: 'visible', margin: 0 }}>
-                        {(() => {
-                          // 확인할 건이 없으면 거를 것도 없으므로 필터 칩을 아예 숨긴다.
-                          const needsReview = afterPartyAttendeeRows.filter(r => r.type === 'unmapped').length;
-                          if (needsReview === 0) return null;
-                          return [
-                            { value: 'all', label: '전체', count: afterPartyAttendeeRows.length },
-                            { value: 'unmapped', label: '확인 필요', count: needsReview },
-                          ].map(f => (
-                            <button key={f.value} type="button" aria-pressed={mgmtFilter === f.value}
-                              className={mgmtFilter === f.value ? 'after-party-filter is-active' : 'after-party-filter'}
-                              onClick={() => { setMgmtFilter(f.value); setAfterPartyPage(0); }}
-                            >{f.label} <span>{f.count}</span></button>
-                          ));
-                        })()}
-                      </div>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          className="after-party-filter"
-                          style={{ background: isPerformerPanelOpen ? '#1e3a8a' : '#eff6ff', color: isPerformerPanelOpen ? '#fff' : '#1d4ed8', borderColor: '#93c5fd', fontWeight: 800 }}
-                          onClick={() => setIsPerformerPanelOpen(prev => !prev)}
-                        >
-                          {isPerformerPanelOpen ? '✕ 공연자 닫기' : '+ 공연자 추가'}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* 접이식 공연자 참석 관리 패널 */}
-                    {isPerformerPanelOpen && (
-                      <div style={{ margin: '0 16px 14px', padding: '14px', borderRadius: 12, border: '1px solid #bfdbfe', background: '#eff6ff', display: 'grid', gap: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: '#1e3a8a' }}>🎸 공연 참가자 뒤풀이 참석 관리 (참석 {afterPartyPerformerIds.length}명)</span>
-                          {isAdmin && currentShowParticipantIds.length > 0 && (
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <button type="button" onClick={() => patchCurrentShow({ afterPartyPerformerIds: Array.from(new Set([...afterPartyPerformerIds, ...currentShowParticipantIds])) })} style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #93c5fd', background: '#fff', color: '#1d4ed8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>공연자 전원 참석 추가</button>
-                              <button type="button" onClick={() => patchCurrentShow({ afterPartyPerformerIds: afterPartyPerformerIds.filter(id => !currentShowParticipantIds.includes(id)) })} style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>전원 해제</button>
-                            </div>
-                          )}
-                        </div>
-                        {currentShowParticipantIds.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {currentShowParticipantIds.map(memberId => {
-                              const m = members.find(x => x.id === memberId) || bandMembers[memberId] || { id: memberId, name: memberId, part: '' };
-                              const isAttending = afterPartyPerformerIds.includes(memberId);
-                              return (
-                                <button key={memberId} type="button" disabled={!isAdmin} onClick={() => isAttending ? removePerformerFromAfterParty(memberId) : addPerformerToAfterParty(memberId)}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 9, border: `1.5px solid ${isAttending ? '#2563eb' : '#cbd5e1'}`, background: isAttending ? '#2563eb' : '#fff', color: isAttending ? '#fff' : '#475569', fontSize: 11, fontWeight: 700, cursor: isAdmin ? 'pointer' : 'default' }}>
-                                  <span>{isAttending ? '✓' : '+'}</span>
-                                  <span>{m.name}{m.part ? ` (${m.part})` : ''}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {isAdmin && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px dashed #bfdbfe' }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a8a' }}>다른 회원 직접 추가:</span>
-                            <AddPerformerPicker members={performerOptions} excludeIds={afterPartyPerformerIds} onAdd={(memberId) => addPerformerToAfterParty(memberId)} triggerText="+ 공연자 직접 추가" />
-                            {afterPartyPerformerIds.filter(id => !currentShowParticipantIds.includes(id)).map(id => {
-                              const m = members.find(x => x.id === id) || bandMembers[id] || { id, name: id, part: '' };
-                              return (
-                                <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 8, background: '#fff', border: '1px solid #93c5fd', color: '#1d4ed8', fontSize: 11, fontWeight: 700 }}>
-                                  {m.name}{m.part ? ` (${m.part})` : ''}
-                                  <button type="button" onClick={() => removePerformerFromAfterParty(id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 800, cursor: 'pointer', padding: 0, marginLeft: 2 }}>✕</button>
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {(() => {
-                      // ── 그룹별 묶음 보기: 같은 그룹 참석자를 한 묶음으로, 확인 필요를 맨 위에 ──
-                      const sections = new Map();
-                      const sectionFor = (row) => {
-                        if (row.type === 'unmapped') return { key: '__unmapped', icon: '⚠️', label: '확인 필요', rank: 0 };
-                        if (row.type === 'unassigned') return { key: '__unassigned', icon: '⊘', label: '초대자 없음', rank: 2 };
-                        if (row.type === 'group') return { key: `group:${row.groupLabel}`, icon: '🏷', label: row.groupLabel, rank: 1 };
-                        // 공연자 본인은 자기 이름의 그룹 섹션에 들어가고, 다른 공연자 그룹에 합류했으면 그쪽 섹션으로 간다
-                        if (row.kind === 'performer' && row.selectValue === 'self') return { key: `member:${row.memberId}`, icon: '🎤', label: row.name, rank: 1 };
-                        return { key: row.selectValue, icon: '🎤', label: row.groupLabel, rank: 1 };
-                      };
-                      listRows.forEach(row => {
-                        const meta = sectionFor(row);
-                        if (!sections.has(meta.key)) sections.set(meta.key, { ...meta, rows: [], people: 0, orders: 0 });
-                        const sec = sections.get(meta.key);
-                        sec.rows.push(row);
-                        sec.people += row.count;
-                        if (row.kind === 'order') sec.orders += 1;
-                      });
-                      const ordered = [...sections.values()].sort((a, b) => a.rank - b.rank || b.people - a.people || a.label.localeCompare(b.label));
-                      const menuOptions = (row) => {
-                        const q = rosterMenuQuery.trim().toLowerCase();
-                        const match = (text) => !q || text.toLowerCase().includes(q);
-                        const options = [];
-                        if (row.kind === 'performer') {
-                          options.push({ value: 'self', text: '🎤 공연자 본인 (그룹 없음)' });
-                          performerOptions.forEach(m => { if (m.id !== row.memberId && match(m.name)) options.push({ value: `member:${m.id}`, text: `🎤 ${m.name}${performerSuffix(m)} 그룹으로` }); });
-                          groupOptionLabels.forEach(label => { if (match(label)) options.push({ value: `group:${label}`, text: `🏷 ${label}` }); });
-                          options.push({ value: '__new', text: '➕ 새 그룹 만들기…' });
-                        } else {
-                          performerOptions.forEach(m => { if (match(m.name)) options.push({ value: `member:${m.id}`, text: `🎤 ${m.name}${performerSuffix(m)}` }); });
-                          groupOptionLabels.forEach(label => { if (match(label)) options.push({ value: `group:${label}`, text: `🏷 ${label}` }); });
-                          options.push({ value: '__new', text: '➕ 새 그룹 만들기…' });
-                          options.push({ value: 'unassigned', text: '⊘ 초대자 없음' });
-                        }
-                        return options;
-                      };
-                      const pickGroup = (row, value) => {
-                        setRosterMenuKey(null);
-                        setRosterMenuQuery('');
-                        if (row.kind === 'performer') changePerformerGroup(row, value);
-                        else changeOrderGroup(row.order, value);
-                      };
-                      if (listRows.length === 0) {
-                        return <div style={{ padding: '30px 12px', textAlign: 'center', color: '#71717a', fontSize: 13 }}>검색/필터 조건에 맞는 참석자가 없습니다.</div>;
-                      }
-                      return (
-                        <div style={{ display: 'grid', gap: 12, padding: '0 16px 16px' }}>
-                          {ordered.map(sec => (
-                            <div key={sec.key}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', background: sec.key === '__unmapped' ? '#fffbeb' : '#f8fafc', border: `1px solid ${sec.key === '__unmapped' ? '#fde68a' : '#e4e4e7'}`, borderRadius: 10 }}>
-                                <span style={{ fontSize: 13, fontWeight: 800, color: sec.key === '__unmapped' ? '#b45309' : '#18181b' }}>{sec.icon} {sec.label}</span>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: '#71717a', whiteSpace: 'nowrap' }}>{sec.orders > 0 ? `예매 ${sec.orders}건 · ` : ''}{sec.people}명</span>
-                              </div>
-                              <div style={{ padding: '2px 6px' }}>
-                                {sec.rows.map(row => {
-                                  const isOpen = expandedAttendeeKey === row.key;
-                                  const subText = row.kind === 'performer' ? '공연자 본인' : row.originalInviterName ? `초대자 입력: "${row.originalInviterName}"` : '';
-                                  return (
-                                    <Fragment key={row.key}>
-                                      <div onClick={() => setExpandedAttendeeKey(isOpen ? null : row.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 6px', borderTop: '1px dashed #f1f5f9', cursor: 'pointer' }}>
-                                        <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                                          <span style={{ fontSize: 13, fontWeight: 700, color: '#18181b' }}>{row.name}{row.kind === 'performer' ? ' 🎤' : ''}{row.count > 1 ? ` (${row.count}명)` : ''}</span>
-                                          {subText && <span style={{ fontSize: 11, color: '#94a3b8' }}>{subText}</span>}
-                                        </span>
-                                        {isAdmin && (
-                                          <span style={{ position: 'relative', flexShrink: 0 }} onClick={event => event.stopPropagation()}>
-                                            <button type="button" onClick={event => { setRosterMenuUp(window.innerHeight - event.currentTarget.getBoundingClientRect().bottom < 300); setRosterMenuKey(prev => (prev === row.key ? null : row.key)); setRosterMenuQuery(''); }}
-                                              style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 11, fontWeight: 700, color: '#475569', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                              {row.type === 'unmapped' || row.type === 'unassigned' ? '그룹 지정' : '이동'}
-                                            </button>
-                                            {rosterMenuKey === row.key && (
-                                              <div style={{ position: 'absolute', right: 0, ...(rosterMenuUp ? { bottom: 'calc(100% + 4px)' } : { top: 'calc(100% + 4px)' }), zIndex: 40, width: 230, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.16)', padding: 6 }}>
-                                                <input type="search" value={rosterMenuQuery} onChange={event => setRosterMenuQuery(event.target.value)} placeholder="이름 입력으로 검색" aria-label="그룹 검색" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, marginBottom: 6 }} />
-                                                {menuOptions(row).map(option => (
-                                                  <button key={option.value} type="button" onClick={() => pickGroup(row, option.value)}
-                                                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', border: 'none', background: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>{option.text}</button>
-                                                ))}
-                                                {menuOptions(row).length === 0 && <div style={{ fontSize: 12, color: '#94a3b8', padding: '6px 8px' }}>검색 결과가 없습니다.</div>}
-                                              </div>
-                                            )}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {isOpen && (
-                                        <div onClick={event => event.stopPropagation()} style={{ margin: '2px 0 8px', padding: '10px 12px', borderRadius: 10, background: '#fafafa', border: '1px solid #f1f1f2' }}>
-                                          {row.kind === 'performer' ? renderPerformerDetail(row) : renderOrderDetail(row)}
-                                        </div>
-                                      )}
-                                    </Fragment>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </section>
-                </div>
-              </div>
-            )}
 
             {afterPartyTab === 'groups' && (
               <div className="after-party-groups-view">
@@ -3702,8 +3447,8 @@ export default function ReservationManagementPage() {
                     <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>전체 {seatingOverview.totalAll}명 · 공연자 좌석 {seatingOverview.performerCountPlaced}명 포함 · 예매 인원과 별도로 정원에 반영됩니다.</div>
 
                     <div className="after-party-view-toggle" role="group" aria-label="좌석 배치 보기 방식" style={{ justifySelf: 'start' }}>
-                      <button type="button" className={seatingView === 'sheet' ? 'is-active' : ''} aria-pressed={seatingView === 'sheet'} onClick={() => setSeatingView('sheet')}>표 보기</button>
-                      <button type="button" className={seatingView === 'map' ? 'is-active' : ''} aria-pressed={seatingView === 'map'} onClick={() => setSeatingView('map')}>배치도 보기</button>
+                      <button type="button" className={seatingView === 'sheet' ? 'is-active' : ''} aria-pressed={seatingView === 'sheet'} onClick={() => setSeatingView('sheet')}>셀 입력</button>
+                      <button type="button" className={seatingView === 'map' ? 'is-active' : ''} aria-pressed={seatingView === 'map'} onClick={() => setSeatingView('map')}>배치도</button>
                     </div>
 
                     {isAdmin && (
@@ -3746,118 +3491,176 @@ export default function ReservationManagementPage() {
 
                     {/* ── 표 보기: 구글 시트처럼 테이블 단위로 인원을 넣고 뺀다. 배치도와 같은 데이터를 본다. ── */}
                     {seatingView === 'sheet' && (() => {
-                      const chipBase = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 16, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, fontWeight: 700, color: '#1e293b' };
-                      const perfChip = { ...chipBase, border: '1px solid #a7f3d0', background: '#ecfdf5', color: '#047857' };
-                      const chipX = { border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 };
-                      const cellInput = { padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, background: '#fff', minWidth: 0 };
+                      // ── 셀 입력: 스프레드시트처럼 팀 칸에 이름을 넣어 배치한다. 모든 화면(배치도·자동 배치)과 같은 데이터. ──
                       const placedPerformerIds = new Set(seatingOverview.tables.flatMap(entry => entry.performers.map(m => m.id)));
-                      const unplacedPerformers = afterPartyPerformerIds.filter(id => !placedPerformerIds.has(id)).map(id => findPerformer(id) || { id, name: id, part: '' });
-                      const poolOrders = seatingOverview.unassigned;
-                      const poolTotal = poolOrders.reduce((s, p) => s + p.count, 0) + unplacedPerformers.length;
-                      const placedTotal = seatingOverview.tables.reduce((s, entry) => s + entry.count, 0);
+                      const poolUnits = [];
+                      afterPartyPerformerIds.forEach(id => {
+                        if (placedPerformerIds.has(id)) return;
+                        const m = findPerformer(id) || { id, name: id };
+                        poolUnits.push({ key: `p:${id}`, kind: 'perf', memberId: id, label: m.name });
+                      });
+                      afterPartyParticipants.forEach(p => {
+                        for (let idx = 0; idx < p.count; idx += 1) {
+                          if (seatingOverview.attendeeTableByKey.has(`${p.orderId}:${idx}`)) continue;
+                          poolUnits.push({ key: `a:${p.orderId}:${idx}`, kind: 'att', orderId: p.orderId, attendeeIndex: idx, label: idx === 0 ? p.name : `${p.name} +${idx}` });
+                        }
+                      });
+                      const unitsForTable = (tableId) => {
+                        const units = [];
+                        seatingOverview.tables.find(e => e.table.id === tableId)?.performers.forEach(m => units.push({ key: `p:${m.id}`, kind: 'perf', memberId: m.id, label: m.name }));
+                        afterPartyParticipants.forEach(p => {
+                          for (let idx = 0; idx < p.count; idx += 1) {
+                            if (seatingOverview.attendeeTableByKey.get(`${p.orderId}:${idx}`) === tableId) {
+                              units.push({ key: `a:${p.orderId}:${idx}`, kind: 'att', orderId: p.orderId, attendeeIndex: idx, label: idx === 0 ? p.name : `${p.name} +${idx}` });
+                            }
+                          }
+                        });
+                        return units;
+                      };
+                      const cellQuery = (cellEdit?.query || '').replace(/\s+/g, '').toLowerCase();
+                      const menuUnits = poolUnits.filter(u => !cellQuery || u.label.replace(/\s+/g, '').toLowerCase().includes(cellQuery));
+                      const placeUnit = (unit, tableId) => {
+                        setCellEdit(null);
+                        if (unit.kind === 'perf') assignPerformerToTable(unit.memberId, tableId);
+                        else assignAttendeeToTable(unit.orderId, unit.attendeeIndex, tableId);
+                      };
+                      const removeUnit = (unit) => {
+                        if (unit.kind === 'perf') unassignPerformerFromTables(unit.memberId);
+                        else unassignAttendeeUnit(unit.orderId, unit.attendeeIndex);
+                      };
+                      const cellBase = { minHeight: 34, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', minWidth: 0 };
                       return (
                         <div style={{ display: 'grid', gap: 12, minWidth: 0 }}>
-                          <div style={{ padding: '12px 14px', border: '1.5px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc' }}>
-                            <div style={{ fontSize: 12, fontWeight: 800, color: poolTotal ? '#b45309' : '#047857', marginBottom: poolTotal ? 8 : 0 }}>
-                              {poolTotal ? `미배치 ${poolTotal}명 — 각 테이블의 "+ 추가"를 눌러 배치하세요` : '✅ 모두 배치됐어요'}
+                          {/* 공연자 참석 관리 (구 참석 명단 탭에서 이동) */}
+                          <div style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid #bfdbfe', background: '#eff6ff' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#1e3a8a' }}>🎸 뒤풀이 참석 공연자 {afterPartyPerformerIds.length}명 — 참석으로 표시해야 아래 배치 명단에 나옵니다</span>
+                              {isAdmin && <button type="button" onClick={() => setIsPerformerPanelOpen(prev => !prev)} style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #93c5fd', background: '#fff', color: '#1d4ed8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{isPerformerPanelOpen ? '닫기' : '공연자 참석 관리'}</button>}
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {unplacedPerformers.map(m => <span key={m.id} style={perfChip}>🎤 {m.name}</span>)}
-                              {poolOrders.map(p => <span key={p.orderId} style={chipBase}>{p.name}{p.count > 1 ? ` (${p.count}명)` : ''}</span>)}
-                            </div>
-                          </div>
-                          <div style={{ overflowX: 'auto' }}>
-                            <table className="after-party-participant-table" style={{ minWidth: 660 }}>
-                              <thead><tr><th>테이블</th><th>대표 <span style={{ fontWeight: 500 }}>(정산용)</span></th><th>정원</th><th>배치 인원</th><th style={{ textAlign: 'right' }}>인원</th><th></th></tr></thead>
-                              <tbody>
-                                {seatingOverview.tables.length === 0 && (
-                                  <tr><td colSpan={6} className="after-party-empty-row">아직 테이블이 없습니다. '+ 테이블 추가'를 눌러 시작하세요.</td></tr>
+                            {isAdmin && isPerformerPanelOpen && (
+                              <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+                                {currentShowParticipantIds.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                    {currentShowParticipantIds.map(memberId => {
+                                      const m = findPerformer(memberId) || { id: memberId, name: memberId, part: '' };
+                                      const attending = afterPartyPerformerIds.includes(memberId);
+                                      return (
+                                        <button key={memberId} type="button" onClick={() => (attending ? removePerformerFromAfterParty(memberId) : addPerformerToAfterParty(memberId))}
+                                          style={{ padding: '4px 9px', borderRadius: 10, border: `1.5px solid ${attending ? '#2563eb' : '#cbd5e1'}`, background: attending ? '#2563eb' : '#fff', color: attending ? '#fff' : '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                          {attending ? '✓ ' : '+ '}{m.name}{m.part ? ` (${m.part})` : ''}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 )}
-                                {seatingOverview.tables.map(entry => {
-                                  const table = entry.table;
-                                  const memberNames = [...entry.performers.map(m => m.name), ...entry.participants.map(p => p.name)];
-                                  const over = entry.count > table.capacity;
-                                  return (
-                                    <tr key={table.id} style={{ cursor: 'default' }}>
-                                      <td>
-                                        <input type="text" disabled={!isAdmin} aria-label="테이블 이름" key={`nm:${table.id}:${table.name}`} defaultValue={table.name}
-                                          onBlur={e => { const v = e.target.value.trim(); if (v && v !== table.name) renameTable(table.id, v); }}
-                                          style={{ ...cellInput, width: 110, fontWeight: 800 }} />
-                                      </td>
-                                      <td>
-                                        <select disabled={!isAdmin} aria-label="테이블 대표" value={table.repName || ''} onChange={e => setTableRep(table.id, e.target.value)} style={{ ...cellInput, maxWidth: 120 }}>
-                                          <option value="">대표 선택</option>
-                                          {memberNames.map(n => <option key={n} value={n}>{n}</option>)}
-                                          {table.repName && !memberNames.includes(table.repName) && <option value={table.repName}>{table.repName}</option>}
-                                        </select>
-                                      </td>
-                                      <td>
-                                        <input type="number" min="0" disabled={!isAdmin} aria-label="정원" key={`cap:${table.id}:${table.capacity}`} defaultValue={table.capacity}
-                                          onBlur={e => setTableCapacity(table.id, e.target.value)}
-                                          style={{ ...cellInput, width: 56, textAlign: 'right' }} />
-                                      </td>
-                                      <td>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', minWidth: 220 }}>
-                                          {entry.performers.map(m => (
-                                            <span key={m.id} style={perfChip}>🎤 {m.name}
-                                              {isAdmin && <button type="button" aria-label={`${m.name} 빼기`} style={chipX} onClick={() => unassignPerformerFromTables(m.id)}>✕</button>}
-                                            </span>
-                                          ))}
-                                          {entry.participants.map(p => (
-                                            <span key={p.orderId} style={chipBase}>{p.name}{p.count > 1 ? ` (${p.count}명)` : ''}
-                                              {isAdmin && <button type="button" aria-label={`${p.name} 빼기`} style={chipX} onClick={() => assignToTable([p.orderId], null)}>✕</button>}
-                                            </span>
-                                          ))}
-                                          {isAdmin && (
-                                            <span style={{ position: 'relative', display: 'inline-block' }}>
-                                              <button type="button" onClick={() => setSheetAddTableId(prev => (prev === table.id ? null : table.id))}
-                                                style={{ padding: '5px 10px', borderRadius: 16, border: '1.5px dashed #cbd5e1', background: 'transparent', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ 추가</button>
-                                              {sheetAddTableId === table.id && (
-                                                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 40, width: 220, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.16)', padding: 6 }}>
-                                                  {unplacedPerformers.map(m => (
-                                                    <button key={m.id} type="button" onClick={() => { assignPerformerToTable(m.id, table.id); setSheetAddTableId(null); }}
-                                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 9px', border: 'none', background: 'none', fontSize: 12, fontWeight: 700, color: '#047857', cursor: 'pointer', borderRadius: 7 }}>🎤 {m.name}</button>
-                                                  ))}
-                                                  {poolOrders.map(p => (
-                                                    <button key={p.orderId} type="button" onClick={() => { assignToTable([p.orderId], table.id); setSheetAddTableId(null); }}
-                                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 9px', border: 'none', background: 'none', fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer', borderRadius: 7 }}>{p.name}{p.count > 1 ? ` (${p.count}명)` : ''}</button>
-                                                  ))}
-                                                  {poolTotal === 0 && <div style={{ fontSize: 12, color: '#94a3b8', padding: '7px 9px' }}>미배치 인원이 없습니다</div>}
-                                                </div>
-                                              )}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td style={{ textAlign: 'right' }}>
-                                        <span style={{ fontSize: 13, fontWeight: 800, color: over ? '#dc2626' : entry.count === table.capacity ? '#047857' : '#111827', whiteSpace: 'nowrap' }}>{entry.count}/{table.capacity}</span>
-                                        {over && <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>정원 초과</div>}
-                                      </td>
-                                      <td>
-                                        {isAdmin && <button type="button" onClick={() => removeTable(table.id)} style={{ padding: '4px 8px', borderRadius: 8, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>삭제</button>}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              {seatingOverview.tables.length > 0 && (
-                                <tfoot>
-                                  <tr>
-                                    <td style={{ fontWeight: 800 }}>합계 {seatingOverview.tableCount}개</td>
-                                    <td></td>
-                                    <td style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>정원 {afterPartyTables.reduce((s, t) => s + (Number(t.capacity) || 0), 0)}명</td>
-                                    <td></td>
-                                    <td style={{ textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap' }}>{placedTotal}명 배치</td>
-                                    <td></td>
-                                  </tr>
-                                </tfoot>
-                              )}
-                            </table>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                  {currentShowParticipantIds.length > 0 && (
+                                    <>
+                                      <button type="button" onClick={() => patchCurrentShow({ afterPartyPerformerIds: Array.from(new Set([...afterPartyPerformerIds, ...currentShowParticipantIds])) })} style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #93c5fd', background: '#fff', color: '#1d4ed8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>전원 참석</button>
+                                      <button type="button" onClick={() => patchCurrentShow({ afterPartyPerformerIds: afterPartyPerformerIds.filter(id => !currentShowParticipantIds.includes(id)) })} style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>전원 해제</button>
+                                    </>
+                                  )}
+                                  <AddPerformerPicker members={performerOptions} excludeIds={afterPartyPerformerIds} onAdd={(memberId) => addPerformerToAfterParty(memberId)} triggerText="+ 공연자 직접 추가" />
+                                </div>
+                                {afterPartyPerformerIds.length > 0 && (
+                                  <div style={{ display: 'grid', gap: 4 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#92400e' }}>공연자 본인이 예매도 했다면 연결하세요 — 예매 인원에서 1명을 빼서 중복 집계를 막습니다</div>
+                                    {afterPartyPerformerIds.map(memberId => {
+                                      const m = findPerformer(memberId) || { id: memberId, name: memberId };
+                                      const selectedOrderId = afterPartyPerformerOrderIds[memberId] || '';
+                                      const availableOrders = (concertId ? filterOrdersForShow(orders, concertId) : orders).filter(order => {
+                                        if (!order.isAfterParty) return false;
+                                        if (order.id === selectedOrderId) return true;
+                                        return (performerDuplicateCountByOrder[order.id] || 0) < (Number(order.afterPartyCount) || 1);
+                                      });
+                                      return (
+                                        <label key={memberId} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#78350f', flexWrap: 'wrap' }}>
+                                          <strong style={{ minWidth: 56 }}>{m.name}</strong>
+                                          <select value={selectedOrderId} onChange={event => setPerformerDuplicateOrder(memberId, event.target.value)} style={{ minWidth: 180, padding: '4px 7px', borderRadius: 7, border: '1px solid #fcd34d', background: '#fff', fontSize: 12 }}>
+                                            <option value="">별도 참석 (중복 없음)</option>
+                                            {availableOrders.map(order => <option key={order.id} value={order.id}>{order.audienceName || '이름 없음'} · 뒤풀이 {Number(order.afterPartyCount) || 1}명</option>)}
+                                          </select>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 미배치 풀 */}
+                          <div style={{ padding: '10px 12px', border: '1.5px dashed #cbd5e1', borderRadius: 10, background: '#f8fafc' }}>
+                            <b style={{ fontSize: 12, color: poolUnits.length ? '#b45309' : '#047857' }}>{poolUnits.length ? `미배치 ${poolUnits.length}명 — 팀의 빈 칸에 이름을 입력해 배치하세요` : '✅ 모두 배치됐어요'}</b>
+                            {poolUnits.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                                {poolUnits.map(u => (
+                                  <span key={u.key} style={{ padding: '4px 9px', borderRadius: 14, border: `1px solid ${u.kind === 'perf' ? '#fdba74' : '#cbd5e1'}`, background: u.kind === 'perf' ? '#ffedd5' : '#fff', color: u.kind === 'perf' ? '#9a3412' : '#1e293b', fontSize: 12, fontWeight: 700 }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.label}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 팀(테이블) 셀 그리드 */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 14, alignItems: 'start' }}>
+                            {afterPartyTables.length === 0 && (
+                              <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>아직 팀(테이블)이 없습니다. '+ 테이블 추가' 또는 '공연자 기준 자동 배치'로 시작하세요.</div>
+                            )}
+                            {afterPartyTables.map(table => {
+                              const units = unitsForTable(table.id);
+                              const capacity = Number(table.capacity) || 0;
+                              const emptyCount = isAdmin ? Math.max(capacity - units.length, 0) : 0;
+                              const over = units.length > capacity;
+                              const isEditing = cellEdit?.tableId === table.id;
+                              return (
+                                <div key={table.id} style={{ border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 9px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderRadius: '12px 12px 0 0' }}>
+                                    <input type="text" disabled={!isAdmin} aria-label="팀 이름" key={`tn:${table.id}:${table.name}`} defaultValue={table.name}
+                                      onBlur={e => { const v = e.target.value.trim(); if (v && v !== table.name) renameTable(table.id, v); }}
+                                      style={{ flex: 1, minWidth: 0, border: '1px solid transparent', background: 'transparent', fontWeight: 800, fontSize: 13, borderRadius: 6, padding: '3px 5px' }} />
+                                    <span style={{ fontSize: 12, fontWeight: 800, color: over ? '#dc2626' : units.length === capacity && capacity > 0 ? '#047857' : '#475569', whiteSpace: 'nowrap' }}>{units.length}/</span>
+                                    <input type="number" min="0" disabled={!isAdmin} aria-label="팀 정원" title="정원을 바꾸면 좌석 수도 함께 조정됩니다" key={`tc:${table.id}:${capacity}`} defaultValue={capacity}
+                                      onBlur={e => setTableCapacity(table.id, e.target.value)}
+                                      style={{ width: 44, padding: '3px 5px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, fontWeight: 800, textAlign: 'right', background: '#fff' }} />
+                                    {isAdmin && <button type="button" aria-label="팀 삭제" title="이 팀(테이블)을 삭제합니다" onClick={() => removeTable(table.id)} style={{ border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: '0 2px', fontSize: 13 }}>✕</button>}
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                                    {units.map((u, i) => (
+                                      <div key={u.key} style={{ ...cellBase, background: u.kind === 'perf' ? '#ffedd5' : '#fff', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
+                                        <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: u.kind === 'perf' ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.label}</span>
+                                        {isAdmin && <button type="button" aria-label={`${u.label} 빼기`} onClick={() => removeUnit(u)} style={{ border: 'none', background: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 8px', fontWeight: 800, fontSize: 12 }}>✕</button>}
+                                      </div>
+                                    ))}
+                                    {Array.from({ length: emptyCount }, (_, i) => (
+                                      <div key={`empty-${i}`} style={{ ...cellBase, position: 'relative', borderRight: (units.length + i) % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
+                                        {isEditing && i === 0 ? (
+                                          <>
+                                            <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
+                                              onChange={e => setCellEdit({ tableId: table.id, query: e.target.value })}
+                                              onBlur={() => setTimeout(() => setCellEdit(prev => (prev?.tableId === table.id ? null : prev)), 150)}
+                                              style={{ width: '100%', border: 'none', background: '#fffbeb', padding: '7px 10px', fontSize: 13, outline: 'none', fontWeight: 700 }} />
+                                            <div style={{ position: 'absolute', left: 4, top: 'calc(100% - 2px)', zIndex: 30, width: 200, maxHeight: 190, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.18)', padding: 4 }}>
+                                              {menuUnits.map(u => (
+                                                <button key={u.key} type="button" onMouseDown={() => placeUnit(u, table.id)}
+                                                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', color: u.kind === 'perf' ? '#9a3412' : '#1e293b' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.label}</button>
+                                              ))}
+                                              {menuUnits.length === 0 && <div style={{ padding: '6px 8px', fontSize: 12, color: '#94a3b8' }}>일치하는 미배치 인원이 없습니다</div>}
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <button type="button" onClick={() => setCellEdit({ tableId: table.id, query: '' })}
+                                            style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '7px 10px', fontSize: 13, color: '#cbd5e1', cursor: 'text', fontWeight: 600 }}>+ 이름 입력</button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
                     })()}
-
                     {seatingView === 'map' && (<>
                     {isAdmin && (
                       <div className="after-party-seat-picker" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid #c7d2fe', background: '#f5f6ff' }}>
