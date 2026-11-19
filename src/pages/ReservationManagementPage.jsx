@@ -489,12 +489,9 @@ export default function ReservationManagementPage() {
   const [afterPartyToast, setAfterPartyToast] = useState(null);
   const afterPartyToastTimer = useRef(null);
   const [isPerformerPanelOpen, setIsPerformerPanelOpen] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [inboxIndex, setInboxIndex] = useState(0);
   const [applyToAllMatching, setApplyToAllMatching] = useState(true);
   const [inboxSelectValue, setInboxSelectValue] = useState('');
-  const [addAttendeeSelectValue, setAddAttendeeSelectValue] = useState('');
-  const [addPerformerSelectValue, setAddPerformerSelectValue] = useState('');
   const [cellEdit, setCellEdit] = useState(null); // 셀 입력: { teamId, query }
   const [teamDragId, setTeamDragId] = useState(null); // 격자에서 드래그 중인 팀(그룹) id
   const [menuHover, setMenuHover] = useState(null); // 셀 입력 메뉴: 마우스가 올라간 "다른 팀" 인원 (원래 자리 하이라이트용)
@@ -1084,40 +1081,6 @@ export default function ReservationManagementPage() {
   };
 
   // "소속 그룹" 드롭다운 변경 — 예매 한 건을 즉시 저장하고 실행 취소를 제공한다.
-  const changeOrderGroup = async (order, value) => {
-    if (!order) return;
-    const previous = {
-      inviterMemberId: order.inviterMemberId ?? null,
-      inviterGroupLabel: order.inviterGroupLabel ?? null,
-      inviterExtraMemberIds: Array.isArray(order.inviterExtraMemberIds) ? order.inviterExtraMemberIds : [],
-    };
-    const name = order.audienceName || '(이름없음)';
-    let result = 'error';
-    let targetLabel = '';
-    if (value === '__new') {
-      const label = String(window.prompt('새 그룹 이름을 입력하세요') || '').trim();
-      if (!label) return;
-      result = await assignGroupLabel([order.id], label);
-      targetLabel = label;
-    } else if (value.startsWith('member:')) {
-      const memberId = value.slice('member:'.length);
-      const member = members.find(m => m.id === memberId);
-      result = await assignPerformer([order.id], memberId);
-      targetLabel = `공연자 ${member?.name || ''} 초대`;
-    } else if (value.startsWith('group:')) {
-      targetLabel = value.slice('group:'.length);
-      result = await assignGroupLabel([order.id], targetLabel);
-    } else if (value === 'unassigned') {
-      result = await clearInviterClassification([order.id]);
-      targetLabel = '초대자 없음';
-    } else {
-      return;
-    }
-    if (result === 'firebase') {
-      showAfterPartyToast(`${name} → ${targetLabel}`, () => applyAfterPartyPatch([order.id], previous, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.'));
-    }
-  };
-
   // 예매 내역에서 뒤풀이 참여 여부/인원을 직접 바꾼다 (신청 후 "안 간다/가고 싶다" 변경 대응).
   // 불참 처리하면 좌석·테이블 배정도 함께 해제한다. 정원이 넘게 되면 관리자에게 한 번 확인받는다.
   const setOrderAfterParty = async (order, value) => {
@@ -1276,64 +1239,6 @@ export default function ReservationManagementPage() {
 
     return [...cards.values()].sort((a, b) => b.totalCount - a.totalCount || a.name.localeCompare(b.name));
   }, [afterPartyEntries, afterPartyPerformerIds, performerGroupMapping, groupOptionLabels, ordersById, findPerformer, afterPartyTables]);
-
-  const handleRenameGroup = async (oldLabel) => {
-    const newLabel = String(window.prompt('새 그룹 이름을 입력하세요', oldLabel) || '').trim();
-    if (!newLabel || newLabel === oldLabel) return;
-    const targetOrders = orders.filter(o => o.isAfterParty && o.inviterGroupLabel === oldLabel);
-    const orderIds = targetOrders.map(o => o.id);
-    const prevMapping = { ...performerGroupMapping };
-    const nextMapping = { ...performerGroupMapping };
-    Object.entries(nextMapping).forEach(([mId, grp]) => {
-      if (grp === oldLabel) nextMapping[mId] = newLabel;
-    });
-    if (orderIds.length > 0) {
-      await assignGroupLabel(orderIds, newLabel);
-    }
-    await patchCurrentShow({ performerGroupMapping: nextMapping });
-    setSelectedGroupId(`group:${newLabel}`);
-    showAfterPartyToast(`그룹 "${oldLabel}" → "${newLabel}"(으)로 변경됨`, async () => {
-      if (orderIds.length > 0) await assignGroupLabel(orderIds, oldLabel);
-      await patchCurrentShow({ performerGroupMapping: prevMapping });
-      setSelectedGroupId(`group:${oldLabel}`);
-    });
-  };
-
-  const handleDisbandGroup = async (group) => {
-    if (!window.confirm(`"${group.name}" 그룹을 해제하시겠습니까?\n소속된 예매 건은 모두 "초대자 없음"으로 바뀌고 공연자는 그룹 없는 본인 참석으로 변경됩니다.`)) return;
-    const orderIds = group.orders.map(o => o.id);
-    const prevOrders = group.orders.map(o => ({
-      id: o.id,
-      patch: {
-        inviterMemberId: o.inviterMemberId ?? null,
-        inviterGroupLabel: o.inviterGroupLabel ?? null,
-        inviterExtraMemberIds: Array.isArray(o.inviterExtraMemberIds) ? o.inviterExtraMemberIds : [],
-      }
-    }));
-    const prevMapping = { ...performerGroupMapping };
-    const nextMapping = { ...performerGroupMapping };
-    if (group.kind === 'group') {
-      Object.entries(nextMapping).forEach(([mId, grp]) => {
-        if (grp === group.name) delete nextMapping[mId];
-      });
-    }
-
-    if (orderIds.length > 0) {
-      await clearInviterClassification(orderIds);
-    }
-    if (group.kind === 'group') {
-      await patchCurrentShow({ performerGroupMapping: nextMapping });
-    }
-    setSelectedGroupId(null);
-    showAfterPartyToast(`"${group.name}" 그룹이 해제됨`, async () => {
-      for (const item of prevOrders) {
-        await applyAfterPartyPatch([item.id], item.patch, '실행 취소 실패');
-      }
-      if (group.kind === 'group') {
-        await patchCurrentShow({ performerGroupMapping: prevMapping });
-      }
-    });
-  };
 
   const handleRemoveOrderFromGroup = async (order) => {
     const prev = {
@@ -2092,11 +1997,11 @@ export default function ReservationManagementPage() {
               <div>
                 <div className="after-party-eyebrow">공연 운영</div>
                 <h2>뒤풀이 관리</h2>
-                <p>그룹(누구 초대인지)과 좌석 배치(어느 팀에 앉는지)를 관리합니다.</p>
+                <p>신청자 명단을 확인하고, 좌석 배치에서 팀(그룹)을 관리합니다.</p>
               </div>
               <div className="after-party-tabs" role="tablist" aria-label="뒤풀이 관리 작업">
                 {[
-                  { value: 'groups', step: '1', label: '그룹' },
+                  { value: 'groups', step: '1', label: '신청자 명단' },
                   { value: 'tables', step: '2', label: '좌석 배치' },
                 ].map(t => (
                   <button key={t.value} type="button" role="tab" aria-selected={afterPartyTab === t.value}
@@ -2267,177 +2172,49 @@ export default function ReservationManagementPage() {
                   })()}
                 </div>
 
-                {/* 2. 그룹 카드 그리드 */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 10px' }}>
-                    <strong style={{ fontSize: 15, color: '#18181b' }}>그룹 {afterPartyGroupsList.length}개</strong>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const label = String(window.prompt('새 그룹 이름을 입력하세요') || '').trim();
-                          if (!label) return;
-                          if (groupOptionLabels.includes(label)) {
-                            setSelectedGroupId(`group:${label}`);
-                            return;
-                          }
-                          setSelectedGroupId(`group:${label}`);
-                          showAfterPartyToast(`"${label}" 그룹이 생성되었습니다. 구성원을 추가해 주세요.`);
-                        }}
-                        style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #d4d4d8', background: '#fff', color: '#18181b', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        + 새 그룹 만들기
-                      </button>
-                    )}
-                  </div>
-                  <div className="after-party-group-grid">
-                    {afterPartyGroupsList.map(g => {
-                      const isSel = selectedGroupId === g.id;
-                      const icon = g.kind === 'perf' ? '🎤' : '🏷';
-                      return (
-                        <div
-                          key={g.id}
-                          className={`after-party-gcard ${isSel ? 'is-selected' : ''}`}
-                          onClick={() => setSelectedGroupId(isSel ? null : g.id)}
-                        >
-                          <div className="after-party-gcard-name">{icon} {g.name}</div>
-                          <div className="after-party-gcard-meta">{g.totalCount}명 · {g.sub}</div>
-                          <div className="after-party-gcard-meta" style={{ fontSize: 11, color: '#a1a1aa' }}>예매 {g.orderCount}건 · 공연자 {g.directCount}명</div>
-                          <div className="after-party-gcard-note">{g.kind === 'perf' ? '공연자 실적 포함' : '공연자 실적 제외'}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#71717a', marginTop: 8 }}>
-                    🏷 그룹은 공연자 실적에 포함되지 않아요.
-                  </div>
-                </div>
-
-                {/* 3. 구성원 패널 (선택된 그룹) */}
+                {/* 2. 뒤풀이 신청자 명단 — 그룹/팀 변경은 좌석 배치 탭에서 한다 */}
                 {(() => {
-                  if (!selectedGroupId) return null;
-                  const g = afterPartyGroupsList.find(x => x.id === selectedGroupId) || {
-                    id: selectedGroupId,
-                    kind: selectedGroupId.startsWith('group:') ? 'group' : 'perf',
-                    name: selectedGroupId.replace(/^(group:|member:)/, ''),
-                    totalCount: 0,
-                    orders: [],
-                    performers: [],
+                  const rows = afterPartyAttendeeRows
+                    .filter(r => r.kind === 'order')
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+                  const total = rows.reduce((sum, r) => sum + r.count, 0);
+                  const badge = (r) => {
+                    if (r.type === 'performer') return { text: r.groupLabel || '공연자 초대', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' };
+                    if (r.type === 'group') return { text: `🏷 ${r.groupLabel}`, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' };
+                    if (r.type === 'unmapped') return { text: '확인 필요', color: '#b45309', bg: '#fffbeb', border: '#fde68a' };
+                    return { text: '초대자 없음', color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
                   };
                   return (
-                    <div className="after-party-members-panel">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingBottom: 8, borderBottom: '1px solid #f4f4f5' }}>
-                        <div>
-                          <strong style={{ fontSize: 15, color: '#18181b' }}>{g.kind === 'perf' ? '🎤' : '🏷'} {g.name} · {g.totalCount}명</strong>
-                          <span style={{ fontSize: 12, color: '#71717a', marginLeft: 8 }}>구성원 관리</span>
-                        </div>
-                        {isAdmin && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {g.kind === 'group' && (
-                              <button
-                                type="button"
-                                onClick={() => handleRenameGroup(g.name)}
-                                style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #d4d4d8', background: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                              >
-                                이름 바꾸기
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleDisbandGroup(g)}
-                              style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              그룹 해제
-                            </button>
-                          </div>
-                        )}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 10px', gap: 8, flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: 15, color: '#18181b' }}>뒤풀이 신청자 {rows.length}건 · {total}명</strong>
+                        <span style={{ fontSize: 11, color: '#94a3b8' }}>그룹(팀) 변경과 좌석은 ② 좌석 배치에서 관리합니다</span>
                       </div>
-
-                      <div style={{ display: 'grid', gap: 2 }}>
-                        {g.orders.map(o => (
-                          <div key={o.id} className="after-party-mrow">
-                            <span>
-                              <strong>{o.audienceName || '(이름없음)'}</strong>
-                              <span style={{ color: '#71717a', marginLeft: 6, fontSize: 12 }}>({effectiveAfterPartyCount(o)}명)</span>
-                              {o.phone && <span style={{ color: '#a1a1aa', marginLeft: 6, fontSize: 11 }}>· {o.phone}</span>}
-                            </span>
-                            {isAdmin && (
-                              <button type="button" className="after-party-mini-btn" onClick={() => handleRemoveOrderFromGroup(o)}>
-                                빼기
-                              </button>
-                            )}
+                      {rows.length === 0 ? (
+                        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>뒤풀이 참여로 신청한 예매가 아직 없습니다.</div>
+                      ) : (
+                        <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, 1.1fr) 44px minmax(104px, 1fr) minmax(104px, 1.1fr) minmax(84px, 0.9fr)', gap: 6, padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 800, color: '#64748b' }}>
+                            <span>이름</span><span style={{ textAlign: 'center' }}>인원</span><span>연락처</span><span>그룹(팀)</span><span>신청 시간</span>
                           </div>
-                        ))}
-                        {g.performers.map(m => (
-                          <div key={m.id} className="after-party-mrow">
-                            <span>
-                              <strong>{m.name}</strong>
-                              <span style={{ color: '#2563eb', marginLeft: 6, fontSize: 12, fontWeight: 700 }}>🎤 공연자 본인 (1명)</span>
-                            </span>
-                            {isAdmin && (
-                              <button type="button" className="after-party-mini-btn" onClick={() => handleRemovePerformerFromGroup(m.id, m.name)}>
-                                빼기
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                        {g.orders.length === 0 && g.performers.length === 0 && (
-                          <div style={{ color: '#a1a1aa', fontSize: 12, padding: '16px 0', textAlign: 'center' }}>
-                            아직 이 그룹에 소속된 참석자가 없습니다. 아래 버튼으로 참석자나 공연자를 추가하세요.
-                          </div>
-                        )}
-                      </div>
-
-                      {isAdmin && (
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px dashed #e4e4e7', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <select
-                              className="after-party-group-select"
-                              value={addAttendeeSelectValue}
-                              onChange={async (e) => {
-                                const orderId = e.target.value;
-                                setAddAttendeeSelectValue('');
-                                if (!orderId) return;
-                                const o = ordersById[orderId];
-                                if (!o) return;
-                                const val = g.kind === 'perf' ? `member:${g.memberId}` : `group:${g.name}`;
-                                await changeOrderGroup(o, val);
-                              }}
-                              style={{ maxWidth: 220 }}
-                            >
-                              <option value="">+ 참석자 추가 (미분류 건)…</option>
-                              {afterPartyAttendeeRows.filter(r => r.kind === 'order' && (r.type === 'unmapped' || r.type === 'unassigned')).map(r => (
-                                <option key={r.orderId} value={r.orderId}>
-                                  {r.name} ({r.count}명) {r.originalInviterName ? `[${r.originalInviterName}]` : '[초대자 없음]'}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {g.kind === 'group' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <select
-                                className="after-party-group-select"
-                                value={addPerformerSelectValue}
-                                onChange={async (e) => {
-                                  const memberId = e.target.value;
-                                  setAddPerformerSelectValue('');
-                                  if (!memberId) return;
-                                  await setPerformerGroup(memberId, g.name);
-                                  showAfterPartyToast(`공연자 → "${g.name}" 그룹에 배정됨`);
-                                }}
-                                style={{ maxWidth: 220 }}
-                              >
-                                <option value="">+ 공연자 추가…</option>
-                                {afterPartyPerformerIds.filter(id => !g.performers.some(p => p.id === id)).map(id => {
-                                  const m = members.find(x => x.id === id) || bandMembers[id] || { id, name: id, part: '' };
-                                  return <option key={id} value={id}>{m.name}{m.part ? ` (${m.part})` : ''}</option>;
-                                })}
-                              </select>
-                            </div>
-                          )}
+                          {rows.map(r => {
+                            const b = badge(r);
+                            return (
+                              <div key={r.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, 1.1fr) 44px minmax(104px, 1fr) minmax(104px, 1.1fr) minmax(84px, 0.9fr)', gap: 6, padding: '8px 12px', borderBottom: '1px solid #f1f5f9', alignItems: 'center', fontSize: 13 }}>
+                                <span style={{ fontWeight: 700, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                                <span style={{ textAlign: 'center', fontWeight: 700, color: '#334155' }}>{r.count}</span>
+                                <span style={{ fontSize: 12, color: '#475569', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.phone || '-'}</span>
+                                <span style={{ minWidth: 0 }}>
+                                  <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 800, color: b.color, background: b.bg, border: `1px solid ${b.border}` }}>{b.text}</span>
+                                  {r.type === 'unmapped' && r.originalInviterName ? <small style={{ display: 'block', marginTop: 2, color: '#b45309', fontWeight: 700 }}>"{r.originalInviterName}"</small> : null}
+                                </span>
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>{r.createdAt && Number.isFinite(Date.parse(r.createdAt)) ? new Date(r.createdAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + ' ' + new Date(r.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
+                      <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8' }}>공연자 본인 참석 {afterPartyPerformerIds.length}명은 신청자와 별도로 집계되며 좌석 배치 탭에서 관리합니다.</div>
                     </div>
                   );
                 })()}
