@@ -2568,7 +2568,6 @@ export default function ReservationManagementPage() {
                             items.push({ key: `o:${o.id}`, kind: 'att', order: o, name: o.audienceName || '(이름없음)', count: effectiveAfterPartyCount(o), hint: '', from: other.name });
                           });
                           other.performers.forEach(m => {
-                            if (other.kind === 'perf' && m.id === other.memberId) return; // 팀 주인 공연자는 팀과 함께 움직인다
                             items.push({ key: `p:${m.id}`, kind: 'perf', memberId: m.id, name: m.name, count: 1, hint: '', from: other.name });
                           });
                         });
@@ -2755,10 +2754,20 @@ export default function ReservationManagementPage() {
                                         {isEditing && i === 0 ? (
                                           <>
                                             <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
-                                              onChange={e => setCellEdit({ teamId: card.id, query: e.target.value })}
+                                              onChange={e => setCellEdit(prev => ({ ...prev, teamId: card.id, query: e.target.value }))}
                                               onBlur={() => { setMenuHover(null); setTimeout(() => setCellEdit(prev => (prev?.teamId === card.id ? null : prev)), 150); }}
                                               style={{ width: '100%', border: 'none', background: '#fffbeb', padding: '7px 10px', fontSize: 13, outline: 'none', fontWeight: 700 }} />
-                                            <div style={{ position: 'absolute', left: 4, top: 'calc(100% - 2px)', zIndex: 30, width: 230, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.18)', padding: 4 }}>
+                                            <div style={(() => {
+                                              const base = { zIndex: 60, width: 230, overflowY: 'auto', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.18)', padding: 4 };
+                                              const a = cellEdit?.anchor;
+                                              if (!a) return { ...base, position: 'absolute', left: 4, top: 'calc(100% - 2px)', maxHeight: 200 };
+                                              const spaceBelow = window.innerHeight - a.bottom;
+                                              const openUp = spaceBelow < 170 && a.top > spaceBelow;
+                                              const fixedBase = { ...base, position: 'fixed', left: Math.max(8, Math.min(a.left, window.innerWidth - 246)) };
+                                              return openUp
+                                                ? { ...fixedBase, bottom: window.innerHeight - a.top + 2, maxHeight: Math.min(220, a.top - 16) }
+                                                : { ...fixedBase, top: a.bottom + 2, maxHeight: Math.min(220, Math.max(120, spaceBelow - 16)) };
+                                            })()}>
                                               {menuItems.map(it => (
                                                 <button key={it.key} type="button" onMouseDown={() => placeItem(it, card)}
                                                   onMouseEnter={() => setMenuHover(it.from ? { kind: it.kind, orderId: it.kind === 'att' ? it.order.id : null, memberId: it.kind === 'perf' ? it.memberId : null } : null)}
@@ -2774,7 +2783,7 @@ export default function ReservationManagementPage() {
                                           </>
                                         ) : (
                                           isAdmin ? (
-                                            <button type="button" onClick={() => setCellEdit({ teamId: card.id, query: '' })}
+                                            <button type="button" onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellEdit({ teamId: card.id, query: '', anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } }); }}
                                               style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '7px 10px', fontSize: 13, color: '#cbd5e1', cursor: 'text', fontWeight: 600 }}>+ 이름 입력</button>
                                           ) : null
                                         )}
