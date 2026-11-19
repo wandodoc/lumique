@@ -2455,8 +2455,8 @@ export default function ReservationManagementPage() {
                       const cards = afterPartyGroupsList;
                       const unitsForCard = (card) => {
                         const units = [];
-                        card.performers.forEach(m => units.push({ key: `p:${m.id}`, kind: 'perf', memberId: m.id, name: m.name, isHost: card.kind === 'perf' && m.id === card.memberId }));
-                        (card.orders || []).forEach(o => {
+                        [...card.performers].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko')).forEach(m => units.push({ key: `p:${m.id}`, kind: 'perf', memberId: m.id, name: m.name, isHost: card.kind === 'perf' && m.id === card.memberId }));
+                        [...(card.orders || [])].sort((a, b) => String(a.audienceName || '').localeCompare(String(b.audienceName || ''), 'ko')).forEach(o => {
                           const count = effectiveAfterPartyCount(o);
                           const nm = o.audienceName || '(이름없음)';
                           for (let i = 0; i < count; i += 1) units.push({ key: `a:${o.id}:${i}`, kind: 'att', order: o, name: count > 1 ? `${nm} (${i + 1})` : nm, orderCount: count });
@@ -2472,7 +2472,7 @@ export default function ReservationManagementPage() {
                       const poolOrders = [
                         ...afterPartyEntries.individuals,
                         ...afterPartyEntries.groups.filter(g => g.type === 'unmapped').flatMap(g => g.attendees),
-                      ];
+                      ].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
                       const poolCount = poolOrders.reduce((sum, p) => sum + p.count, 0);
                       const overCount = cards.filter(card => (unitsByCard.get(card.id) || []).length > capFor(card)).length;
                       // 격자: 저장된 크기(기본 2×3). 팀이 넘치면 줄만 자동으로 늘려 보여준다.
@@ -2571,6 +2571,7 @@ export default function ReservationManagementPage() {
                             items.push({ key: `p:${m.id}`, kind: 'perf', memberId: m.id, name: m.name, count: 1, hint: '', from: other.name });
                           });
                         });
+                        items.sort((a, b) => ((a.from ? 1 : 0) - (b.from ? 1 : 0)) || String(a.name).localeCompare(String(b.name), 'ko'));
                         return items;
                       };
                       const cellBase = { minHeight: 34, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', minWidth: 0 };
