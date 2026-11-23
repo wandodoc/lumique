@@ -2274,6 +2274,19 @@ export default function ReservationManagementPage() {
                       const inventoryTableCount = tableInventory.reduce((sum, row) => sum + row.count, 0);
                       const inventorySeatCount = tableInventory.reduce((sum, row) => sum + row.size * row.count, 0);
                       const saveInventory = (rows) => saveSeatingPatch({ afterPartyTableInventory: rows.filter(row => row.size > 0 && row.count > 0) });
+                      const tableRecordFor = (card) => afterPartyTables.find(tb => tb.groupKey === card.id);
+                      const savedTableCountFor = (card) => Math.max(1, Math.floor(Number(tableRecordFor(card)?.tableCount)) || 1);
+                      const chairIndexesFor = (card, tableCount = savedTableCountFor(card)) => new Set(
+                        (Array.isArray(tableRecordFor(card)?.addedChairTableIndexes) ? tableRecordFor(card).addedChairTableIndexes : [])
+                          .map(Number)
+                          .filter(index => Number.isInteger(index) && index >= 0 && index < tableCount)
+                      );
+                      const tableCapacityFor = (card, tableCount) => tableCount * defaultCap + chairIndexesFor(card, tableCount).size;
+                      const tableCountForSlots = (card, slotCount) => {
+                        let count = savedTableCountFor(card);
+                        while (tableCapacityFor(card, count) < Math.max(1, slotCount)) count += 1;
+                        return count;
+                      };
                       // 좌석 슬롯: seatOrder(자리 지정, null = 비워 둔 자리)를 반영해 팀의 실제 좌석 배열을 만든다.
                       // 앞에서부터 자동으로 채우지 않으므로 테이블마다 3명씩 앉히는 식의 자유 배치가 유지된다.
                       const slotsByCard = new Map(cards.map(card => {
@@ -2293,9 +2306,8 @@ export default function ReservationManagementPage() {
                           slots[i] = u;
                           used.add(u.key);
                         });
-                        const savedTableCount = Math.max(1, Math.floor(Number(afterPartyTables.find(tb => tb.groupKey === card.id)?.tableCount)) || 1);
-                        let n = Math.max(slots.length, units.length, savedTableCount * defaultCap, 1);
-                        n = Math.ceil(n / defaultCap) * defaultCap;
+                        const tableCount = tableCountForSlots(card, Math.max(slots.length, units.length));
+                        const n = tableCapacityFor(card, tableCount);
                         return [card.id, Array.from({ length: n }, (_, i) => slots[i] || null)];
                       }));
                       // 사람이 앉은 자리와 관리자가 직접 추가한 빈 테이블을 함께 반영한다.
@@ -2303,10 +2315,11 @@ export default function ReservationManagementPage() {
                         const slots = slotsByCard.get(card.id) || [];
                         let last = -1;
                         slots.forEach((slot, i) => { if (slot) last = i; });
-                        const saved = Math.max(1, Math.floor(Number(afterPartyTables.find(tb => tb.groupKey === card.id)?.tableCount)) || 1);
-                        return Math.max(saved, Math.ceil(Math.max(last + 1, 1) / Math.max(1, defaultCap)));
+                        return tableCountForSlots(card, Math.max(last + 1, 1));
                       };
                       const totalTables = cards.reduce((sum, card) => sum + tableCountFor(card), 0);
+                      const totalExtraChairs = cards.reduce((sum, card) => sum + chairIndexesFor(card, tableCountFor(card)).size, 0);
+                      const totalSeatCapacity = cards.reduce((sum, card) => sum + tableCapacityFor(card, tableCountFor(card)), 0);
                       const poolOrders = [
                         ...afterPartyEntries.individuals,
                         ...afterPartyEntries.groups.filter(g => g.type === 'unmapped').flatMap(g => g.attendees),
@@ -2364,6 +2377,25 @@ export default function ReservationManagementPage() {
                         const nextCount = tableCountFor(card) + 1;
                         upsertGroupTables([{ groupId: card.id, name: card.name, patch: { tableCount: nextCount } }]);
                         showAfterPartyToast(`${card.name} 테이블을 ${nextCount}개로 추가했습니다.`);
+                      };
+                      const toggleAddedChair = (card, tableIndex) => {
+                        const record = tableRecordFor(card);
+                        const tableCount = tableCountFor(card);
+                        const chairs = chairIndexesFor(card, tableCount);
+                        const capacitiesBefore = Array.from({ length: tableIndex }, (_, index) => defaultCap + (chairs.has(index) ? 1 : 0));
+                        const chairSlotIndex = capacitiesBefore.reduce((sum, capacity) => sum + capacity, 0) + defaultCap;
+                        const keys = Array.isArray(record?.seatOrder) ? [...record.seatOrder] : (slotsByCard.get(card.id) || []).map(slot => slot ? slot.key : null);
+                        if (chairs.has(tableIndex)) {
+                          if (keys[chairSlotIndex]) { window.alert('추가 의자에 배치된 인원을 먼저 다른 자리로 옮겨 주세요.'); return; }
+                          chairs.delete(tableIndex);
+                          keys.splice(chairSlotIndex, 1);
+                        } else {
+                          chairs.add(tableIndex);
+                          keys.splice(chairSlotIndex, 0, null);
+                        }
+                        while (keys.length && keys[keys.length - 1] === null) keys.pop();
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { tableCount, addedChairTableIndexes: [...chairs].sort((a, b) => a - b), seatOrder: keys } }]);
+                        showAfterPartyToast(chairs.has(tableIndex) ? `${card.name} 테이블 ${tableIndex + 1}에 추가 의자를 붙였습니다.` : `${card.name} 테이블 ${tableIndex + 1}의 추가 의자를 뺐습니다.`);
                       };
                       const moveUnitToSeat = (card, dragKey, targetIdx) => {
                         const slots = [...(slotsByCard.get(card.id) || [])];
@@ -2472,8 +2504,9 @@ export default function ReservationManagementPage() {
                             <StatCard label="미배치" value={`${poolCount}명`} color="#b45309" />
                             <StatCard label="팀" value={`${cards.length}개`} color="#111827" />
                             <StatCard label="필요 테이블" value={inventoryTableCount > 0 ? `${totalTables} / ${inventoryTableCount}개` : `${totalTables}개`} color={inventoryTableCount > 0 && totalTables > inventoryTableCount ? '#dc2626' : '#334155'} />
+                            <StatCard label="좌석" value={totalExtraChairs > 0 ? `${totalSeatCapacity}석 (+의자 ${totalExtraChairs})` : `${totalSeatCapacity}석`} color="#2563eb" />
                           </div>
-                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>{venueName ? `📍 ${venueName} · ` : ''}{inventoryTableCount > 0 ? `보유 ${tableInventory.map(row => `${row.size}인×${row.count}`).join(', ')} (총 ${inventoryTableCount}개 · ${inventorySeatCount}석) · ` : ''}전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
+                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>{venueName ? `📍 ${venueName} · ` : ''}{inventoryTableCount > 0 ? `보유 ${tableInventory.map(row => `${row.size}인×${row.count}`).join(', ')} (총 ${inventoryTableCount}개 · ${inventorySeatCount}석) · ` : ''}현재 배치 {totalSeatCapacity}석{totalExtraChairs > 0 ? ` (추가 의자 ${totalExtraChairs}개 포함)` : ''} · 전체 {afterPartySummary.total}명 (공연자 포함) · 테이블마다 + 의자로 보조 의자를 붙일 수 있습니다.</div>
 
                           {isAdmin && (
                             <div className="after-party-seating-actions" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2622,7 +2655,7 @@ export default function ReservationManagementPage() {
                               }
                               const units = unitsByCard.get(card.id) || [];
                               const slots = slotsByCard.get(card.id) || [];
-                              const cap = tableCountFor(card) * Math.max(1, defaultCap);
+                              const cap = tableCapacityFor(card, tableCountFor(card));
                               const displayName = card.kind === 'perf' && card.performers.length > 1
                                 ? card.performers.map(member => member.name).join(' · ')
                                 : card.name;
@@ -2656,12 +2689,12 @@ export default function ReservationManagementPage() {
                                   {(() => {
                                     // ── 테이블 단위 박스: 기본 정원만큼씩 끊어 실제 테이블 1개를 테두리로 보여준다.
                                     // 셀을 드래그해서 같은 팀 안의 다른 자리(다른 테이블 포함)로 옮길 수 있다. ──
-                                    const tableSeats = Math.max(1, defaultCap);
-                                    const totalCells = slots.length;
-                                    const chunkCount = Math.max(1, Math.ceil(totalCells / tableSeats));
                                     const teamTable = afterPartyTables.find(tb => tb.groupKey === card.id);
+                                    const chunkCount = tableCountFor(card);
+                                    const addedChairIndexes = chairIndexesFor(card, chunkCount);
+                                    const tableCapacities = Array.from({ length: chunkCount }, (_, index) => defaultCap + (addedChairIndexes.has(index) ? 1 : 0));
                                     const repIds = Array.isArray(teamTable?.repIds) ? teamTable.repIds : [];
-                                    const renderUnitCell = (u, globalIdx, idxInChunk) => {
+                                    const renderUnitCell = (u, globalIdx, idxInChunk, isAddedChair = false) => {
                                       const isRep = repIds.includes(u.key);
                                       const isMoveTarget = !!menuHover && ((menuHover.kind === 'att' && u.kind === 'att' && u.order.id === menuHover.orderId) || (menuHover.kind === 'perf' && u.kind === 'perf' && u.memberId === menuHover.memberId));
                                       const isDragging = unitDrag?.teamId === card.id && unitDrag?.key === u.key;
@@ -2672,7 +2705,7 @@ export default function ReservationManagementPage() {
                                           onDragEnd={isAdmin ? (() => setUnitDrag(null)) : undefined}
                                           onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
                                           onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) moveUnitToSeat(card, unitDrag.key, globalIdx); else moveUnitToTeam(unitDrag, card, globalIdx); setUnitDrag(null); }) : undefined}
-                                          style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
+                                          style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : isAddedChair ? '#eff6ff' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
                                           <span role="button" tabIndex={0} title="눌러서 정보 보기"
                                             onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellInfo(prev => (prev?.key === u.key && prev?.teamId === card.id ? null : { teamId: card.id, key: u.key, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } })); }}
                                             style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
@@ -2739,11 +2772,11 @@ export default function ReservationManagementPage() {
                                         </div>
                                       );
                                     };
-                                    const renderEmptyCell = (globalIdx, idxInChunk) => (
+                                    const renderEmptyCell = (globalIdx, idxInChunk, isAddedChair = false) => (
                                       <div key={`empty-${globalIdx}`}
                                         onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
                                         onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) moveUnitToSeat(card, unitDrag.key, globalIdx); else moveUnitToTeam(unitDrag, card, globalIdx); setUnitDrag(null); }) : undefined}
-                                        style={{ ...cellBase, position: 'relative', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none' }}>
+                                        style={{ ...cellBase, position: 'relative', background: isAddedChair ? '#eff6ff' : undefined, borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none' }}>
                                         {isEditing && cellEdit?.slotIdx === globalIdx ? (
                                           <>
                                             <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
@@ -2778,7 +2811,7 @@ export default function ReservationManagementPage() {
                                         ) : (
                                           isAdmin ? (
                                             <button type="button" onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellEdit({ teamId: card.id, query: '', slotIdx: globalIdx, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } }); }}
-                                              style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '7px 10px', fontSize: 13, color: '#cbd5e1', cursor: 'text', fontWeight: 600 }}>+ 이름 입력</button>
+                                              style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '7px 10px', fontSize: 13, color: isAddedChair ? '#2563eb' : '#cbd5e1', cursor: 'text', fontWeight: 600 }}>{isAddedChair ? '+ 추가 의자' : '+ 이름 입력'}</button>
                                           ) : null
                                         )}
                                       </div>
@@ -2786,16 +2819,21 @@ export default function ReservationManagementPage() {
                                     return (
                                       <div style={{ display: 'grid', gap: 6, padding: 6 }}>
                                         {Array.from({ length: chunkCount }, (_, ti) => {
-                                          const startIdx = ti * tableSeats;
-                                          const count = Math.min(tableSeats, totalCells - startIdx);
+                                          const startIdx = tableCapacities.slice(0, ti).reduce((sum, capacity) => sum + capacity, 0);
+                                          const count = tableCapacities[ti];
+                                          const hasAddedChair = addedChairIndexes.has(ti);
                                           return (
                                             <div key={`tbl-${ti}`} style={{ border: '1.5px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-                                              {chunkCount > 1 && <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', padding: '2px 8px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>테이블 {ti + 1}</div>}
+                                              <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', padding: '3px 8px', background: hasAddedChair ? '#eff6ff' : '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span>테이블 {ti + 1} · {defaultCap}인석{hasAddedChair ? ' + 추가 의자' : ''}</span>
+                                                {isAdmin && <button type="button" onClick={() => toggleAddedChair(card, ti)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: hasAddedChair ? '#dc2626' : '#2563eb', cursor: 'pointer', padding: 0, fontSize: 10, fontWeight: 800 }}>{hasAddedChair ? '의자 제거' : '+ 의자'}</button>}
+                                              </div>
                                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                                                 {Array.from({ length: count }, (_, k) => {
                                                   const gi = startIdx + k;
                                                   const slotUnit = slots[gi];
-                                                  return slotUnit ? renderUnitCell(slotUnit, gi, k) : renderEmptyCell(gi, k);
+                                                  const isAddedChair = hasAddedChair && k === count - 1;
+                                                  return slotUnit ? renderUnitCell(slotUnit, gi, k, isAddedChair) : renderEmptyCell(gi, k, isAddedChair);
                                                 })}
                                               </div>
                                             </div>
