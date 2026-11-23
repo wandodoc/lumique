@@ -2253,6 +2253,15 @@ export default function ReservationManagementPage() {
                         keys.splice(Math.max(0, Math.min(targetIndex, keys.length)), 0, dragKey);
                         upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
                       };
+                      // 셀을 다른 팀 위에 떨어뜨리면 그 팀(그룹)으로 이동한다. 예매는 동반 인원까지 함께 움직인다.
+                      const moveUnitToTeam = (drag, card) => {
+                        const srcUnit = (unitsByCard.get(drag.teamId) || []).find(u => u.key === drag.key);
+                        if (!srcUnit) return;
+                        const item = srcUnit.kind === 'perf'
+                          ? { kind: 'perf', memberId: srcUnit.memberId, name: srcUnit.name, count: 1 }
+                          : { kind: 'att', order: srcUnit.order, name: srcUnit.order.audienceName || '(이름없음)', count: srcUnit.orderCount || 1 };
+                        placeItem(item, card);
+                      };
                       const applyCapacityToAll = () => {
                         if (cards.length === 0) return;
                         // 입력칸에 방금 친 값이 아직 저장 전이어도 반영되도록, 버튼이 입력칸을 직접 읽는다.
@@ -2543,7 +2552,7 @@ export default function ReservationManagementPage() {
                               return (
                                 <div key={card.id}
                                   onDragOver={isAdmin ? (e => e.preventDefault()) : undefined}
-                                  onDrop={isAdmin ? (e => { e.preventDefault(); dropTeam(r, c); }) : undefined}
+                                  onDrop={isAdmin ? (e => { e.preventDefault(); if (unitDrag) { if (unitDrag.teamId !== card.id) moveUnitToTeam(unitDrag, card); setUnitDrag(null); return; } dropTeam(r, c); }) : undefined}
                                   style={{ border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff', minWidth: 0, opacity: teamDragId === card.id ? 0.5 : 1 }}>
                                   <div draggable={isAdmin}
                                     onDragStart={isAdmin ? (() => setTeamDragId(card.id)) : undefined}
@@ -2583,8 +2592,8 @@ export default function ReservationManagementPage() {
                                           draggable={isAdmin}
                                           onDragStart={isAdmin ? (e => { e.stopPropagation(); setUnitDrag({ teamId: card.id, key: u.key }); }) : undefined}
                                           onDragEnd={isAdmin ? (() => setUnitDrag(null)) : undefined}
-                                          onDragOver={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
-                                          onDrop={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); reorderUnit(card, unitDrag.key, globalIdx); setUnitDrag(null); } }) : undefined}
+                                          onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
+                                          onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) reorderUnit(card, unitDrag.key, globalIdx); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
                                           style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
                                           <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
                                           {isAdmin && (
@@ -2600,8 +2609,8 @@ export default function ReservationManagementPage() {
                                     };
                                     const renderEmptyCell = (globalIdx, idxInChunk) => (
                                       <div key={`empty-${globalIdx}`}
-                                        onDragOver={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
-                                        onDrop={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); reorderUnit(card, unitDrag.key, units.length); setUnitDrag(null); } }) : undefined}
+                                        onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
+                                        onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) reorderUnit(card, unitDrag.key, units.length); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
                                         style={{ ...cellBase, position: 'relative', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none' }}>
                                         {isEditing && globalIdx === units.length ? (
                                           <>
