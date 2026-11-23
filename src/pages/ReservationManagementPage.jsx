@@ -494,6 +494,7 @@ export default function ReservationManagementPage() {
   const [inboxSelectValue, setInboxSelectValue] = useState('');
   const [cellEdit, setCellEdit] = useState(null); // 셀 입력: { teamId, query }
   const [teamDragId, setTeamDragId] = useState(null); // 격자에서 드래그 중인 팀(그룹) id
+  const tableSizeInputRef = useRef(null); // "테이블 기본 정원" 입력칸 — 적용 버튼이 최신 입력값을 바로 읽는다
   const [menuHover, setMenuHover] = useState(null); // 셀 입력 메뉴: 마우스가 올라간 "다른 팀" 인원 (원래 자리 하이라이트용)
 
   const currentShow = useMemo(
@@ -2229,11 +2230,18 @@ export default function ReservationManagementPage() {
                       };
                       const applyCapacityToAll = () => {
                         if (cards.length === 0) return;
-                        if (!window.confirm(`모든 팀(${cards.length}개)의 정원을 ${defaultCap}명으로 맞출까요?\n인원이 더 많은 팀은 그 인원수로 설정됩니다.`)) return;
-                        upsertGroupTables(cards.map(card => ({
-                          groupId: card.id, name: card.name,
-                          patch: { capacity: Math.max(defaultCap, (unitsByCard.get(card.id) || []).length) },
-                        })));
+                        // 입력칸에 방금 친 값이 아직 저장 전이어도 반영되도록, 버튼이 입력칸을 직접 읽는다.
+                        const typed = Math.floor(Number(tableSizeInputRef.current?.value));
+                        const cap = typed > 0 ? Math.min(99, typed) : defaultCap;
+                        if (!window.confirm(`모든 팀(${cards.length}개)의 정원을 ${cap}명으로 맞출까요?\n인원이 더 많은 팀은 그 인원수로 설정됩니다.`)) return;
+                        const tables = [...afterPartyTables];
+                        cards.forEach(card => {
+                          const capacity = Math.max(cap, (unitsByCard.get(card.id) || []).length);
+                          const idx = tables.findIndex(t => t.groupKey === card.id);
+                          if (idx >= 0) tables[idx] = { ...tables[idx], capacity };
+                          else tables.push({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: card.name, capacity, groupKey: card.id });
+                        });
+                        saveSeatingPatch({ afterPartyTableSize: cap, tables });
                       };
                       const poolOrders = [
                         ...afterPartyEntries.individuals,
@@ -2375,7 +2383,7 @@ export default function ReservationManagementPage() {
                                   onBlur={e => { const v = e.target.value.trim(); if (v !== venueName) saveSeatingPatch({ afterPartyVenueName: v }); }}
                                   style={{ width: 170, padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 700 }} />
                                 <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>테이블 기본 정원</span>
-                                <input type="number" min="1" max="99" aria-label="테이블 기본 정원" key={`dc:${defaultCap}`} defaultValue={defaultCap}
+                                <input type="number" min="1" max="99" aria-label="테이블 기본 정원" ref={tableSizeInputRef} key={`dc:${defaultCap}`} defaultValue={defaultCap}
                                   onBlur={e => { const n = Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || defaultCap)); if (n !== defaultCap) saveSeatingPatch({ afterPartyTableSize: n }); }}
                                   style={{ width: 52, padding: '5px 6px', border: '1px solid #cbd5e1', borderRadius: 7, fontWeight: 800, textAlign: 'center', fontSize: 12 }} />
                                 <button type="button" onClick={applyCapacityToAll} disabled={cards.length === 0}
