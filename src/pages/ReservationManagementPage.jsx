@@ -2237,13 +2237,38 @@ export default function ReservationManagementPage() {
                       const inventoryTableCount = tableInventory.reduce((sum, row) => sum + row.count, 0);
                       const inventorySeatCount = tableInventory.reduce((sum, row) => sum + row.size * row.count, 0);
                       const saveInventory = (rows) => saveSeatingPatch({ afterPartyTableInventory: rows.filter(row => row.size > 0 && row.count > 0) });
-                      // 팀 정원은 수기 입력이 아니라 "기본 정원 × 필요한 테이블 수"로 자동 계산한다.
-                      const capFor = (card) => {
-                        const n = (unitsByCard.get(card.id) || []).length;
-                        return Math.max(1, Math.ceil(Math.max(n, 1) / defaultCap)) * defaultCap;
+                      // 좌석 슬롯: seatOrder(자리 지정, null = 비워 둔 자리)를 반영해 팀의 실제 좌석 배열을 만든다.
+                      // 앞에서부터 자동으로 채우지 않으므로 테이블마다 3명씩 앉히는 식의 자유 배치가 유지된다.
+                      const slotsByCard = new Map(cards.map(card => {
+                        const units = unitsByCard.get(card.id) || [];
+                        const stored = afterPartyTables.find(tb => tb.groupKey === card.id)?.seatOrder;
+                        const order = Array.isArray(stored) ? stored : [];
+                        const unitByKey = new Map(units.map(u => [u.key, u]));
+                        const slots = [];
+                        const used = new Set();
+                        order.forEach((k, idx) => {
+                          if (k && unitByKey.has(k) && !used.has(k)) { slots[idx] = unitByKey.get(k); used.add(k); }
+                        });
+                        units.forEach(u => {
+                          if (used.has(u.key)) return;
+                          let i = 0;
+                          while (slots[i]) i += 1;
+                          slots[i] = u;
+                          used.add(u.key);
+                        });
+                        let n = Math.max(slots.length, units.length, 1);
+                        n = Math.ceil(n / defaultCap) * defaultCap;
+                        const filled = Array.from({ length: n }, (_, i) => slots[i] || null).filter(Boolean).length;
+                        if (isAdmin && filled >= n) n += defaultCap; // 꽉 찼으면 빈 테이블 하나를 더 보여 준다
+                        return [card.id, Array.from({ length: n }, (_, i) => slots[i] || null)];
+                      }));
+                      // 실제로 쓰는 테이블 수 = 마지막으로 사람이 앉은 자리 기준 (여분 빈 테이블은 세지 않음)
+                      const tableCountFor = (card) => {
+                        const slots = slotsByCard.get(card.id) || [];
+                        let last = -1;
+                        slots.forEach((slot, i) => { if (slot) last = i; });
+                        return Math.max(1, Math.ceil(Math.max(last + 1, 1) / Math.max(1, defaultCap)));
                       };
-                      // 팀이 쓰는 실제 테이블 수 = 정원(또는 인원)을 기본 정원으로 나눈 올림값
-                      const tableCountFor = (card) => Math.max(1, Math.ceil(Math.max(capFor(card), (unitsByCard.get(card.id) || []).length) / Math.max(1, defaultCap)));
                       const totalTables = cards.reduce((sum, card) => sum + tableCountFor(card), 0);
                       const poolOrders = [
                         ...afterPartyEntries.individuals,
@@ -2292,34 +2317,44 @@ export default function ReservationManagementPage() {
                         if (cards.some(x => x.name === label)) { window.alert('같은 이름의 팀이 이미 있습니다.'); return; }
                         upsertGroupTables([{ groupId: `group:${label}`, name: label, patch: {} }]);
                       };
-                      const reorderUnit = (card, dragKey, targetIndex) => {
-                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
-                        const fromIdx = keys.indexOf(dragKey);
-                        if (fromIdx < 0) return;
-                        keys.splice(fromIdx, 1);
-                        keys.splice(Math.max(0, Math.min(targetIndex, keys.length)), 0, dragKey);
+                      // 같은 팀 안 드래그: 빈 자리에 놓으면 그 자리로 이동(원래 자리는 비워 둠), 사람 위에 놓으면 서로 교체.
+                      const saveSlots = (card, slots) => {
+                        const keys = slots.map(slot => (slot ? slot.key : null));
+                        while (keys.length && keys[keys.length - 1] === null) keys.pop();
                         upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
                       };
-                      // 같은 팀에서 사람 위에 떨어뜨리면 두 사람의 자리를 서로 교체한다 (밀리지 않음).
-                      const swapUnits = (card, keyA, keyB) => {
-                        if (keyA === keyB) return;
-                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
-                        const ia = keys.indexOf(keyA);
-                        const ib = keys.indexOf(keyB);
-                        if (ia < 0 || ib < 0) return;
-                        [keys[ia], keys[ib]] = [keys[ib], keys[ia]];
-                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
+                      const moveUnitToSeat = (card, dragKey, targetIdx) => {
+                        const slots = [...(slotsByCard.get(card.id) || [])];
+                        const from = slots.findIndex(slot => slot && slot.key === dragKey);
+                        if (from < 0 || from === targetIdx) return;
+                        while (slots.length <= targetIdx) slots.push(null);
+                        const target = slots[targetIdx] || null;
+                        slots[targetIdx] = slots[from];
+                        slots[from] = target;
+                        saveSlots(card, slots);
+                      };
+                      // 자동완성/다른 팀 드래그로 들어온 인원을 지정한 자리부터 (빈 자리를 찾아) 채운다.
+                      const placeKeysAt = (card, keys, slotIdx) => {
+                        const slots = (slotsByCard.get(card.id) || []).map(slot => (slot ? slot.key : null));
+                        let pos = Math.max(0, slotIdx);
+                        keys.forEach(k => {
+                          while (slots[pos]) pos += 1;
+                          slots[pos] = k;
+                          pos += 1;
+                        });
+                        while (slots.length && slots[slots.length - 1] === null) slots.pop();
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: slots } }]);
                       };
                       // 셀을 다른 팀 위에 떨어뜨리면 그 팀(그룹)으로 이동한다. 예매는 동반 인원까지 함께 움직인다.
-                      const moveUnitToTeam = (drag, card) => {
+                      const moveUnitToTeam = (drag, card, slotIdx = null) => {
                         const srcUnit = (unitsByCard.get(drag.teamId) || []).find(u => u.key === drag.key);
                         if (!srcUnit) return;
                         const item = srcUnit.kind === 'perf'
                           ? { kind: 'perf', memberId: srcUnit.memberId, name: srcUnit.name, count: 1 }
                           : { kind: 'att', order: srcUnit.order, name: srcUnit.order.audienceName || '(이름없음)', count: srcUnit.orderCount || 1 };
-                        placeItem(item, card);
+                        placeItem(item, card, slotIdx);
                       };
-                      const placeItem = async (item, card) => {
+                      const placeItem = async (item, card, slotIdx = null) => {
                         setCellEdit(null);
                         setMenuHover(null);
                         if (item.from && !window.confirm(`${item.name}은(는) 지금 "${item.from}" 팀에 있어요. "${card.name}" 팀으로 옮길까요?`)) return;
@@ -2333,6 +2368,12 @@ export default function ReservationManagementPage() {
                           const prev = { inviterMemberId: o.inviterMemberId ?? null, inviterGroupLabel: o.inviterGroupLabel ?? null, inviterExtraMemberIds: Array.isArray(o.inviterExtraMemberIds) ? o.inviterExtraMemberIds : [] };
                           const res = card.kind === 'perf' ? await assignPerformer([o.id], card.memberId) : await assignGroupLabel([o.id], card.name);
                           if (res === 'firebase') showAfterPartyToast(`${item.name} → ${card.name}`, () => applyAfterPartyPatch([o.id], prev, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.'));
+                        }
+                        if (slotIdx !== null && slotIdx !== undefined) {
+                          const keys = item.kind === 'perf'
+                            ? [`p:${item.memberId}`]
+                            : Array.from({ length: Math.max(1, item.count || 1) }, (_, i) => `a:${item.order.id}:${i}`);
+                          placeKeysAt(card, keys, slotIdx);
                         }
                       };
                       const removeUnit = (unit) => {
@@ -2529,8 +2570,8 @@ export default function ReservationManagementPage() {
                                 );
                               }
                               const units = unitsByCard.get(card.id) || [];
-                              const cap = capFor(card);
-                              const emptyCount = isAdmin ? Math.max(cap - units.length, 1) : Math.max(cap - units.length, 0);
+                              const slots = slotsByCard.get(card.id) || [];
+                              const cap = tableCountFor(card) * Math.max(1, defaultCap);
                               const isEditing = cellEdit?.teamId === card.id;
                               const query = (cellEdit?.query || '').replace(/\s+/g, '').toLowerCase();
                               const menuItems = isEditing ? menuItemsFor(card).filter(it => !query || it.name.replace(/\s+/g, '').toLowerCase().includes(query)) : [];
@@ -2561,7 +2602,7 @@ export default function ReservationManagementPage() {
                                     // ── 테이블 단위 박스: 기본 정원만큼씩 끊어 실제 테이블 1개를 테두리로 보여준다.
                                     // 셀을 드래그해서 같은 팀 안의 다른 자리(다른 테이블 포함)로 옮길 수 있다. ──
                                     const tableSeats = Math.max(1, defaultCap);
-                                    const totalCells = units.length + emptyCount;
+                                    const totalCells = slots.length;
                                     const chunkCount = Math.max(1, Math.ceil(totalCells / tableSeats));
                                     const teamTable = afterPartyTables.find(tb => tb.groupKey === card.id);
                                     const repIds = Array.isArray(teamTable?.repIds) ? teamTable.repIds : [];
@@ -2575,7 +2616,7 @@ export default function ReservationManagementPage() {
                                           onDragStart={isAdmin ? (e => { e.stopPropagation(); setUnitDrag({ teamId: card.id, key: u.key }); }) : undefined}
                                           onDragEnd={isAdmin ? (() => setUnitDrag(null)) : undefined}
                                           onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
-                                          onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) swapUnits(card, unitDrag.key, u.key); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
+                                          onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) moveUnitToSeat(card, unitDrag.key, globalIdx); else moveUnitToTeam(unitDrag, card, globalIdx); setUnitDrag(null); }) : undefined}
                                           style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
                                           <span role="button" tabIndex={0} title="눌러서 정보 보기"
                                             onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellInfo(prev => (prev?.key === u.key && prev?.teamId === card.id ? null : { teamId: card.id, key: u.key, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } })); }}
@@ -2638,9 +2679,9 @@ export default function ReservationManagementPage() {
                                     const renderEmptyCell = (globalIdx, idxInChunk) => (
                                       <div key={`empty-${globalIdx}`}
                                         onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
-                                        onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) reorderUnit(card, unitDrag.key, units.length); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
+                                        onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) moveUnitToSeat(card, unitDrag.key, globalIdx); else moveUnitToTeam(unitDrag, card, globalIdx); setUnitDrag(null); }) : undefined}
                                         style={{ ...cellBase, position: 'relative', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none' }}>
-                                        {isEditing && globalIdx === units.length ? (
+                                        {isEditing && cellEdit?.slotIdx === globalIdx ? (
                                           <>
                                             <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
                                               onChange={e => setCellEdit(prev => ({ ...prev, teamId: card.id, query: e.target.value }))}
@@ -2658,7 +2699,7 @@ export default function ReservationManagementPage() {
                                                 : { ...fixedBase, top: a.bottom + 2, maxHeight: Math.min(220, Math.max(120, spaceBelow - 16)) };
                                             })()}>
                                               {menuItems.map(it => (
-                                                <button key={it.key} type="button" onMouseDown={() => placeItem(it, card)}
+                                                <button key={it.key} type="button" onMouseDown={() => placeItem(it, card, cellEdit?.slotIdx ?? null)}
                                                   onMouseEnter={() => setMenuHover(it.from ? { kind: it.kind, orderId: it.kind === 'att' ? it.order.id : null, memberId: it.kind === 'perf' ? it.memberId : null } : null)}
                                                   onMouseLeave={() => setMenuHover(null)}
                                                   style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', color: '#1e293b' }}>
@@ -2671,8 +2712,8 @@ export default function ReservationManagementPage() {
                                             </div>
                                           </>
                                         ) : (
-                                          isAdmin && globalIdx === units.length ? (
-                                            <button type="button" onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellEdit({ teamId: card.id, query: '', anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } }); }}
+                                          isAdmin ? (
+                                            <button type="button" onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellEdit({ teamId: card.id, query: '', slotIdx: globalIdx, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } }); }}
                                               style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '7px 10px', fontSize: 13, color: '#cbd5e1', cursor: 'text', fontWeight: 600 }}>+ 이름 입력</button>
                                           ) : null
                                         )}
@@ -2689,7 +2730,8 @@ export default function ReservationManagementPage() {
                                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                                                 {Array.from({ length: count }, (_, k) => {
                                                   const gi = startIdx + k;
-                                                  return gi < units.length ? renderUnitCell(units[gi], gi, k) : renderEmptyCell(gi, k);
+                                                  const slotUnit = slots[gi];
+                                                  return slotUnit ? renderUnitCell(slotUnit, gi, k) : renderEmptyCell(gi, k);
                                                 })}
                                               </div>
                                             </div>
