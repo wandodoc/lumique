@@ -2293,18 +2293,18 @@ export default function ReservationManagementPage() {
                           slots[i] = u;
                           used.add(u.key);
                         });
-                        let n = Math.max(slots.length, units.length, 1);
+                        const savedTableCount = Math.max(1, Math.floor(Number(afterPartyTables.find(tb => tb.groupKey === card.id)?.tableCount)) || 1);
+                        let n = Math.max(slots.length, units.length, savedTableCount * defaultCap, 1);
                         n = Math.ceil(n / defaultCap) * defaultCap;
-                        const filled = Array.from({ length: n }, (_, i) => slots[i] || null).filter(Boolean).length;
-                        if (isAdmin && filled >= n) n += defaultCap; // 꽉 찼으면 빈 테이블 하나를 더 보여 준다
                         return [card.id, Array.from({ length: n }, (_, i) => slots[i] || null)];
                       }));
-                      // 실제로 쓰는 테이블 수 = 마지막으로 사람이 앉은 자리 기준 (여분 빈 테이블은 세지 않음)
+                      // 사람이 앉은 자리와 관리자가 직접 추가한 빈 테이블을 함께 반영한다.
                       const tableCountFor = (card) => {
                         const slots = slotsByCard.get(card.id) || [];
                         let last = -1;
                         slots.forEach((slot, i) => { if (slot) last = i; });
-                        return Math.max(1, Math.ceil(Math.max(last + 1, 1) / Math.max(1, defaultCap)));
+                        const saved = Math.max(1, Math.floor(Number(afterPartyTables.find(tb => tb.groupKey === card.id)?.tableCount)) || 1);
+                        return Math.max(saved, Math.ceil(Math.max(last + 1, 1) / Math.max(1, defaultCap)));
                       };
                       const totalTables = cards.reduce((sum, card) => sum + tableCountFor(card), 0);
                       const poolOrders = [
@@ -2359,6 +2359,11 @@ export default function ReservationManagementPage() {
                         const keys = slots.map(slot => (slot ? slot.key : null));
                         while (keys.length && keys[keys.length - 1] === null) keys.pop();
                         upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
+                      };
+                      const addTable = (card) => {
+                        const nextCount = tableCountFor(card) + 1;
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { tableCount: nextCount } }]);
+                        showAfterPartyToast(`${card.name} 테이블을 ${nextCount}개로 추가했습니다.`);
                       };
                       const moveUnitToSeat = (card, dragKey, targetIdx) => {
                         const slots = [...(slotsByCard.get(card.id) || [])];
@@ -2618,6 +2623,9 @@ export default function ReservationManagementPage() {
                               const units = unitsByCard.get(card.id) || [];
                               const slots = slotsByCard.get(card.id) || [];
                               const cap = tableCountFor(card) * Math.max(1, defaultCap);
+                              const displayName = card.kind === 'perf' && card.performers.length > 1
+                                ? card.performers.map(member => member.name).join(' · ')
+                                : card.name;
                               const isEditing = cellEdit?.teamId === card.id;
                               const query = (cellEdit?.query || '').replace(/\s+/g, '').toLowerCase();
                               const menuItems = isEditing ? menuItemsFor(card).filter(it => !query || it.name.replace(/\s+/g, '').toLowerCase().includes(query)) : [];
@@ -2636,10 +2644,11 @@ export default function ReservationManagementPage() {
                                         onBlur={e => { const v = e.target.value.trim(); if (v && v !== card.name) renameTeamLabel(card, v); }}
                                         style={{ flex: 1, minWidth: 0, border: '1px solid transparent', background: 'transparent', fontWeight: 800, fontSize: 13, borderRadius: 6, padding: '3px 5px' }} />
                                     ) : (
-                                      <span title={card.kind === 'perf' ? '공연자 그룹의 이름은 공연자 이름을 따릅니다' : undefined} style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 13, padding: '3px 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.kind === 'perf' ? '🎤 ' : '🏷️ '}{card.name}</span>
+                                      <span title={card.kind === 'perf' ? '함께 배치된 공연자를 모두 표시합니다' : undefined} style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 13, padding: '3px 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.kind === 'perf' ? '🎤 ' : '🏷️ '}{displayName}</span>
                                     )}
                                     <span title="정원은 기본 정원 × 테이블 수로 자동 계산됩니다" style={{ fontSize: 12, fontWeight: 800, color: units.length === cap ? '#047857' : '#475569', whiteSpace: 'nowrap' }}>{units.length}/{cap}</span>
                                     <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>{tableCountFor(card)}테이블</span>
+                                    {isAdmin && <button type="button" aria-label={`${displayName} 테이블 추가`} title="빈 테이블을 하나 추가합니다" onClick={() => addTable(card)} style={{ border: '1px solid #cbd5e1', background: '#fff', color: '#2563eb', borderRadius: 6, cursor: 'pointer', padding: '2px 6px', fontSize: 11, fontWeight: 800 }}>+ 테이블</button>}
                                     {isAdmin && card.kind === 'group' && (
                                       <button type="button" aria-label="팀 삭제" title="이 팀(그룹)을 삭제합니다" onClick={() => removeTeam(card)} style={{ border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: '0 2px', fontSize: 13 }}>✕</button>
                                     )}
