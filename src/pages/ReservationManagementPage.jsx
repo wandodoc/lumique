@@ -2378,6 +2378,29 @@ export default function ReservationManagementPage() {
                         upsertGroupTables([{ groupId: card.id, name: card.name, patch: { tableCount: nextCount } }]);
                         showAfterPartyToast(`${card.name} 테이블을 ${nextCount}개로 추가했습니다.`);
                       };
+                      const deleteEmptyTable = (card, tableIndex) => {
+                        const tableCount = tableCountFor(card);
+                        if (tableCount <= 1) return;
+                        const chairs = chairIndexesFor(card, tableCount);
+                        const capacitiesBefore = Array.from({ length: tableIndex }, (_, index) => defaultCap + (chairs.has(index) ? 1 : 0));
+                        const slotStart = capacitiesBefore.reduce((sum, capacity) => sum + capacity, 0);
+                        const slotCount = defaultCap + (chairs.has(tableIndex) ? 1 : 0);
+                        const renderedSlots = slotsByCard.get(card.id) || [];
+                        if (renderedSlots.slice(slotStart, slotStart + slotCount).some(Boolean)) {
+                          window.alert('테이블에 배치된 인원을 먼저 다른 자리로 옮겨 주세요.');
+                          return;
+                        }
+                        const record = tableRecordFor(card);
+                        const keys = Array.isArray(record?.seatOrder) ? [...record.seatOrder] : renderedSlots.map(slot => slot ? slot.key : null);
+                        keys.splice(slotStart, slotCount);
+                        while (keys.length && keys[keys.length - 1] === null) keys.pop();
+                        const nextChairIndexes = [...chairs]
+                          .filter(index => index !== tableIndex)
+                          .map(index => (index > tableIndex ? index - 1 : index));
+                        const nextCount = tableCount - 1;
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { tableCount: nextCount, addedChairTableIndexes: nextChairIndexes, seatOrder: keys } }]);
+                        showAfterPartyToast(`${card.name} 테이블 ${tableIndex + 1}을(를) 삭제했습니다.`);
+                      };
                       const toggleAddedChair = (card, tableIndex) => {
                         const record = tableRecordFor(card);
                         const tableCount = tableCountFor(card);
@@ -2827,6 +2850,7 @@ export default function ReservationManagementPage() {
                                               <div style={{ fontSize: 10, fontWeight: 800, color: '#64748b', padding: '3px 8px', background: hasAddedChair ? '#eff6ff' : '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 6 }}>
                                                 <span>테이블 {ti + 1} · {defaultCap}인석{hasAddedChair ? ' + 추가 의자' : ''}</span>
                                                 {isAdmin && <button type="button" onClick={() => toggleAddedChair(card, ti)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: hasAddedChair ? '#dc2626' : '#2563eb', cursor: 'pointer', padding: 0, fontSize: 10, fontWeight: 800 }}>{hasAddedChair ? '의자 제거' : '+ 의자'}</button>}
+                                                {isAdmin && chunkCount > 1 && <button type="button" aria-label={`테이블 ${ti + 1} 삭제`} title="비어 있는 테이블만 삭제할 수 있습니다" onClick={() => deleteEmptyTable(card, ti)} style={{ border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', padding: 0, fontSize: 10, fontWeight: 800 }}>테이블 삭제</button>}
                                               </div>
                                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                                                 {Array.from({ length: count }, (_, k) => {
