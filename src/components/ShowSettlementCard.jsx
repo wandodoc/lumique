@@ -19,6 +19,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // 증빙(영수증) 사진 압축: Firestore 문서 1개(1MiB)에 넉넉히 들어가면서 글자가 읽히는 수준을 유지한다.
 const RECEIPT_BUDGET = 220 * 1024; // base64 문자 수 기준
+// 영수증은 지출 1건당 별도 문서에 보관한다. Firestore 문서 1MiB 제한을 피하기 위해
+// 한 건에는 최대 4장을 허용하고, 압축된 이미지 총량도 보수적으로 제한한다.
+const MAX_RECEIPT_IMAGES = 4;
+const RECEIPT_TOTAL_BUDGET = 820 * 1024;
 const RECEIPT_STAGES = [[1600, 0.72], [1400, 0.6], [1200, 0.55], [1000, 0.5], [800, 0.45]];
 const compressReceiptImage = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -49,6 +53,16 @@ const compressReceiptImage = (file) => new Promise((resolve, reject) => {
   reader.onerror = () => reject(new Error('파일을 읽을 수 없습니다.'));
   reader.readAsDataURL(file);
 });
+
+// 이전 버전의 { image, name } 문서도 새 배열 형식과 똑같이 표시한다.
+const receiptImagesOf = (data) => {
+  if (Array.isArray(data?.images)) {
+    return data.images
+      .filter(item => item && typeof item.image === 'string' && item.image)
+      .map(item => ({ image: item.image, name: String(item.name || '') }));
+  }
+  return data?.image ? [{ image: data.image, name: String(data.name || '') }] : [];
+};
 
 // 지출 항목/메모: 새 데이터는 category·memo 필드를 쓰고, 항목 개념이 없던 기존 데이터는
 // label의 '_' 앞부분을 항목으로("연습실 대여_합주(1)_260904" → "연습실 대여"), 나머지를 메모로 본다.
@@ -99,7 +113,7 @@ export default function ShowSettlementCard({
   const [editingDonation, setEditingDonation] = useState(null); // { id, donorName, amount, date }
   const receiptInputRef = useRef(null);
   const [receiptTargetId, setReceiptTargetId] = useState(null); // 증빙을 첨부할 지출 id
-  const [receiptView, setReceiptView] = useState(null); // { id, label, loading, image, name }
+  const [receiptView, setReceiptView] = useState(null); // { id, label, loading, images, activeIndex }
 
   const settlement = useMemo(() => {
     const raw = show?.settlement && typeof show.settlement === 'object' ? show.settlement : {};
@@ -292,37 +306,64 @@ export default function ShowSettlementCard({
     receiptInputRef.current?.click();
   };
   const onReceiptFile = async (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = '';
     const targetId = receiptTargetId;
     setReceiptTargetId(null);
-    if (!file || !targetId) return;
-    let image;
+    if (files.length === 0 || !targetId) return;
+    let nextReceiptCount = 0;
     setSaving(true);
     try {
-      image = await compressReceiptImage(file);
-      const ok = await firebaseStorage.saveReceipt(targetId, { image, name: file.name || '', showId: show?.id || null });
+      const existing = await firebaseStorage.loadReceipt(targetId);
+      const currentImages = receiptImagesOf(existing);
+      const available = MAX_RECEIPT_IMAGES - currentImages.length;
+      if (available <= 0) {
+        window.alert(`증빙 사진은 최대 ${MAX_RECEIPT_IMAGES}장까지 첨부할 수 있습니다.`);
+        return;
+      }
+      const selectedFiles = files.slice(0, available);
+      if (files.length > available) window.alert(`사진은 최대 ${MAX_RECEIPT_IMAGES}장까지 첨부되어, ${selectedFiles.length}장만 추가합니다.`);
+      const addedImages = [];
+      for (const file of selectedFiles) {
+        const image = await compressReceiptImage(file);
+        addedImages.push({ image, name: file.name || '' });
+      }
+      const images = [...currentImages, ...addedImages];
+      if (images.reduce((total, item) => total + item.image.length, 0) > RECEIPT_TOTAL_BUDGET) {
+        window.alert('선택한 사진의 용량이 너무 큽니다. 사진 수를 줄여 다시 올려 주세요.');
+        return;
+      }
+      const ok = await firebaseStorage.saveReceipt(targetId, { images, showId: show?.id || null });
       if (!ok) { window.alert('증빙 저장에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
+      nextReceiptCount = images.length;
     } catch {
       window.alert('이미지를 읽을 수 없습니다. 사진 파일(JPG/PNG)인지 확인해 주세요.');
       return;
     } finally {
       setSaving(false);
     }
-    await save({ expenses: settlement.expenses.map(x => (x.id === targetId ? { ...x, receipt: true } : x)) });
+    await save({ expenses: settlement.expenses.map(x => (x.id === targetId ? { ...x, receipt: nextReceiptCount > 0, receiptCount: nextReceiptCount } : x)) });
   };
   const openReceipt = async (e, label) => {
-    setReceiptView({ id: e.id, label, loading: true, image: null, name: '' });
+    setReceiptView({ id: e.id, label, loading: true, images: [], activeIndex: 0 });
     const data = await firebaseStorage.loadReceipt(e.id);
-    setReceiptView(prev => (prev && prev.id === e.id ? { ...prev, loading: false, image: data?.image || null, name: data?.name || '' } : prev));
+    const images = receiptImagesOf(data);
+    setReceiptView(prev => (prev && prev.id === e.id ? { ...prev, loading: false, images, activeIndex: 0 } : prev));
   };
-  const removeReceipt = async () => {
+  const removeReceiptImage = async (index) => {
     if (!receiptView?.id) return;
-    if (!window.confirm('첨부된 증빙을 삭제할까요?')) return;
+    if (!window.confirm('이 증빙 사진을 삭제할까요?')) return;
+    const images = receiptView.images.filter((_, itemIndex) => itemIndex !== index);
     setSaving(true);
-    try { await firebaseStorage.deleteReceipt(receiptView.id); } finally { setSaving(false); }
-    await save({ expenses: settlement.expenses.map(x => (x.id === receiptView.id ? { ...x, receipt: false } : x)) });
-    setReceiptView(null);
+    try {
+      const ok = images.length > 0
+        ? await firebaseStorage.saveReceipt(receiptView.id, { images, showId: show?.id || null })
+        : await firebaseStorage.deleteReceipt(receiptView.id);
+      if (!ok) { window.alert('증빙 삭제에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.'); return; }
+      await save({ expenses: settlement.expenses.map(x => (x.id === receiptView.id ? { ...x, receipt: images.length > 0, receiptCount: images.length } : x)) });
+      if (images.length === 0) setReceiptView(null);
+      else setReceiptView(prev => (prev ? { ...prev, images, activeIndex: Math.min(prev.activeIndex, images.length - 1) } : prev));
+    } finally { setSaving(false); }
   };
   const startEditExpense = (e) => setEditingExpense({ id: e.id, category: categoryOf(e), date: e.date || '', memo: memoOf(e), amount: formatAmountInput(e.amount), paidBy: e.paidBy || '' });
 
@@ -352,7 +393,10 @@ export default function ShowSettlementCard({
         정산 완료
       </label>
       {e.receipt ? (
-        <button type="button" aria-label="증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe' }}>증빙</button>
+        <>
+          <button type="button" aria-label="증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe' }}>증빙{Number(e.receiptCount) > 1 ? ` ${e.receiptCount}` : ''}</button>
+          {isAdmin && <button type="button" aria-label="증빙 사진 추가" title="증빙 사진 추가" disabled={saving} onClick={() => attachReceipt(e)} style={miniButton}>+ 사진</button>}
+        </>
       ) : (isAdmin && (
         <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={miniButton}>📎</button>
       ))}
@@ -610,7 +654,7 @@ export default function ShowSettlementCard({
       </div>
 
       {/* 증빙 첨부용 숨은 파일 선택 + 보기 모달 */}
-      <input ref={receiptInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onReceiptFile} />
+      <input ref={receiptInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={onReceiptFile} />
       {receiptView && (
         <div onClick={() => setReceiptView(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(15, 23, 42, .55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={event => event.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 14, maxWidth: 'min(92vw, 560px)', maxHeight: '88vh', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'auto' }}>
@@ -620,14 +664,27 @@ export default function ShowSettlementCard({
             </div>
             {receiptView.loading ? (
               <div style={{ padding: 30, textAlign: 'center', color: '#64748b', fontSize: 13 }}>불러오는 중…</div>
-            ) : receiptView.image ? (
-              <img src={receiptView.image} alt="지출 증빙" style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 8 }} />
+            ) : receiptView.images.length > 0 ? (
+              <>
+                <img src={receiptView.images[receiptView.activeIndex]?.image} alt={`지출 증빙 ${receiptView.activeIndex + 1}`} style={{ maxWidth: '100%', maxHeight: '58vh', objectFit: 'contain', borderRadius: 8 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {receiptView.images.map((item, index) => (
+                    <button key={`${item.name}-${index}`} type="button" aria-label={`증빙 사진 ${index + 1} 보기`} onClick={() => setReceiptView(prev => ({ ...prev, activeIndex: index }))}
+                      style={{ width: 54, height: 54, padding: 0, borderRadius: 7, overflow: 'hidden', border: index === receiptView.activeIndex ? '2px solid #2563eb' : '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}>
+                      <img src={item.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 11, color: '#94a3b8' }}>
+                  <span>{receiptView.activeIndex + 1} / {receiptView.images.length} · {receiptView.images[receiptView.activeIndex]?.name || '이름 없는 사진'}</span>
+                  {isAdmin && <button type="button" disabled={saving} onClick={() => removeReceiptImage(receiptView.activeIndex)} style={{ ...dangerMini, padding: '5px 9px' }}>이 사진 삭제</button>}
+                </div>
+              </>
             ) : (
               <div style={{ padding: 30, textAlign: 'center', color: '#b91c1c', fontSize: 13 }}>증빙을 불러오지 못했습니다. 네트워크를 확인하고 다시 열어 주세요.</div>
             )}
-            {!receiptView.loading && receiptView.name && <div style={{ fontSize: 11, color: '#94a3b8' }}>{receiptView.name}</div>}
-            {isAdmin && !receiptView.loading && receiptView.image && (
-              <button type="button" disabled={saving} onClick={removeReceipt} style={{ ...dangerMini, alignSelf: 'flex-end', padding: '6px 12px' }}>증빙 삭제</button>
+            {isAdmin && !receiptView.loading && receiptView.images.length > 0 && (
+              <button type="button" disabled={saving} onClick={() => { setReceiptTargetId(receiptView.id); receiptInputRef.current?.click(); }} style={{ ...smallButton, alignSelf: 'flex-end' }}>+ 사진 추가</button>
             )}
           </div>
         </div>
