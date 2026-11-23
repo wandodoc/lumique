@@ -993,7 +993,7 @@ export default function ReservationManagementPage() {
     upserts.forEach(({ groupId, name, patch }) => {
       const idx = tables.findIndex(t => t.groupKey === groupId);
       if (idx >= 0) tables[idx] = { ...tables[idx], ...patch };
-      else tables.push({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, capacity: 6, groupKey: groupId, ...patch });
+      else tables.push({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name, capacity: Math.max(1, Math.floor(Number(currentShow?.afterPartyTableSize)) || 6), groupKey: groupId, ...patch });
     });
     return saveSeatingPatch({ tables });
   };
@@ -2241,10 +2241,21 @@ export default function ReservationManagementPage() {
                         return units;
                       };
                       const unitsByCard = new Map(cards.map(card => [card.id, unitsForCard(card)]));
+                      // 뒤풀이 장소/테이블 기본 정원 — 공연마다 저장된다 (가게가 바뀌면 여기만 고치면 됨)
+                      const venueName = String(currentShow?.afterPartyVenueName || '');
+                      const defaultCap = Math.max(1, Math.floor(Number(currentShow?.afterPartyTableSize)) || 6);
                       const capFor = (card) => {
                         const t = afterPartyTables.find(tb => tb.groupKey === card.id);
                         const stored = Math.max(0, Math.floor(Number(t?.capacity)) || 0);
-                        return stored > 0 ? stored : Math.max(6, (unitsByCard.get(card.id) || []).length);
+                        return stored > 0 ? stored : Math.max(defaultCap, (unitsByCard.get(card.id) || []).length);
+                      };
+                      const applyCapacityToAll = () => {
+                        if (cards.length === 0) return;
+                        if (!window.confirm(`모든 팀(${cards.length}개)의 정원을 ${defaultCap}명으로 맞출까요?\n인원이 더 많은 팀은 그 인원수로 설정됩니다.`)) return;
+                        upsertGroupTables(cards.map(card => ({
+                          groupId: card.id, name: card.name,
+                          patch: { capacity: Math.max(defaultCap, (unitsByCard.get(card.id) || []).length) },
+                        })));
                       };
                       const poolOrders = [
                         ...afterPartyEntries.individuals,
@@ -2360,7 +2371,7 @@ export default function ReservationManagementPage() {
                             <StatCard label="팀" value={`${cards.length}개`} color="#111827" />
                             <StatCard label="정원 초과 팀" value={`${overCount}개`} color="#dc2626" />
                           </div>
-                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
+                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>{venueName ? `📍 ${venueName} · ` : ''}전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
 
                           {isAdmin && (
                             <div className="after-party-seating-actions" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2380,6 +2391,21 @@ export default function ReservationManagementPage() {
                                   style={{ width: 46, padding: '5px 6px', border: '1px solid #cbd5e1', borderRadius: 7, fontWeight: 800, textAlign: 'center', fontSize: 12 }} />
                               </label>
                               <span style={{ fontSize: 11, color: '#94a3b8' }}>팀 머리글(⠿)을 잡아 원하는 칸으로 드래그하면 가게 테이블 위치대로 배치됩니다. 두 팀을 겹치면 자리를 서로 바꿉니다.</span>
+                              <span style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>뒤풀이 장소</span>
+                                <input type="text" aria-label="뒤풀이 장소 이름" key={`vn:${venueName}`} defaultValue={venueName} placeholder="예: OO호프 2층"
+                                  onBlur={e => { const v = e.target.value.trim(); if (v !== venueName) saveSeatingPatch({ afterPartyVenueName: v }); }}
+                                  style={{ width: 170, padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 700 }} />
+                                <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>테이블 기본 정원</span>
+                                <input type="number" min="1" max="99" aria-label="테이블 기본 정원" key={`dc:${defaultCap}`} defaultValue={defaultCap}
+                                  onBlur={e => { const n = Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || defaultCap)); if (n !== defaultCap) saveSeatingPatch({ afterPartyTableSize: n }); }}
+                                  style={{ width: 52, padding: '5px 6px', border: '1px solid #cbd5e1', borderRadius: 7, fontWeight: 800, textAlign: 'center', fontSize: 12 }} />
+                                <button type="button" onClick={applyCapacityToAll} disabled={cards.length === 0}
+                                  title="모든 팀의 정원을 기본 정원으로 바꿉니다 (인원이 더 많은 팀은 인원수 유지)"
+                                  style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 700, cursor: cards.length === 0 ? 'not-allowed' : 'pointer', opacity: cards.length === 0 ? 0.5 : 1 }}
+                                >모든 팀에 적용</button>
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>새로 만드는 팀은 기본 정원으로 시작합니다</span>
+                              </span>
                             </div>
                           )}
 
