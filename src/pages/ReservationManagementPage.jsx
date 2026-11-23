@@ -2525,8 +2525,11 @@ export default function ReservationManagementPage() {
                                       const repIds = Array.isArray(table?.repIds) ? table.repIds : [];
                                       const isRep = repIds.includes(u.key);
                                       const isMoveTarget = !!menuHover && ((menuHover.kind === 'att' && u.kind === 'att' && u.order.id === menuHover.orderId) || (menuHover.kind === 'perf' && u.kind === 'perf' && u.memberId === menuHover.memberId));
+                                      // 기본 정원(실제 테이블 1개의 자리 수) 단위마다 점선 — 4인석 2개를 붙인 팀이면 경계가 보인다.
+                                      const rowStart = i - (i % 2);
+                                      const newTableRow = rowStart > 0 && defaultCap > 0 && rowStart % defaultCap === 0;
                                       return (
-                                      <div key={u.key} style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
+                                      <div key={u.key} style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: newTableRow ? '2px dashed #94a3b8' : cellBase.borderTop }}>
                                         <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
                                         {isAdmin && (
                                           <button type="button" aria-label={`${u.name} 테이블 대표 ${isRep ? '해제' : '지정'}`} title="테이블 대표 지정/해제 (여러 명 가능)" onClick={() => toggleRep(card, u.key)}
@@ -2540,7 +2543,7 @@ export default function ReservationManagementPage() {
                                       );
                                     })}
                                     {Array.from({ length: emptyCount }, (_, i) => (
-                                      <div key={`empty-${i}`} style={{ ...cellBase, position: 'relative', borderRight: (units.length + i) % 2 === 0 ? '1px solid #f1f5f9' : 'none' }}>
+                                      <div key={`empty-${i}`} style={{ ...cellBase, position: 'relative', borderRight: (units.length + i) % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: (() => { const g = units.length + i; const rs = g - (g % 2); return rs > 0 && defaultCap > 0 && rs % defaultCap === 0 ? '2px dashed #94a3b8' : cellBase.borderTop; })() }}>
                                         {isEditing && i === 0 ? (
                                           <>
                                             <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
