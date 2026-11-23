@@ -494,9 +494,9 @@ export default function ReservationManagementPage() {
   const [inboxSelectValue, setInboxSelectValue] = useState('');
   const [cellEdit, setCellEdit] = useState(null); // 셀 입력: { teamId, query }
   const [teamDragId, setTeamDragId] = useState(null); // 격자에서 드래그 중인 팀(그룹) id
-  const tableSizeInputRef = useRef(null); // "테이블 기본 정원" 입력칸 — 적용 버튼이 최신 입력값을 바로 읽는다
   const [menuHover, setMenuHover] = useState(null); // 셀 입력 메뉴: 마우스가 올라간 "다른 팀" 인원 (원래 자리 하이라이트용)
   const [unitDrag, setUnitDrag] = useState(null); // 팀 안에서 드래그 중인 사람 셀 { teamId, key }
+  const [cellInfo, setCellInfo] = useState(null); // 이름 클릭 시 정보 팝오버 { teamId, key, anchor }
 
   const currentShow = useMemo(
     () => (concertId ? resolveShowByAnyId(shows, concertId) : null),
@@ -2237,62 +2237,19 @@ export default function ReservationManagementPage() {
                       const inventoryTableCount = tableInventory.reduce((sum, row) => sum + row.count, 0);
                       const inventorySeatCount = tableInventory.reduce((sum, row) => sum + row.size * row.count, 0);
                       const saveInventory = (rows) => saveSeatingPatch({ afterPartyTableInventory: rows.filter(row => row.size > 0 && row.count > 0) });
+                      // 팀 정원은 수기 입력이 아니라 "기본 정원 × 필요한 테이블 수"로 자동 계산한다.
                       const capFor = (card) => {
-                        const t = afterPartyTables.find(tb => tb.groupKey === card.id);
-                        const stored = Math.max(0, Math.floor(Number(t?.capacity)) || 0);
-                        return stored > 0 ? stored : Math.max(defaultCap, (unitsByCard.get(card.id) || []).length);
+                        const n = (unitsByCard.get(card.id) || []).length;
+                        return Math.max(1, Math.ceil(Math.max(n, 1) / defaultCap)) * defaultCap;
                       };
                       // 팀이 쓰는 실제 테이블 수 = 정원(또는 인원)을 기본 정원으로 나눈 올림값
                       const tableCountFor = (card) => Math.max(1, Math.ceil(Math.max(capFor(card), (unitsByCard.get(card.id) || []).length) / Math.max(1, defaultCap)));
                       const totalTables = cards.reduce((sum, card) => sum + tableCountFor(card), 0);
-                      const reorderUnit = (card, dragKey, targetIndex) => {
-                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
-                        const fromIdx = keys.indexOf(dragKey);
-                        if (fromIdx < 0) return;
-                        keys.splice(fromIdx, 1);
-                        keys.splice(Math.max(0, Math.min(targetIndex, keys.length)), 0, dragKey);
-                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
-                      };
-                      // 같은 팀에서 사람 위에 떨어뜨리면 두 사람의 자리를 서로 교체한다 (밀리지 않음).
-                      const swapUnits = (card, keyA, keyB) => {
-                        if (keyA === keyB) return;
-                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
-                        const ia = keys.indexOf(keyA);
-                        const ib = keys.indexOf(keyB);
-                        if (ia < 0 || ib < 0) return;
-                        [keys[ia], keys[ib]] = [keys[ib], keys[ia]];
-                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
-                      };
-                      // 셀을 다른 팀 위에 떨어뜨리면 그 팀(그룹)으로 이동한다. 예매는 동반 인원까지 함께 움직인다.
-                      const moveUnitToTeam = (drag, card) => {
-                        const srcUnit = (unitsByCard.get(drag.teamId) || []).find(u => u.key === drag.key);
-                        if (!srcUnit) return;
-                        const item = srcUnit.kind === 'perf'
-                          ? { kind: 'perf', memberId: srcUnit.memberId, name: srcUnit.name, count: 1 }
-                          : { kind: 'att', order: srcUnit.order, name: srcUnit.order.audienceName || '(이름없음)', count: srcUnit.orderCount || 1 };
-                        placeItem(item, card);
-                      };
-                      const applyCapacityToAll = () => {
-                        if (cards.length === 0) return;
-                        // 입력칸에 방금 친 값이 아직 저장 전이어도 반영되도록, 버튼이 입력칸을 직접 읽는다.
-                        const typed = Math.floor(Number(tableSizeInputRef.current?.value));
-                        const cap = typed > 0 ? Math.min(99, typed) : defaultCap;
-                        if (!window.confirm(`모든 팀(${cards.length}개)의 정원을 ${cap}명으로 맞출까요?\n인원이 더 많은 팀은 그 인원수로 설정됩니다.`)) return;
-                        const tables = [...afterPartyTables];
-                        cards.forEach(card => {
-                          const capacity = Math.max(cap, (unitsByCard.get(card.id) || []).length);
-                          const idx = tables.findIndex(t => t.groupKey === card.id);
-                          if (idx >= 0) tables[idx] = { ...tables[idx], capacity };
-                          else tables.push({ id: `table-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: card.name, capacity, groupKey: card.id });
-                        });
-                        saveSeatingPatch({ afterPartyTableSize: cap, tables });
-                      };
                       const poolOrders = [
                         ...afterPartyEntries.individuals,
                         ...afterPartyEntries.groups.filter(g => g.type === 'unmapped').flatMap(g => g.attendees),
                       ].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
                       const poolCount = poolOrders.reduce((sum, p) => sum + p.count, 0);
-                      const overCount = cards.filter(card => (unitsByCard.get(card.id) || []).length > capFor(card)).length;
                       // 격자: 저장된 크기(기본 2×3). 팀이 넘치면 줄만 자동으로 늘려 보여준다.
                       const storedGrid = (currentShow?.seatingGrid && typeof currentShow.seatingGrid === 'object') ? currentShow.seatingGrid : {};
                       const gridCols = Math.max(1, Math.min(8, Math.floor(Number(storedGrid.cols)) || 3));
@@ -2335,12 +2292,37 @@ export default function ReservationManagementPage() {
                         if (cards.some(x => x.name === label)) { window.alert('같은 이름의 팀이 이미 있습니다.'); return; }
                         upsertGroupTables([{ groupId: `group:${label}`, name: label, patch: {} }]);
                       };
+                      const reorderUnit = (card, dragKey, targetIndex) => {
+                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
+                        const fromIdx = keys.indexOf(dragKey);
+                        if (fromIdx < 0) return;
+                        keys.splice(fromIdx, 1);
+                        keys.splice(Math.max(0, Math.min(targetIndex, keys.length)), 0, dragKey);
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
+                      };
+                      // 같은 팀에서 사람 위에 떨어뜨리면 두 사람의 자리를 서로 교체한다 (밀리지 않음).
+                      const swapUnits = (card, keyA, keyB) => {
+                        if (keyA === keyB) return;
+                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
+                        const ia = keys.indexOf(keyA);
+                        const ib = keys.indexOf(keyB);
+                        if (ia < 0 || ib < 0) return;
+                        [keys[ia], keys[ib]] = [keys[ib], keys[ia]];
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
+                      };
+                      // 셀을 다른 팀 위에 떨어뜨리면 그 팀(그룹)으로 이동한다. 예매는 동반 인원까지 함께 움직인다.
+                      const moveUnitToTeam = (drag, card) => {
+                        const srcUnit = (unitsByCard.get(drag.teamId) || []).find(u => u.key === drag.key);
+                        if (!srcUnit) return;
+                        const item = srcUnit.kind === 'perf'
+                          ? { kind: 'perf', memberId: srcUnit.memberId, name: srcUnit.name, count: 1 }
+                          : { kind: 'att', order: srcUnit.order, name: srcUnit.order.audienceName || '(이름없음)', count: srcUnit.orderCount || 1 };
+                        placeItem(item, card);
+                      };
                       const placeItem = async (item, card) => {
                         setCellEdit(null);
                         setMenuHover(null);
                         if (item.from && !window.confirm(`${item.name}은(는) 지금 "${item.from}" 팀에 있어요. "${card.name}" 팀으로 옮길까요?`)) return;
-                        const size = (unitsByCard.get(card.id) || []).length;
-                        const cap = capFor(card);
                         if (item.kind === 'perf') {
                           const prevLabel = performerGroupMapping[item.memberId] || null;
                           const target = card.kind === 'perf' ? (card.memberId === item.memberId ? null : `member:${card.memberId}`) : card.name;
@@ -2352,8 +2334,6 @@ export default function ReservationManagementPage() {
                           const res = card.kind === 'perf' ? await assignPerformer([o.id], card.memberId) : await assignGroupLabel([o.id], card.name);
                           if (res === 'firebase') showAfterPartyToast(`${item.name} → ${card.name}`, () => applyAfterPartyPatch([o.id], prev, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.'));
                         }
-                        const added = item.kind === 'perf' ? 1 : (item.count || 1);
-                        if (size + added > cap) upsertGroupTables([{ groupId: card.id, name: card.name, patch: { capacity: size + added } }]);
                       };
                       const removeUnit = (unit) => {
                         if (unit.kind === 'perf') {
@@ -2400,7 +2380,6 @@ export default function ReservationManagementPage() {
                             <StatCard label="미배치" value={`${poolCount}명`} color="#b45309" />
                             <StatCard label="팀" value={`${cards.length}개`} color="#111827" />
                             <StatCard label="필요 테이블" value={inventoryTableCount > 0 ? `${totalTables} / ${inventoryTableCount}개` : `${totalTables}개`} color={inventoryTableCount > 0 && totalTables > inventoryTableCount ? '#dc2626' : '#334155'} />
-                            <StatCard label="정원 초과 팀" value={`${overCount}개`} color="#dc2626" />
                           </div>
                           <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>{venueName ? `📍 ${venueName} · ` : ''}{inventoryTableCount > 0 ? `보유 ${tableInventory.map(row => `${row.size}인×${row.count}`).join(', ')} (총 ${inventoryTableCount}개 · ${inventorySeatCount}석) · ` : ''}전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
 
@@ -2428,14 +2407,10 @@ export default function ReservationManagementPage() {
                                   onBlur={e => { const v = e.target.value.trim(); if (v !== venueName) saveSeatingPatch({ afterPartyVenueName: v }); }}
                                   style={{ width: 170, padding: '5px 8px', border: '1px solid #cbd5e1', borderRadius: 7, fontSize: 12, fontWeight: 700 }} />
                                 <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>테이블 기본 정원</span>
-                                <input type="number" min="1" max="99" aria-label="테이블 기본 정원" ref={tableSizeInputRef} key={`dc:${defaultCap}`} defaultValue={defaultCap}
+                                <input type="number" min="1" max="99" aria-label="테이블 기본 정원" key={`dc:${defaultCap}`} defaultValue={defaultCap}
                                   onBlur={e => { const n = Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || defaultCap)); if (n !== defaultCap) saveSeatingPatch({ afterPartyTableSize: n }); }}
                                   style={{ width: 52, padding: '5px 6px', border: '1px solid #cbd5e1', borderRadius: 7, fontWeight: 800, textAlign: 'center', fontSize: 12 }} />
-                                <button type="button" onClick={applyCapacityToAll} disabled={cards.length === 0}
-                                  title="모든 팀의 정원을 기본 정원으로 바꿉니다 (인원이 더 많은 팀은 인원수 유지)"
-                                  style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 700, cursor: cards.length === 0 ? 'not-allowed' : 'pointer', opacity: cards.length === 0 ? 0.5 : 1 }}
-                                >모든 팀에 적용</button>
-                                <span style={{ fontSize: 11, color: '#94a3b8' }}>새로 만드는 팀은 기본 정원으로 시작합니다</span>
+                                <span style={{ fontSize: 11, color: '#94a3b8' }}>팀 정원과 테이블 수는 인원에 맞춰 자동 계산됩니다</span>
                               </span>
                               <span style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>보유 테이블</span>
@@ -2554,7 +2529,6 @@ export default function ReservationManagementPage() {
                               }
                               const units = unitsByCard.get(card.id) || [];
                               const cap = capFor(card);
-                              const over = units.length > cap;
                               const emptyCount = isAdmin ? Math.max(cap - units.length, 1) : Math.max(cap - units.length, 0);
                               const isEditing = cellEdit?.teamId === card.id;
                               const query = (cellEdit?.query || '').replace(/\s+/g, '').toLowerCase();
@@ -2576,10 +2550,7 @@ export default function ReservationManagementPage() {
                                     ) : (
                                       <span title={card.kind === 'perf' ? '공연자 그룹의 이름은 공연자 이름을 따릅니다' : undefined} style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 13, padding: '3px 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.kind === 'perf' ? '🎤 ' : '🏷️ '}{card.name}</span>
                                     )}
-                                    <span style={{ fontSize: 12, fontWeight: 800, color: over ? '#dc2626' : units.length === cap ? '#047857' : '#475569', whiteSpace: 'nowrap' }}>{units.length}/</span>
-                                    <input type="number" min="1" disabled={!isAdmin} aria-label="팀 정원" title="가게 테이블 자리 수. 인원이 넘치면 자동으로 늘어납니다." key={`tc:${card.id}:${cap}`} defaultValue={cap}
-                                      onBlur={e => { const n = Math.max(1, Math.floor(Number(e.target.value)) || cap); if (n !== cap) upsertGroupTables([{ groupId: card.id, name: card.name, patch: { capacity: n } }]); }}
-                                      style={{ width: 44, padding: '3px 5px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, fontWeight: 800, textAlign: 'right', background: '#fff' }} />
+                                    <span title="정원은 기본 정원 × 테이블 수로 자동 계산됩니다" style={{ fontSize: 12, fontWeight: 800, color: units.length === cap ? '#047857' : '#475569', whiteSpace: 'nowrap' }}>{units.length}/{cap}</span>
                                     <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>{tableCountFor(card)}테이블</span>
                                     {isAdmin && card.kind === 'group' && (
                                       <button type="button" aria-label="팀 삭제" title="이 팀(그룹)을 삭제합니다" onClick={() => removeTeam(card)} style={{ border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: '0 2px', fontSize: 13 }}>✕</button>
@@ -2605,7 +2576,53 @@ export default function ReservationManagementPage() {
                                           onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
                                           onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) swapUnits(card, unitDrag.key, u.key); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
                                           style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
-                                          <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
+                                          <span role="button" tabIndex={0} title="눌러서 정보 보기"
+                                            onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellInfo(prev => (prev?.key === u.key && prev?.teamId === card.id ? null : { teamId: card.id, key: u.key, anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } })); }}
+                                            style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
+                                          {cellInfo?.teamId === card.id && cellInfo?.key === u.key && (() => {
+                                            const a = cellInfo.anchor || { left: 0, top: 0, bottom: 0 };
+                                            const openUp = window.innerHeight - a.bottom < 220 && a.top > 220;
+                                            const popStyle = { position: 'fixed', left: Math.max(8, Math.min(a.left, window.innerWidth - 272)), zIndex: 70, width: 256, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10, boxShadow: '0 10px 26px rgba(15,23,42,.18)', padding: '10px 26px 10px 12px', fontSize: 12, color: '#334155', ...(openUp ? { bottom: window.innerHeight - a.top + 2 } : { top: a.bottom + 2 }) };
+                                            const infoRow = (label, value) => (
+                                              <div style={{ display: 'flex', gap: 6, marginTop: 3 }}>
+                                                <span style={{ color: '#94a3b8', fontWeight: 700, minWidth: 76, flexShrink: 0 }}>{label}</span>
+                                                <span style={{ fontWeight: 700, minWidth: 0, overflowWrap: 'anywhere' }}>{value}</span>
+                                              </div>
+                                            );
+                                            let body;
+                                            if (u.kind === 'perf') {
+                                              const m = findPerformer(u.memberId) || { name: u.name, part: '' };
+                                              const linkedOrderId = afterPartyPerformerOrderIds[u.memberId] || '';
+                                              const linked = linkedOrderId ? ordersById[linkedOrderId] : null;
+                                              body = (
+                                                <>
+                                                  <div style={{ fontWeight: 800, fontSize: 13, color: '#111827' }}>🎤 {m.name}{m.part ? ` (${m.part})` : ''}</div>
+                                                  {infoRow('구분', '공연자 본인 참석')}
+                                                  {infoRow('현재 팀', card.name)}
+                                                  {infoRow('본인 예매', linked ? `${linked.audienceName || '이름 없음'} 예매와 연결됨` : '연결 없음')}
+                                                </>
+                                              );
+                                            } else {
+                                              const o = u.order;
+                                              const rawInviter = (o.inviterName && o.inviterName !== '없음') ? o.inviterName : '';
+                                              body = (
+                                                <>
+                                                  <div style={{ fontWeight: 800, fontSize: 13, color: '#111827' }}>{o.audienceName || '(이름없음)'} · 뒤풀이 {u.orderCount}명</div>
+                                                  {infoRow('초대자(원문)', rawInviter || '입력 안 함')}
+                                                  {infoRow('현재 팀', card.name)}
+                                                  {infoRow('연락처', o.phone || '-')}
+                                                  {infoRow('입금', o.depositStatus || '-')}
+                                                  {infoRow('신청', o.createdAt && Number.isFinite(Date.parse(o.createdAt)) ? new Date(o.createdAt).toLocaleString('ko-KR') : '-')}
+                                                </>
+                                              );
+                                            }
+                                            return (
+                                              <div style={popStyle} onClick={e => e.stopPropagation()}>
+                                                <button type="button" aria-label="정보 닫기" onClick={() => setCellInfo(null)} style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'none', color: '#94a3b8', fontWeight: 800, cursor: 'pointer', fontSize: 12 }}>✕</button>
+                                                {body}
+                                              </div>
+                                            );
+                                          })()}
                                           {isAdmin && (
                                             <button type="button" aria-label={`${u.name} 테이블 대표 ${isRep ? '해제' : '지정'}`} title="테이블 대표 지정/해제 (여러 명 가능)" onClick={() => toggleRep(card, u.key)}
                                               style={{ border: 'none', background: 'none', color: isRep ? '#f59e0b' : '#d1d5db', cursor: 'pointer', padding: '0 2px', fontWeight: 800, fontSize: 13 }}>{isRep ? '★' : '☆'}</button>
