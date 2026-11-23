@@ -1153,3 +1153,31 @@
     padding: 16px;
   }
 }
+
+
+/* ── 뒤풀이 좌석 배치: 팀 격자 반응형 — 데스크톱은 가게 격자 열 수, 모바일은 1열 전체 폭 ── */
+.after-party-team-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--team-grid-cols, 3), minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .after-party-team-grid { grid-template-columns: 1fr; }
+  /* 터치에서는 드래그 배치가 안 되므로 빈 격자 칸은 숨긴다 */
+  .after-party-team-grid .after-party-grid-slot { display: none; }
+}
+
+/* ── 신청자 명단: 데스크톱 5열, 모바일은 이름/인원/그룹만 ── */
+.after-party-roster-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1.1fr) 44px minmax(104px, 1fr) minmax(104px, 1.1fr) minmax(84px, 0.9fr);
+  gap: 6px;
+  padding: 8px 12px;
+  align-items: center;
+}
+@media (max-width: 700px) {
+  .after-party-roster-row { grid-template-columns: minmax(70px, 1.1fr) 34px minmax(90px, 1.4fr); }
+  .after-party-roster-row > :nth-child(3),
+  .after-party-roster-row > :nth-child(5) { display: none; }
+}

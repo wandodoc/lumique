@@ -2174,13 +2174,13 @@ export default function ReservationManagementPage() {
                         <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>뒤풀이 참여로 신청한 예매가 아직 없습니다.</div>
                       ) : (
                         <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, 1.1fr) 44px minmax(104px, 1fr) minmax(104px, 1.1fr) minmax(84px, 0.9fr)', gap: 6, padding: '8px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 800, color: '#64748b' }}>
+                          <div className="after-party-roster-row" style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: 11, fontWeight: 800, color: '#64748b' }}>
                             <span>이름</span><span style={{ textAlign: 'center' }}>인원</span><span>연락처</span><span>그룹(팀)</span><span>신청 시간</span>
                           </div>
                           {rows.map(r => {
                             const b = badge(r);
                             return (
-                              <div key={r.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, 1.1fr) 44px minmax(104px, 1fr) minmax(104px, 1.1fr) minmax(84px, 0.9fr)', gap: 6, padding: '8px 12px', borderBottom: '1px solid #f1f5f9', alignItems: 'center', fontSize: 13 }}>
+                              <div key={r.key} className="after-party-roster-row" style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
                                 <span style={{ fontWeight: 700, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
                                 <span style={{ textAlign: 'center', fontWeight: 700, color: '#334155' }}>{r.count}</span>
                                 <span style={{ fontSize: 12, color: '#475569', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.phone || '-'}</span>
@@ -2509,7 +2509,7 @@ export default function ReservationManagementPage() {
                           </div>
 
                           {/* 팀 격자 */}
-                          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, gap: 12, alignItems: 'start' }}>
+                          <div className="after-party-team-grid" style={{ '--team-grid-cols': gridCols }}>
                             {cards.length === 0 && (
                               <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>아직 팀이 없습니다. '+ 팀 추가'를 누르거나 그룹 탭에서 그룹을 만들면 여기 나타납니다.</div>
                             )}
@@ -2522,6 +2522,7 @@ export default function ReservationManagementPage() {
                                   <div key={`slot-${r}-${c}`}
                                     onDragOver={isAdmin ? (e => e.preventDefault()) : undefined}
                                     onDrop={isAdmin ? (e => { e.preventDefault(); dropTeam(r, c); }) : undefined}
+                                    className="after-party-grid-slot"
                                     style={{ minHeight: 110, border: '1.5px dashed #cbd5e1', borderRadius: 12, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', fontSize: 12, fontWeight: 700 }}>
                                     빈 자리
                                   </div>
