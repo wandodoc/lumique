@@ -646,10 +646,18 @@ export default function TicketOrderForm({ showId }) {
   }, [hasQuantityLimitedTier, afterPartyLimited, canonicalShowId]);
 
   // 뒤풀이 잔여 인원 (null = 제한 없음). 기존 신청 인원 + 공연자 직접 참석을 정원에서 뺀다.
+  // 공연자 본인 예매 연결(afterPartyPerformerOrderIds)이 있으면 그 예매에서 1명을 빼서
+  // 관리 페이지의 집계(중복 제거)와 같은 숫자가 되게 한다.
   const afterPartyRemaining = useMemo(() => {
     if (!afterPartyLimited) return null;
-    const used = filterOrdersForShow(orders, canonicalShowId).reduce((sum, o) => sum + (o.isAfterParty ? (Number(o.afterPartyCount) || 0) : 0), 0)
-      + (Array.isArray(show?.afterPartyPerformerIds) ? show.afterPartyPerformerIds.length : 0);
+    const links = (show?.afterPartyPerformerOrderIds && typeof show.afterPartyPerformerOrderIds === 'object') ? show.afterPartyPerformerOrderIds : {};
+    const linkCountByOrder = {};
+    Object.values(links).forEach(orderId => { if (orderId) linkCountByOrder[orderId] = (linkCountByOrder[orderId] || 0) + 1; });
+    const used = filterOrdersForShow(orders, canonicalShowId).reduce((sum, o) => {
+      if (!o.isAfterParty) return sum;
+      const raw = Number(o.afterPartyCount) || 0;
+      return sum + Math.max(0, raw - (linkCountByOrder[o.id] || 0));
+    }, 0) + (Array.isArray(show?.afterPartyPerformerIds) ? show.afterPartyPerformerIds.length : 0);
     return Math.max(0, afterPartyLimit - used);
   }, [afterPartyLimited, afterPartyLimit, orders, canonicalShowId, show]);
 

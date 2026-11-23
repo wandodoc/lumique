@@ -301,10 +301,15 @@ export const firebaseStorage = {
         const afterPartyLimit = Math.floor(Number(show.afterPartyLimit) || 0);
         if (afterPartyLimit > 0 && order.isAfterParty && Number(order.afterPartyCount) > 0) {
           const afterPartyShowIds = new Set([...getRelatedShowIds(show), order.concertId].filter(Boolean).map(String));
-          const used = orders.reduce((sum, existing) => (
-            afterPartyShowIds.has(String(existing.concertId)) && existing.isAfterParty
-              ? sum + (Number(existing.afterPartyCount) || 0) : sum
-          ), 0) + (Array.isArray(show.afterPartyPerformerIds) ? show.afterPartyPerformerIds.length : 0);
+          // 공연자 본인 예매 연결이 있으면 그 예매에서 1명을 빼, 관리 페이지의 중복 제거 집계와 맞춘다.
+          const perfLinks = (show.afterPartyPerformerOrderIds && typeof show.afterPartyPerformerOrderIds === 'object') ? show.afterPartyPerformerOrderIds : {};
+          const linkCountByOrder = {};
+          Object.values(perfLinks).forEach(linkedOrderId => { if (linkedOrderId) linkCountByOrder[linkedOrderId] = (linkCountByOrder[linkedOrderId] || 0) + 1; });
+          const used = orders.reduce((sum, existing) => {
+            if (!afterPartyShowIds.has(String(existing.concertId)) || !existing.isAfterParty) return sum;
+            const raw = Number(existing.afterPartyCount) || 0;
+            return sum + Math.max(0, raw - (linkCountByOrder[existing.id] || 0));
+          }, 0) + (Array.isArray(show.afterPartyPerformerIds) ? show.afterPartyPerformerIds.length : 0);
           if (used + Number(order.afterPartyCount) > afterPartyLimit) {
             return { status: 'afterparty-full', orders, remaining: Math.max(0, afterPartyLimit - used) };
           }
