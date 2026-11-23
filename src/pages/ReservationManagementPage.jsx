@@ -708,29 +708,8 @@ export default function ReservationManagementPage() {
     const next = { ...afterPartyPerformerOrderIds };
     if (orderId) next[memberId] = orderId;
     else delete next[memberId];
-    const currentOrders = concertId ? filterOrdersForShow(orders, concertId) : orders;
-    const afterPartyOrdersById = new Map(currentOrders.filter(order => order.isAfterParty).map(order => [order.id, order]));
-    const duplicateCounts = {};
-    afterPartyPerformerIds.forEach(id => {
-      const linkedOrderId = next[id];
-      if (linkedOrderId && afterPartyOrdersById.has(linkedOrderId)) {
-        duplicateCounts[linkedOrderId] = (duplicateCounts[linkedOrderId] || 0) + 1;
-      }
-    });
-    const effectiveCountForId = (id) => {
-      const order = afterPartyOrdersById.get(id);
-      return order ? Math.max(0, (Number(order.afterPartyCount) || 1) - (duplicateCounts[id] || 0)) : 0;
-    };
-    // 중복 연결로 줄어든 인원의 기존 좌석도 함께 비워 유령 점유를 남기지 않는다.
-    const nextParticipantSeats = { ...participantSeatAssignments };
-    Object.entries(nextParticipantSeats).forEach(([seatId, assignment]) => {
-      if (!assignment?.orderId || Number(assignment.attendeeIndex) >= effectiveCountForId(assignment.orderId)) delete nextParticipantSeats[seatId];
-    });
-    const nextSeatAssignments = { ...seatAssignments };
-    Object.keys(nextSeatAssignments).forEach(id => {
-      if (effectiveCountForId(id) === 0) delete nextSeatAssignments[id];
-    });
-    await patchCurrentShow({ afterPartyPerformerOrderIds: next, participantSeatAssignments: nextParticipantSeats, seatAssignments: nextSeatAssignments });
+    // 팀/좌석은 그룹에서 파생되므로 연결 변경 시 집계가 자동으로 따라온다 (별도 좌석 정리 불필요).
+    await patchCurrentShow({ afterPartyPerformerOrderIds: next });
   };
 
   const savePriceTiers = async (patch) => {
@@ -1100,7 +1079,6 @@ export default function ReservationManagementPage() {
     if (order.originalAfterPartyCount === undefined) patch.originalAfterPartyCount = prevCount;
     const result = await applyAfterPartyPatch([order.id], patch, '뒤풀이 참여 변경 저장에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
     if (result !== 'firebase') return;
-    if (count === 0 && currentShow) assignToTable([order.id], null);
     showAfterPartyToast(
       `${order.audienceName || '(이름없음)'} 뒤풀이 ${count > 0 ? `${count}명 참여` : '불참'}로 변경됨`,
       () => applyAfterPartyPatch([order.id], previous, '실행 취소에 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.')
