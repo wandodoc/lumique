@@ -1181,3 +1181,11 @@
   .after-party-roster-row > :nth-child(3),
   .after-party-roster-row > :nth-child(5) { display: none; }
 }
+
+
+/* ── 예매 내역: 데스크톱은 표, 모바일은 카드 목록 ── */
+.reservation-mobile-list { display: none; gap: 10px; }
+@media (max-width: 700px) {
+  .reservation-table-scroll { display: none; }
+  .reservation-mobile-list { display: grid; }
+}

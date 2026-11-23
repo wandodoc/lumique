@@ -497,6 +497,8 @@ export default function ReservationManagementPage() {
   const [menuHover, setMenuHover] = useState(null); // 셀 입력 메뉴: 마우스가 올라간 "다른 팀" 인원 (원래 자리 하이라이트용)
   const [unitDrag, setUnitDrag] = useState(null); // 팀 안에서 드래그 중인 사람 셀 { teamId, key }
   const [cellInfo, setCellInfo] = useState(null); // 이름 클릭 시 정보 팝오버 { teamId, key, anchor }
+  const [foldedSections, setFoldedSections] = useState({}); // 긴 페이지 대응: 섹션 접기 { orders, settlement, afterparty }
+  const toggleFold = (key) => setFoldedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const currentShow = useMemo(
     () => (concertId ? resolveShowByAnyId(shows, concertId) : null),
@@ -1656,14 +1658,19 @@ export default function ReservationManagementPage() {
         {/* 1-2. 예매자 관리 내역 (테이블) 카드 */}
         <div className="card card-pad reservation-list-card" style={{ display: 'grid', gap: 14, borderRadius: 20, border: '1px solid #e2e8f0' }}>
 
-          <div className="reservation-list-heading">
+          <div className="reservation-list-heading" role="button" tabIndex={0} onClick={() => toggleFold('orders')} title={foldedSections.orders ? '펼치기' : '접기'} style={{ cursor: 'pointer' }}>
             <div>
               <div className="reservation-section-kicker">RESERVATIONS</div>
               <h2>예매 내역</h2>
               <p>예매 정보와 입금·입장 상태를 확인하고 관리합니다.</p>
             </div>
-            <div className="reservation-heading-count"><strong>{visibleOrders.length}</strong><span>건</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="reservation-heading-count"><strong>{visibleOrders.length}</strong><span>건</span></div>
+              <span aria-hidden="true" style={{ fontSize: 14, color: '#94a3b8', fontWeight: 800 }}>{foldedSections.orders ? '▸' : '▾'}</span>
+            </div>
           </div>
+
+          {!foldedSections.orders && (<>
 
           {/* 입장 관리 모드 (당일 모드) 토글 */}
           <div className="reservation-checkin-toggle" style={{
@@ -1832,8 +1839,31 @@ export default function ReservationManagementPage() {
                 </tfoot>
               </table>
             </div>
+            <div className="reservation-mobile-list">
+              {visibleReservationPage.map(o => {
+                const paid = o.depositStatus === '입금 완료';
+                const inviterInfo = classifyAfterPartyOrder(o);
+                return (
+                  <div key={`m-${o.id}`} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px 12px', display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <strong style={{ fontSize: 14, color: '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.audienceName || '(이름없음)'} <span style={{ color: '#64748b', fontWeight: 700 }}>· {o.ticketCount}매</span></strong>
+                      <button type="button" disabled={!isAdmin} onClick={() => toggleDeposit(o)}
+                        style={{ padding: '4px 10px', borderRadius: 8, border: 'none', background: paid ? '#059669' : '#e2e8f0', color: paid ? '#fff' : '#475569', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap', cursor: isAdmin ? 'pointer' : 'default' }}>{paid ? '✓ 입금 완료' : (o.depositStatus || '입금 대기')}</button>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+                      <span>{o.phone || '-'}</span>
+                      <span>{totalPriceFor(o).toLocaleString()}원</span>
+                      {o.isAfterParty ? <span style={{ color: '#2563eb', fontWeight: 700 }}>뒤풀이 {effectiveAfterPartyCount(o)}명{inviterInfo && (inviterInfo.type === 'performer' || inviterInfo.type === 'group') ? ` · ${inviterInfo.label}` : ''}</span> : null}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{o.createdAt && Number.isFinite(Date.parse(o.createdAt)) ? new Date(o.createdAt).toLocaleString('ko-KR') : ''}</div>
+                  </div>
+                );
+              })}
+              <div style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>세부 수정(뒤풀이 인원·입장·회비 충당·삭제)은 PC 화면에서 할 수 있어요.</div>
+            </div>
             </>
           )}
+          </>)}
         </div>
 
 
@@ -1842,6 +1872,8 @@ export default function ReservationManagementPage() {
           <ShowSettlementCard
             show={currentShow}
             isAdmin={isAdmin}
+            collapsed={!!foldedSections.settlement}
+            onToggleCollapse={() => toggleFold('settlement')}
             onPatchShow={patchCurrentShow}
             ticketCash={totals.ticketCash}
             duesCoveredSum={totals.duesCoveredSum}
@@ -1979,6 +2011,10 @@ export default function ReservationManagementPage() {
                 <h2>뒤풀이 관리</h2>
                 <p>신청자 명단을 확인하고, 좌석 배치에서 팀(그룹)을 관리합니다.</p>
               </div>
+              <button type="button" onClick={() => toggleFold('afterparty')} aria-label={foldedSections.afterparty ? '뒤풀이 관리 펼치기' : '뒤풀이 관리 접기'}
+                style={{ alignSelf: 'flex-start', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                {foldedSections.afterparty ? '▸ 펼치기' : '▾ 접기'}
+              </button>
               <div className="after-party-tabs" role="tablist" aria-label="뒤풀이 관리 작업">
                 {[
                   { value: 'groups', step: '1', label: '신청자 명단' },
@@ -1995,6 +2031,7 @@ export default function ReservationManagementPage() {
               </div>
             </div>
 
+            {!foldedSections.afterparty && (<>
             {mappingErrorMsg && (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -2357,6 +2394,10 @@ export default function ReservationManagementPage() {
                       const placeItem = async (item, card, slotIdx = null) => {
                         setCellEdit(null);
                         setMenuHover(null);
+                        if (item.kind === 'seat') {
+                          if (slotIdx !== null && slotIdx !== undefined) moveUnitToSeat(card, item.unitKey, slotIdx);
+                          return;
+                        }
                         if (item.from && !window.confirm(`${item.name}은(는) 지금 "${item.from}" 팀에 있어요. "${card.name}" 팀으로 옮길까요?`)) return;
                         if (item.kind === 'perf') {
                           const prevLabel = performerGroupMapping[item.memberId] || null;
@@ -2410,7 +2451,12 @@ export default function ReservationManagementPage() {
                             items.push({ key: `p:${m.id}`, kind: 'perf', memberId: m.id, name: m.name, count: 1, hint: '', from: other.name });
                           });
                         });
-                        items.sort((a, b) => ((a.from ? 1 : 0) - (b.from ? 1 : 0)) || String(a.name).localeCompare(String(b.name), 'ko'));
+                        // 같은 팀 사람을 선택하면 그 빈 자리로 "자리 이동"한다 (모바일에서 드래그 대체).
+                        (unitsByCard.get(card.id) || []).forEach(u2 => {
+                          items.push({ key: `seat:${u2.key}`, kind: 'seat', unitKey: u2.key, name: u2.name, count: 1, hint: '', from: '', seatMove: true });
+                        });
+                        const grp = (x) => (x.seatMove ? 1 : x.from ? 2 : 0);
+                        items.sort((a, b) => (grp(a) - grp(b)) || String(a.name).localeCompare(String(b.name), 'ko'));
                         return items;
                       };
                       const cellBase = { minHeight: 34, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', minWidth: 0 };
@@ -2662,6 +2708,14 @@ export default function ReservationManagementPage() {
                                               <div style={popStyle} onClick={e => e.stopPropagation()}>
                                                 <button type="button" aria-label="정보 닫기" onClick={() => setCellInfo(null)} style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'none', color: '#94a3b8', fontWeight: 800, cursor: 'pointer', fontSize: 12 }}>✕</button>
                                                 {body}
+                                                {isAdmin && cards.length > 1 && (
+                                                  <select value="" aria-label="다른 팀으로 이동"
+                                                    onChange={e => { const target = cards.find(c2 => c2.id === e.target.value); if (target) { setCellInfo(null); moveUnitToTeam({ teamId: card.id, key: u.key }, target); } }}
+                                                    style={{ marginTop: 8, width: '100%', padding: '6px 8px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, background: '#fff' }}>
+                                                    <option value="">다른 팀으로 이동…</option>
+                                                    {cards.filter(c2 => c2.id !== card.id).map(c2 => <option key={c2.id} value={c2.id}>{c2.name}</option>)}
+                                                  </select>
+                                                )}
                                               </div>
                                             );
                                           })()}
@@ -2704,6 +2758,7 @@ export default function ReservationManagementPage() {
                                                   onMouseLeave={() => setMenuHover(null)}
                                                   style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: 'pointer', color: '#1e293b' }}>
                                                   {it.kind === 'perf' ? '🎤 ' : ''}{it.name}{it.kind === 'att' && it.count > 1 ? ` (${it.count}명)` : ''}
+                                                  {it.seatMove ? <small style={{ color: '#2563eb', fontWeight: 700 }}> · 이 자리로 이동</small> : null}
                                                   {it.from ? <small style={{ color: '#94a3b8', fontWeight: 700 }}> · {it.from}에서 이동</small> : null}
                                                   {it.hint ? <small style={{ color: '#b45309', fontWeight: 700 }}> · "{it.hint}"</small> : null}
                                                 </button>
@@ -2758,6 +2813,7 @@ export default function ReservationManagementPage() {
                 {afterPartyToast.undo && <button type="button" onClick={undoAfterPartyToast}>실행 취소</button>}
               </div>
             )}
+            </>)}
           </div>
 
         <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0', fontWeight: 500 }}>

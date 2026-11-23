@@ -81,6 +81,7 @@ export default function ShowSettlementCard({
   show, isAdmin, onPatchShow,
   ticketCash, duesCoveredSum, duesCoveredCount, donations = [],
   participantIds, members, bandMembers,
+  collapsed = false, onToggleCollapse = null,
 }) {
   const [showCatPanel, setShowCatPanel] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -424,11 +425,17 @@ export default function ShowSettlementCard({
         .settlement-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 40px; align-items: start; }
         @media (max-width: 860px) { .settlement-cols { grid-template-columns: 1fr; gap: 20px; } }
       `}</style>
-      <div>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>공연 정산</h2>
-        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>수입과 지출을 비교합니다. 입출금 장부에는 영향을 주지 않습니다.</p>
+      <div role={onToggleCollapse ? 'button' : undefined} tabIndex={onToggleCollapse ? 0 : undefined}
+        onClick={onToggleCollapse || undefined} title={onToggleCollapse ? (collapsed ? '펼치기' : '접기') : undefined}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, cursor: onToggleCollapse ? 'pointer' : 'default' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px' }}>공연 정산</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>수입과 지출을 비교합니다. 입출금 장부에는 영향을 주지 않습니다.</p>
+        </div>
+        {onToggleCollapse && <span aria-hidden="true" style={{ fontSize: 14, color: '#94a3b8', fontWeight: 800 }}>{collapsed ? '▸' : '▾'}</span>}
       </div>
 
+      {!collapsed && (<>
       <div className="settlement-cols">
       {/* ── 수입 ── */}
       <section style={{ minWidth: 0 }}>
@@ -636,6 +643,7 @@ export default function ShowSettlementCard({
           {balance >= 0 ? `잔액 ${won(balance)}` : `부족 ${won(-balance)}`}
         </div>
       </section>
+      </>)}
     </div>
   );
 }
