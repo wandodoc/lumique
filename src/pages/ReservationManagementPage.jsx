@@ -2253,6 +2253,16 @@ export default function ReservationManagementPage() {
                         keys.splice(Math.max(0, Math.min(targetIndex, keys.length)), 0, dragKey);
                         upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
                       };
+                      // 같은 팀에서 사람 위에 떨어뜨리면 두 사람의 자리를 서로 교체한다 (밀리지 않음).
+                      const swapUnits = (card, keyA, keyB) => {
+                        if (keyA === keyB) return;
+                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
+                        const ia = keys.indexOf(keyA);
+                        const ib = keys.indexOf(keyB);
+                        if (ia < 0 || ib < 0) return;
+                        [keys[ia], keys[ib]] = [keys[ib], keys[ia]];
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
+                      };
                       // 셀을 다른 팀 위에 떨어뜨리면 그 팀(그룹)으로 이동한다. 예매는 동반 인원까지 함께 움직인다.
                       const moveUnitToTeam = (drag, card) => {
                         const srcUnit = (unitsByCard.get(drag.teamId) || []).find(u => u.key === drag.key);
@@ -2593,7 +2603,7 @@ export default function ReservationManagementPage() {
                                           onDragStart={isAdmin ? (e => { e.stopPropagation(); setUnitDrag({ teamId: card.id, key: u.key }); }) : undefined}
                                           onDragEnd={isAdmin ? (() => setUnitDrag(null)) : undefined}
                                           onDragOver={isAdmin ? (e => { if (unitDrag) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
-                                          onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) reorderUnit(card, unitDrag.key, globalIdx); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
+                                          onDrop={isAdmin ? (e => { if (!unitDrag) return; e.preventDefault(); e.stopPropagation(); if (unitDrag.teamId === card.id) swapUnits(card, unitDrag.key, u.key); else moveUnitToTeam(unitDrag, card); setUnitDrag(null); }) : undefined}
                                           style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
                                           <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
                                           {isAdmin && (
