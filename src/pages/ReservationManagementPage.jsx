@@ -496,6 +496,7 @@ export default function ReservationManagementPage() {
   const [teamDragId, setTeamDragId] = useState(null); // 격자에서 드래그 중인 팀(그룹) id
   const tableSizeInputRef = useRef(null); // "테이블 기본 정원" 입력칸 — 적용 버튼이 최신 입력값을 바로 읽는다
   const [menuHover, setMenuHover] = useState(null); // 셀 입력 메뉴: 마우스가 올라간 "다른 팀" 인원 (원래 자리 하이라이트용)
+  const [unitDrag, setUnitDrag] = useState(null); // 팀 안에서 드래그 중인 사람 셀 { teamId, key }
 
   const currentShow = useMemo(
     () => (concertId ? resolveShowByAnyId(shows, concertId) : null),
@@ -2217,16 +2218,40 @@ export default function ReservationManagementPage() {
                           const nm = o.audienceName || '(이름없음)';
                           for (let i = 0; i < count; i += 1) units.push({ key: `a:${o.id}:${i}`, kind: 'att', order: o, name: count > 1 ? `${nm} (${i + 1})` : nm, orderCount: count });
                         });
+                        // 관리자가 드래그로 정한 자리 순서가 있으면 그 순서를 우선하고, 나머지는 가나다순으로 뒤에 붙인다.
+                        const seatOrder = afterPartyTables.find(tb => tb.groupKey === card.id)?.seatOrder;
+                        if (Array.isArray(seatOrder) && seatOrder.length > 0) {
+                          const pos = new Map(seatOrder.map((k, idx) => [k, idx]));
+                          units.sort((a, b) => (pos.has(a.key) ? pos.get(a.key) : seatOrder.length) - (pos.has(b.key) ? pos.get(b.key) : seatOrder.length));
+                        }
                         return units;
                       };
                       const unitsByCard = new Map(cards.map(card => [card.id, unitsForCard(card)]));
                       // 뒤풀이 장소/테이블 기본 정원 — 공연마다 저장된다 (가게가 바뀌면 여기만 고치면 됨)
                       const venueName = String(currentShow?.afterPartyVenueName || '');
                       const defaultCap = Math.max(1, Math.floor(Number(currentShow?.afterPartyTableSize)) || 6);
+                      // 가게가 보유한 테이블 구성 (예: 4인 테이블 10개 + 6인 테이블 4개)
+                      const tableInventory = (Array.isArray(currentShow?.afterPartyTableInventory) ? currentShow.afterPartyTableInventory : [])
+                        .map(row => ({ size: Math.max(1, Math.floor(Number(row?.size)) || 0), count: Math.max(0, Math.floor(Number(row?.count)) || 0) }))
+                        .filter(row => row.size > 0 && row.count > 0);
+                      const inventoryTableCount = tableInventory.reduce((sum, row) => sum + row.count, 0);
+                      const inventorySeatCount = tableInventory.reduce((sum, row) => sum + row.size * row.count, 0);
+                      const saveInventory = (rows) => saveSeatingPatch({ afterPartyTableInventory: rows.filter(row => row.size > 0 && row.count > 0) });
                       const capFor = (card) => {
                         const t = afterPartyTables.find(tb => tb.groupKey === card.id);
                         const stored = Math.max(0, Math.floor(Number(t?.capacity)) || 0);
                         return stored > 0 ? stored : Math.max(defaultCap, (unitsByCard.get(card.id) || []).length);
+                      };
+                      // 팀이 쓰는 실제 테이블 수 = 정원(또는 인원)을 기본 정원으로 나눈 올림값
+                      const tableCountFor = (card) => Math.max(1, Math.ceil(Math.max(capFor(card), (unitsByCard.get(card.id) || []).length) / Math.max(1, defaultCap)));
+                      const totalTables = cards.reduce((sum, card) => sum + tableCountFor(card), 0);
+                      const reorderUnit = (card, dragKey, targetIndex) => {
+                        const keys = (unitsByCard.get(card.id) || []).map(u => u.key);
+                        const fromIdx = keys.indexOf(dragKey);
+                        if (fromIdx < 0) return;
+                        keys.splice(fromIdx, 1);
+                        keys.splice(Math.max(0, Math.min(targetIndex, keys.length)), 0, dragKey);
+                        upsertGroupTables([{ groupId: card.id, name: card.name, patch: { seatOrder: keys } }]);
                       };
                       const applyCapacityToAll = () => {
                         if (cards.length === 0) return;
@@ -2355,9 +2380,10 @@ export default function ReservationManagementPage() {
                             <StatCard label="팀 배정 완료" value={`${Math.max(0, afterPartySummary.total - poolCount)}명`} color="#059669" />
                             <StatCard label="미배치" value={`${poolCount}명`} color="#b45309" />
                             <StatCard label="팀" value={`${cards.length}개`} color="#111827" />
+                            <StatCard label="필요 테이블" value={inventoryTableCount > 0 ? `${totalTables} / ${inventoryTableCount}개` : `${totalTables}개`} color={inventoryTableCount > 0 && totalTables > inventoryTableCount ? '#dc2626' : '#334155'} />
                             <StatCard label="정원 초과 팀" value={`${overCount}개`} color="#dc2626" />
                           </div>
-                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>{venueName ? `📍 ${venueName} · ` : ''}전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
+                          <div className="after-party-seating-note" style={{ fontSize: 11, color: '#64748b' }}>{venueName ? `📍 ${venueName} · ` : ''}{inventoryTableCount > 0 ? `보유 ${tableInventory.map(row => `${row.size}인×${row.count}`).join(', ')} (총 ${inventoryTableCount}개 · ${inventorySeatCount}석) · ` : ''}전체 {afterPartySummary.total}명 (공연자 포함) · 팀은 그룹 탭의 그룹과 같습니다 — 어느 쪽에서 바꿔도 함께 바뀝니다. 셀의 ☆을 누르면 테이블 대표로 지정되고(여러 명 가능) 주황색으로 표시됩니다.</div>
 
                           {isAdmin && (
                             <div className="after-party-seating-actions" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2391,6 +2417,26 @@ export default function ReservationManagementPage() {
                                   style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontSize: 11, fontWeight: 700, cursor: cards.length === 0 ? 'not-allowed' : 'pointer', opacity: cards.length === 0 ? 0.5 : 1 }}
                                 >모든 팀에 적용</button>
                                 <span style={{ fontSize: 11, color: '#94a3b8' }}>새로 만드는 팀은 기본 정원으로 시작합니다</span>
+                              </span>
+                              <span style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>보유 테이블</span>
+                                {tableInventory.map((row, idx) => (
+                                  <span key={`inv-${idx}-${row.size}-${row.count}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 7px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                                    <input type="number" min="1" max="99" aria-label="테이블 자리 수" defaultValue={row.size}
+                                      onBlur={e => { const n = Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || row.size)); if (n !== row.size) saveInventory(tableInventory.map((r, i) => (i === idx ? { ...r, size: n } : r))); }}
+                                      style={{ width: 36, padding: '2px 4px', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 12, fontWeight: 800, textAlign: 'center' }} />
+                                    인 ×
+                                    <input type="number" min="1" max="99" aria-label="테이블 개수" defaultValue={row.count}
+                                      onBlur={e => { const n = Math.max(1, Math.min(99, Math.floor(Number(e.target.value)) || row.count)); if (n !== row.count) saveInventory(tableInventory.map((r, i) => (i === idx ? { ...r, count: n } : r))); }}
+                                      style={{ width: 36, padding: '2px 4px', border: '1px solid #e2e8f0', borderRadius: 5, fontSize: 12, fontWeight: 800, textAlign: 'center' }} />
+                                    개
+                                    <button type="button" aria-label="이 테이블 종류 삭제" onClick={() => saveInventory(tableInventory.filter((_, i) => i !== idx))}
+                                      style={{ border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: '0 1px', fontSize: 12 }}>✕</button>
+                                  </span>
+                                ))}
+                                <button type="button" onClick={() => saveSeatingPatch({ afterPartyTableInventory: [...tableInventory, { size: defaultCap, count: 1 }] })}
+                                  style={{ padding: '4px 9px', borderRadius: 8, border: '1px dashed #cbd5e1', background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>+ 종류 추가</button>
+                                {inventoryTableCount > 0 && <span style={{ fontSize: 11, color: '#94a3b8' }}>총 {inventoryTableCount}개 · {inventorySeatCount}석</span>}
                               </span>
                             </div>
                           )}
@@ -2515,36 +2561,49 @@ export default function ReservationManagementPage() {
                                     <input type="number" min="1" disabled={!isAdmin} aria-label="팀 정원" title="가게 테이블 자리 수. 인원이 넘치면 자동으로 늘어납니다." key={`tc:${card.id}:${cap}`} defaultValue={cap}
                                       onBlur={e => { const n = Math.max(1, Math.floor(Number(e.target.value)) || cap); if (n !== cap) upsertGroupTables([{ groupId: card.id, name: card.name, patch: { capacity: n } }]); }}
                                       style={{ width: 44, padding: '3px 5px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, fontWeight: 800, textAlign: 'right', background: '#fff' }} />
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#64748b', whiteSpace: 'nowrap' }}>{tableCountFor(card)}테이블</span>
                                     {isAdmin && card.kind === 'group' && (
                                       <button type="button" aria-label="팀 삭제" title="이 팀(그룹)을 삭제합니다" onClick={() => removeTeam(card)} style={{ border: 'none', background: 'none', color: '#dc2626', fontWeight: 800, cursor: 'pointer', padding: '0 2px', fontSize: 13 }}>✕</button>
                                     )}
                                   </div>
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                                    {units.map((u, i) => {
-                                      const table = afterPartyTables.find(tb => tb.groupKey === card.id);
-                                      const repIds = Array.isArray(table?.repIds) ? table.repIds : [];
+                                  {(() => {
+                                    // ── 테이블 단위 박스: 기본 정원만큼씩 끊어 실제 테이블 1개를 테두리로 보여준다.
+                                    // 셀을 드래그해서 같은 팀 안의 다른 자리(다른 테이블 포함)로 옮길 수 있다. ──
+                                    const tableSeats = Math.max(1, defaultCap);
+                                    const totalCells = units.length + emptyCount;
+                                    const chunkCount = Math.max(1, Math.ceil(totalCells / tableSeats));
+                                    const teamTable = afterPartyTables.find(tb => tb.groupKey === card.id);
+                                    const repIds = Array.isArray(teamTable?.repIds) ? teamTable.repIds : [];
+                                    const renderUnitCell = (u, globalIdx, idxInChunk) => {
                                       const isRep = repIds.includes(u.key);
                                       const isMoveTarget = !!menuHover && ((menuHover.kind === 'att' && u.kind === 'att' && u.order.id === menuHover.orderId) || (menuHover.kind === 'perf' && u.kind === 'perf' && u.memberId === menuHover.memberId));
-                                      // 기본 정원(실제 테이블 1개의 자리 수) 단위마다 점선 — 4인석 2개를 붙인 팀이면 경계가 보인다.
-                                      const rowStart = i - (i % 2);
-                                      const newTableRow = rowStart > 0 && defaultCap > 0 && rowStart % defaultCap === 0;
+                                      const isDragging = unitDrag?.teamId === card.id && unitDrag?.key === u.key;
                                       return (
-                                      <div key={u.key} style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: i % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: newTableRow ? '2px dashed #94a3b8' : cellBase.borderTop }}>
-                                        <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
-                                        {isAdmin && (
-                                          <button type="button" aria-label={`${u.name} 테이블 대표 ${isRep ? '해제' : '지정'}`} title="테이블 대표 지정/해제 (여러 명 가능)" onClick={() => toggleRep(card, u.key)}
-                                            style={{ border: 'none', background: 'none', color: isRep ? '#f59e0b' : '#d1d5db', cursor: 'pointer', padding: '0 2px', fontWeight: 800, fontSize: 13 }}>{isRep ? '★' : '☆'}</button>
-                                        )}
-                                        {isAdmin && (
-                                          <button type="button" aria-label={`${u.name} 빼기`} title={u.kind === 'att' && u.orderCount > 1 ? '동반 인원까지 예매 단위로 함께 빠집니다' : undefined} onClick={() => removeUnit(u)}
-                                            style={{ border: 'none', background: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 8px', fontWeight: 800, fontSize: 12 }}>✕</button>
-                                        )}
-                                      </div>
+                                        <div key={u.key}
+                                          draggable={isAdmin}
+                                          onDragStart={isAdmin ? (e => { e.stopPropagation(); setUnitDrag({ teamId: card.id, key: u.key }); }) : undefined}
+                                          onDragEnd={isAdmin ? (() => setUnitDrag(null)) : undefined}
+                                          onDragOver={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
+                                          onDrop={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); reorderUnit(card, unitDrag.key, globalIdx); setUnitDrag(null); } }) : undefined}
+                                          style={{ ...cellBase, background: isMoveTarget ? '#fef9c3' : isRep ? '#ffedd5' : '#fff', boxShadow: isMoveTarget ? 'inset 0 0 0 2px #f59e0b' : 'none', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none', opacity: isDragging ? 0.4 : 1, cursor: isAdmin ? 'grab' : 'default' }}>
+                                          <span style={{ flex: 1, padding: '7px 2px 7px 10px', fontSize: 13, fontWeight: 700, color: isRep ? '#9a3412' : '#111827', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.kind === 'perf' ? '🎤 ' : ''}{u.name}</span>
+                                          {isAdmin && (
+                                            <button type="button" aria-label={`${u.name} 테이블 대표 ${isRep ? '해제' : '지정'}`} title="테이블 대표 지정/해제 (여러 명 가능)" onClick={() => toggleRep(card, u.key)}
+                                              style={{ border: 'none', background: 'none', color: isRep ? '#f59e0b' : '#d1d5db', cursor: 'pointer', padding: '0 2px', fontWeight: 800, fontSize: 13 }}>{isRep ? '★' : '☆'}</button>
+                                          )}
+                                          {isAdmin && (
+                                            <button type="button" aria-label={`${u.name} 빼기`} title={u.kind === 'att' && u.orderCount > 1 ? '동반 인원까지 예매 단위로 함께 빠집니다' : undefined} onClick={() => removeUnit(u)}
+                                              style={{ border: 'none', background: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 8px', fontWeight: 800, fontSize: 12 }}>✕</button>
+                                          )}
+                                        </div>
                                       );
-                                    })}
-                                    {Array.from({ length: emptyCount }, (_, i) => (
-                                      <div key={`empty-${i}`} style={{ ...cellBase, position: 'relative', borderRight: (units.length + i) % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: (() => { const g = units.length + i; const rs = g - (g % 2); return rs > 0 && defaultCap > 0 && rs % defaultCap === 0 ? '2px dashed #94a3b8' : cellBase.borderTop; })() }}>
-                                        {isEditing && i === 0 ? (
+                                    };
+                                    const renderEmptyCell = (globalIdx, idxInChunk) => (
+                                      <div key={`empty-${globalIdx}`}
+                                        onDragOver={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); } }) : undefined}
+                                        onDrop={isAdmin ? (e => { if (unitDrag?.teamId === card.id) { e.preventDefault(); e.stopPropagation(); reorderUnit(card, unitDrag.key, units.length); setUnitDrag(null); } }) : undefined}
+                                        style={{ ...cellBase, position: 'relative', borderRight: idxInChunk % 2 === 0 ? '1px solid #f1f5f9' : 'none', borderTop: idxInChunk >= 2 ? cellBase.borderTop : 'none' }}>
+                                        {isEditing && globalIdx === units.length ? (
                                           <>
                                             <input autoFocus type="text" value={cellEdit.query} placeholder="이름 입력" aria-label="배치할 이름 검색"
                                               onChange={e => setCellEdit(prev => ({ ...prev, teamId: card.id, query: e.target.value }))}
@@ -2575,14 +2634,33 @@ export default function ReservationManagementPage() {
                                             </div>
                                           </>
                                         ) : (
-                                          isAdmin ? (
+                                          isAdmin && globalIdx === units.length ? (
                                             <button type="button" onClick={e => { const rect = e.currentTarget.getBoundingClientRect(); setCellEdit({ teamId: card.id, query: '', anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } }); }}
                                               style={{ width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '7px 10px', fontSize: 13, color: '#cbd5e1', cursor: 'text', fontWeight: 600 }}>+ 이름 입력</button>
                                           ) : null
                                         )}
                                       </div>
-                                    ))}
-                                  </div>
+                                    );
+                                    return (
+                                      <div style={{ display: 'grid', gap: 6, padding: 6 }}>
+                                        {Array.from({ length: chunkCount }, (_, ti) => {
+                                          const startIdx = ti * tableSeats;
+                                          const count = Math.min(tableSeats, totalCells - startIdx);
+                                          return (
+                                            <div key={`tbl-${ti}`} style={{ border: '1.5px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+                                              {chunkCount > 1 && <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', padding: '2px 8px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>테이블 {ti + 1}</div>}
+                                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                                                {Array.from({ length: count }, (_, k) => {
+                                                  const gi = startIdx + k;
+                                                  return gi < units.length ? renderUnitCell(units[gi], gi, k) : renderEmptyCell(gi, k);
+                                                })}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               );
                             })}
