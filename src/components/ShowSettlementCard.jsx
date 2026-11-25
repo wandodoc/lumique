@@ -105,6 +105,7 @@ export default function ShowSettlementCard({
   const [expenseDate, setExpenseDate] = useState(today);
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expensePaidBy, setExpensePaidBy] = useState('');
+  const [expenseMemo, setExpenseMemo] = useState('');
   const [editingExpense, setEditingExpense] = useState(null); // { id, category, date, memo, amount, paidBy }
   const [catDraft, setCatDraft] = useState('');
   const [donName, setDonName] = useState('');
@@ -273,8 +274,8 @@ export default function ShowSettlementCard({
     const amount = toAmount(expenseAmount);
     if (!category) { window.alert("지출 항목을 먼저 선택해 주세요. 항목이 없으면 '항목 관리'에서 만들 수 있어요."); return; }
     if (amount <= 0) { window.alert('금액을 입력해 주세요.'); return; }
-    const ok = await save({ expenses: [...settlement.expenses, { id: newId(), category, memo: '', date: expenseDate || '', amount, paidBy: expensePaidBy.trim(), reimbursed: false, createdAt: new Date().toISOString() }] });
-    if (ok) { setExpenseAmount(''); setExpensePaidBy(''); }
+    const ok = await save({ expenses: [...settlement.expenses, { id: newId(), category, memo: expenseMemo.trim(), date: expenseDate || '', amount, paidBy: expensePaidBy.trim(), reimbursed: false, createdAt: new Date().toISOString() }] });
+    if (ok) { setExpenseAmount(''); setExpensePaidBy(''); setExpenseMemo(''); }
   };
   const toggleReimbursed = (id) => save({ expenses: settlement.expenses.map(e => (e.id === id ? { ...e, reimbursed: !e.reimbursed } : e)) });
   const markGroupReimbursed = (group) => {
@@ -637,6 +638,7 @@ export default function ShowSettlementCard({
               <input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} aria-label="지출 날짜" style={{ ...inputStyle, flex: '1 1 120px' }} />
               <input type="text" inputMode="numeric" value={expenseAmount} onChange={e => setExpenseAmount(formatAmountInput(e.target.value))} placeholder="금액" aria-label="지출 금액" style={{ ...inputStyle, flex: '.9 1 80px' }} />
               <input type="text" value={expensePaidBy} onChange={e => setExpensePaidBy(e.target.value)} placeholder="선결제자" aria-label="선결제자" list="settlement-person-names" style={{ ...inputStyle, flex: '.9 1 90px' }} />
+              <input type="text" value={expenseMemo} onChange={e => setExpenseMemo(e.target.value)} placeholder="메모 (선택)" aria-label="지출 메모" style={{ ...inputStyle, flex: '1 1 120px' }} />
               <datalist id="settlement-person-names">{personNames.map(n => <option key={n} value={n} />)}</datalist>
               <button type="button" onClick={addExpense} disabled={saving} style={{ ...smallButton, background: '#111827', color: '#fff', border: 'none', padding: '9px 14px' }}>{saving ? '저장 중…' : '추가'}</button>
             </div>
