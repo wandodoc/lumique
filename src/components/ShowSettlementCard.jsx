@@ -397,7 +397,7 @@ export default function ShowSettlementCard({
         {e.receipt ? (
           <button type="button" aria-label="증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe' }}>증빙{Number(e.receiptCount) > 1 ? ` ${e.receiptCount}` : ''}</button>
         ) : (isAdmin && (
-          <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe' }}>증빙 첨부</button>
+          <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={{ ...miniButton, color: '#64748b', border: '1px solid #cbd5e1', background: '#f8fafc' }}>증빙 첨부</button>
         ))}
       </span>
       {isAdmin ? <button type="button" className="settlement-entry-edit" aria-label="지출 수정" disabled={saving} onClick={() => startEditExpense(e)} style={miniButton}>수정</button> : <span className="settlement-entry-edit" aria-hidden="true" />}
