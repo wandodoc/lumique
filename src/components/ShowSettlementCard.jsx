@@ -395,9 +395,9 @@ export default function ShowSettlementCard({
       </label>
       <span className="settlement-entry-receipt">
         {e.receipt ? (
-          <button type="button" aria-label="증빙 보기" title="첨부된 증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe', background: '#eff6ff' }}>📎</button>
+          <button type="button" aria-label="증빙 보기" title="첨부된 증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe', background: '#eff6ff' }}>증빙 있음</button>
         ) : (isAdmin && (
-          <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={{ ...miniButton, color: '#64748b', border: '1px solid #cbd5e1', background: '#f8fafc' }}>📎</button>
+          <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={{ ...miniButton, color: '#64748b', border: '1px solid #cbd5e1', background: '#f8fafc' }}>증빙 첨부</button>
         ))}
       </span>
       {isAdmin ? <button type="button" className="settlement-entry-edit" aria-label="지출 수정" disabled={saving} onClick={() => startEditExpense(e)} style={miniButton}>수정</button> : <span className="settlement-entry-edit" aria-hidden="true" />}
@@ -706,16 +706,18 @@ export default function ShowSettlementCard({
                     </button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, fontSize: 11, color: '#94a3b8' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#94a3b8' }}>
                   <span>{receiptView.activeIndex + 1} / {receiptView.images.length} · {receiptView.images[receiptView.activeIndex]?.name || '이름 없는 사진'}</span>
-                  {isAdmin && <button type="button" disabled={saving} onClick={() => removeReceiptImage(receiptView.activeIndex)} style={{ ...dangerMini, padding: '5px 9px' }}>이 사진 삭제</button>}
+                  {isAdmin && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <button type="button" disabled={saving} onClick={() => { setReceiptTargetId(receiptView.id); receiptInputRef.current?.click(); }} style={{ ...miniButton, padding: '5px 9px' }}>+ 증빙 추가</button>
+                      <button type="button" aria-label="이 사진 삭제" title="이 사진 삭제" disabled={saving} onClick={() => removeReceiptImage(receiptView.activeIndex)} style={{ ...dangerMini, width: 30, height: 30, padding: 0, fontSize: 14 }}>🗑</button>
+                    </span>
+                  )}
                 </div>
               </>
             ) : (
               <div style={{ padding: 30, textAlign: 'center', color: '#b91c1c', fontSize: 13 }}>증빙을 불러오지 못했습니다. 네트워크를 확인하고 다시 열어 주세요.</div>
-            )}
-            {isAdmin && !receiptView.loading && receiptView.images.length > 0 && (
-              <button type="button" disabled={saving} onClick={() => { setReceiptTargetId(receiptView.id); receiptInputRef.current?.click(); }} style={{ ...smallButton, alignSelf: 'flex-end' }}>+ 사진 추가</button>
             )}
           </div>
         </div>
