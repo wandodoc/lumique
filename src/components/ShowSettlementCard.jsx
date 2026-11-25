@@ -387,22 +387,24 @@ export default function ShowSettlementCard({
   );
 
   const renderEntryActions = (e, groupName) => (
-    <div style={subRightStyle}>
-      <label style={checkLabel(Boolean(e.reimbursed))}>
+    <div className="settlement-entry-actions">
+      <label className="settlement-entry-status" style={checkLabel(Boolean(e.reimbursed))}>
         <input type="checkbox" checked={Boolean(e.reimbursed)} disabled={!isAdmin || saving} onChange={() => toggleReimbursed(e.id)} />
         정산 완료
       </label>
-      {e.receipt ? (
-        <>
+      <span className="settlement-entry-receipt">
+        {e.receipt ? (
+          <>
           <button type="button" aria-label="증빙 보기" disabled={saving} onClick={() => openReceipt(e, groupName)} style={{ ...miniButton, color: '#1d4ed8', border: '1px solid #bfdbfe' }}>증빙{Number(e.receiptCount) > 1 ? ` ${e.receiptCount}` : ''}</button>
           {isAdmin && <button type="button" aria-label="증빙 사진 추가" title="증빙 사진 추가" disabled={saving} onClick={() => attachReceipt(e)} style={miniButton}>+ 사진</button>}
-        </>
-      ) : (isAdmin && (
-        <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={miniButton}>📎</button>
-      ))}
-      {isAdmin && <button type="button" aria-label="지출 수정" disabled={saving} onClick={() => startEditExpense(e)} style={miniButton}>수정</button>}
-      {isAdmin && <button type="button" aria-label="지출 삭제" disabled={saving} onClick={() => removeExpense(e, groupName)} style={dangerMini}>삭제</button>}
-      <span style={{ ...amountStyle, fontSize: 13, minWidth: 84, textAlign: 'right' }}>{won(e.amount)}</span>
+          </>
+        ) : (isAdmin && (
+          <button type="button" aria-label="증빙 첨부" title="영수증 사진 첨부" disabled={saving} onClick={() => attachReceipt(e)} style={miniButton}>📎</button>
+        ))}
+      </span>
+      {isAdmin ? <button type="button" className="settlement-entry-edit" aria-label="지출 수정" disabled={saving} onClick={() => startEditExpense(e)} style={miniButton}>수정</button> : <span className="settlement-entry-edit" aria-hidden="true" />}
+      {isAdmin ? <button type="button" className="settlement-entry-delete" aria-label="지출 삭제" disabled={saving} onClick={() => removeExpense(e, groupName)} style={dangerMini}>삭제</button> : <span className="settlement-entry-delete" aria-hidden="true" />}
+      <span className="settlement-entry-amount" style={{ ...amountStyle, fontSize: 13 }}>{won(e.amount)}</span>
     </div>
   );
 
@@ -467,7 +469,37 @@ export default function ShowSettlementCard({
     <div className="card card-pad" style={{ borderRadius: 20, border: '1px solid #e2e8f0', background: '#fff', display: 'grid', gap: 18 }}>
       <style>{`
         .settlement-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 40px; align-items: start; }
+        .settlement-entry-actions {
+          display: grid;
+          grid-template-columns: 72px 112px 44px 44px 84px;
+          align-items: center;
+          column-gap: 6px;
+          flex: 0 0 auto;
+        }
+        .settlement-entry-status { min-width: 0; }
+        .settlement-entry-receipt { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+        .settlement-entry-edit, .settlement-entry-delete { width: 44px; }
+        .settlement-entry-amount { min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
         @media (max-width: 860px) { .settlement-cols { grid-template-columns: 1fr; gap: 20px; } }
+        @media (max-width: 560px) {
+          .settlement-entry-actions {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px;
+            grid-template-areas:
+              "status receipt receipt"
+              "edit delete amount";
+            column-gap: 4px;
+            row-gap: 4px;
+            width: 100%;
+            margin-top: 2px;
+          }
+          .settlement-entry-status { grid-area: status; }
+          .settlement-entry-receipt { grid-area: receipt; }
+          .settlement-entry-edit { grid-area: edit; }
+          .settlement-entry-delete { grid-area: delete; }
+          .settlement-entry-amount { grid-area: amount; }
+          .settlement-entry-edit, .settlement-entry-delete { width: 42px; padding-left: 4px; padding-right: 4px; }
+          .settlement-entry-amount { min-width: 72px; }
+        }
       `}</style>
       <div role={onToggleCollapse ? 'button' : undefined} tabIndex={onToggleCollapse ? 0 : undefined}
         onClick={onToggleCollapse || undefined} title={onToggleCollapse ? (collapsed ? '펼치기' : '접기') : undefined}
